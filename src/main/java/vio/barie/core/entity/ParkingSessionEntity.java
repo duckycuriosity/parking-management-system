@@ -18,7 +18,7 @@ public class ParkingSessionEntity extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "device_id", nullable = false)
-    private UserDevicePermissionEntity userDevice;
+    private DeviceEntity device;
 
     @Column(name = "entry_time", nullable = false)
     private LocalDateTime entryTime;

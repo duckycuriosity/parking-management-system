@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
                 columnNames = {"parking_customer_id", "device_id"}
         )
 )
-public class UserDevicePermissionEntity {
+public class UserDevicePermissionEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parking_customer_id", nullable = false)
     private ParkingCustomerEntity parkingCustomer;

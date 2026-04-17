@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @EqualsAndHashCode(callSuper = true)
 public class PaymentEntity extends BaseEntity {
 
-    @Column(name = "invoiceNo")
+    @Column(name = "invoice_no")
     private String invoiceNo;
 
     @Column(name = "amount")
