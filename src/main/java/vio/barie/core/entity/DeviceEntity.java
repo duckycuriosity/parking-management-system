@@ -18,6 +18,9 @@ public class DeviceEntity extends BaseEntity {
     @Column(name = "plate_number", unique = true, nullable = false)
     private String plateNumber;
 
+    @Column(name = "ai_identity_plate_id")
+    private String aiIdentityPlateId;
+    
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "info", columnDefinition = "jsonb")
     private String info; // Hoặc Object nếu bạn muốn map tự động
