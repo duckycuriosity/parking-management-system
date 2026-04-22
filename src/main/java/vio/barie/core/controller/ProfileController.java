@@ -1,5 +1,6 @@
 package vio.barie.core.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -14,17 +15,15 @@ import java.util.List;
 @RequestMapping("/api/profiles")
 @RequiredArgsConstructor
 public class ProfileController {
-    private final ProfileService profileService; // Đã sửa từ ProfileController thành ProfileService
+    private final ProfileService profileService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<AiProfileResponse> create(@RequestBody ProfileCreateRequest request) {
-        System.out.println(">>> Sending to AI: " + request);
+    public ApiResponse<AiProfileResponse> create(@Valid @RequestBody ProfileCreateRequest request) {
         return new ApiResponse<>(
                 "SUCCESS",
                 "Profile created successfully",
-                profileService.create(request)
-        );
+                profileService.create(request));
     }
 
     @GetMapping
@@ -32,8 +31,7 @@ public class ProfileController {
         return new ApiResponse<>(
                 "SUCCESS",
                 "Profile list fetched successfully",
-                profileService.findAll()
-        );
+                profileService.findAll());
     }
 
     // Lấy thông tin theo ID (GET)
@@ -42,21 +40,18 @@ public class ProfileController {
         return new ApiResponse<>(
                 "SUCCESS",
                 "Profile fetched successfully",
-                profileService.findById(id)
-        );
+                profileService.findById(id));
     }
 
     // Cập nhật Profile (PUT)
     @PutMapping("/{id}")
     public ApiResponse<AiProfileResponse> update(
             @PathVariable Integer id,
-            @RequestBody ProfileCreateRequest request
-    ) {
+            @Valid @RequestBody ProfileCreateRequest request) {
         return new ApiResponse<>(
                 "SUCCESS",
                 "Profile updated successfully",
-                profileService.update(id, request)
-        );
+                profileService.update(id, request));
     }
 
     // Xóa Profile (DELETE)
@@ -66,7 +61,6 @@ public class ProfileController {
         return new ApiResponse<>(
                 "SUCCESS",
                 "Profile deleted successfully",
-                null
-        );
+                null);
     }
 }
