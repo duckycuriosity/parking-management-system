@@ -1,16 +1,23 @@
 package vio.barie.core.controller;
 
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.bind.annotation.RestController;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
 import tools.jackson.databind.util.JSONPObject;
+import vio.barie.core.dto.payment.MegaPayResponse;
 
-@RestController("/payment")
+// controller để hứng callback từ megapay, tạo đơn thanh toán
+@RestController
+@RequestMapping("/api/payment")
+@RequiredArgsConstructor
 public class PaymentController {
 
     @PostMapping("/callBackUrl")
-    public void callBack(@RequestBody String txt){
-        System.out.println(txt);
+    public void callBack(@RequestBody MegaPayResponse resp){
+
+    }
+
+    @PostMapping("/ipn")
+    public void ipn(@RequestBody MegaPayResponse resp){
+
     }
 }

@@ -5,9 +5,9 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import vio.barie.core.config.exception.ServiceException;
 import vio.barie.core.dto.AiPlateResponse;
 import vio.barie.core.dto.PlateCreateRequest;
-import vio.barie.core.exception.BusinessException;
 
 import java.util.Arrays;
 import java.util.List;
@@ -27,7 +27,6 @@ public class AiPlateGateway {
                 .body(request)
                 .retrieve()
                 .body(AiPlateResponse.class);
-
     }
 
     public List<AiPlateResponse> findAll() {
@@ -52,9 +51,8 @@ public class AiPlateGateway {
         if (result != null && !result.isEmpty()) {
             return result.get(0);
         }
-        throw new BusinessException(
+        throw new ServiceException(
                 "Plate not found with id: " + id,
-                "PLATE_NOT_FOUND",
                 404);
     }
 

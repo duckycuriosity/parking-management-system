@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/barie
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 20000
+      pool-name: MyHikariCP
+
+  megapay:
+    mer-id: EPAY000001
+    currency: VND
+    payType: VA
+    encode-key: rf8whwaejNhJiQG2bsFubSzccfRc/iRYyGUn6SPmT6y/L7A2XABbu9y4GvCoSTOTpvJykFi6b1G0crU8et2O0Q==
+    userLanguage: VN
+#    0 -> pc , 1 -> mobile
+    windowType: 0
+    endpoint: https://sandbox.megapay.vn/pg_was/createlink.do
+    callback-url: http://localhost:8080/api/payment/callback
+    notify-url: http://localhost:8080/api/payment/ipn
+    req-domain: http://localhost:8080

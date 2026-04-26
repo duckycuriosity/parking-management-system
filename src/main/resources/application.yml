@@ -1,20 +1,21 @@
 spring:
+  profiles:
+    active: dev
+  application:
+    name: core
   flyway:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: false
-  application:
-    name: core
-
-  datasource:
-    url: jdbc:postgresql://localhost:5432/payment_core
-    username: postgres
-    password: 123123
-    driver-class-name: org.postgresql.Driver
-
   jpa:
     hibernate:
       ddl-auto: none
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:https://sso.safelinksystem.app/realms/barie}
+
 
 ai:
   core:
@@ -28,3 +29,14 @@ logging:
   level:
     org.flywaydb: DEBUG
     org.springframework.boot.flyway.autoconfigure: DEBUG
+
+bootstrap:
+  admin:
+    token:
+
+keycloak:
+  server-url: ${KEYCLOAK_URI:https://sso.safelinksystem.app}
+  realm: barie
+  admin-realm: barie
+  admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:barie-client-be-dev}
+  admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:tDywGUVz29rYQ3JlBNlXXu0V0VshWY0E}

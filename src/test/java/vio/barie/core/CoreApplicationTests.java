@@ -45,10 +45,8 @@ public class CoreApplicationTests {
 		body.put("descriptions", "Thanh toan phi gui xe");
 
 		body.put("userLanguage", "VN");
-
-		// Các trường còn thiếu
 		body.put("windowType", "1");
-		body.put("userId", "viotech");
+//		body.put("userId", "viotech");
 
 		// Tạo thời gian và InvoiceNo
 		String timeStamp = String.valueOf(System.currentTimeMillis());

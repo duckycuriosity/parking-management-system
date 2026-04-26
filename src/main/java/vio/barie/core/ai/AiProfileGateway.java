@@ -8,9 +8,9 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import vio.barie.core.config.exception.ServiceException;
 import vio.barie.core.dto.AiProfileResponse;
 import vio.barie.core.dto.ProfileCreateRequest;
-import vio.barie.core.exception.BusinessException;
 
 @Service
 public class AiProfileGateway {
@@ -51,9 +51,8 @@ public class AiProfileGateway {
                                 .body(AiProfileResponse.class);
 
                 if (result == null) {
-                        throw new BusinessException(
+                        throw new ServiceException(
                                         "Profile not found with id: " + id,
-                                        "PROFILE_NOT_FOUND",
                                         404);
                 }
                 return result;
