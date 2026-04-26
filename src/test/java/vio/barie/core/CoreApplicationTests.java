@@ -33,7 +33,7 @@ public class CoreApplicationTests {
 
 		// QUAN TRỌNG: Đảm bảo amount là Number (không có ngoặc kép trong JSON)
 		// JSONObject sẽ tự nhận diện số nếu bạn put trực tiếp Long/Double
-		body.put("amount", 50000);
+		body.put("amount", "50000");
 
 		body.put("goodsNm", "Gui xe thang 4");
 		body.put("payType", "VA"); // Dùng 'NO' như code mẫu để test đơn giản trước
