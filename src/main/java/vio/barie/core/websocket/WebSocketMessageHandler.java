@@ -20,6 +20,7 @@ public class WebSocketMessageHandler extends TextWebSocketHandler {
 
     private final ObjectMapper objectMapper;
     private final VmsWebSocketReconnectService reconnectService;
+    private final vio.barie.core.service.VmsService vmsService;
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -36,6 +37,13 @@ public class WebSocketMessageHandler extends TextWebSocketHandler {
             log.info("VMS websocket message received: {}", jsonNode.toString());
         } catch (IOException ex) {
             log.info("VMS websocket raw message received: {}", payload);
+        }
+
+        try {
+            vmsService.fetchAndStoreLatestEventIfRecent().ifPresent(
+                    saved -> log.info("Saved VMS event id={} from websocket trigger", saved.getVmsEventId()));
+        } catch (Exception ex) {
+            log.warn("Failed to fetch/store latest VMS event from websocket trigger: {}", ex.getMessage());
         }
     }
 

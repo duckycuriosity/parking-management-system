@@ -19,11 +19,13 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.web.socket.client.WebSocketConnectionManager;
 import vio.barie.core.config.VmsWebSocketConfig;
 import vio.barie.core.config.VmsWebSocketProperties;
+import vio.barie.core.service.VmsService;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 @SpringJUnitConfig(VmsWebSocketReconnectIntegrationTest.TestConfig.class)
 class VmsWebSocketReconnectIntegrationTest {
@@ -96,6 +98,11 @@ class VmsWebSocketReconnectIntegrationTest {
         @Bean
         ObjectMapper objectMapper() {
             return new ObjectMapper();
+        }
+
+        @Bean
+        VmsService vmsService() {
+            return mock(VmsService.class);
         }
     }
 

@@ -2,6 +2,7 @@ package vio.barie.core.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -9,15 +10,24 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import vio.barie.core.config.VmsProperties;
+import vio.barie.core.entity.VmsEventEntity;
 import vio.barie.core.entity.VmsTokenEntity;
 import vio.barie.core.exception.BusinessException;
+import vio.barie.core.repository.VmsEventRepository;
 import vio.barie.core.repository.VmsTokenRepository;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 
 @Service
+@Slf4j
 public class VmsService {
 
+    private static final Duration EVENT_LOOKBACK_WINDOW = Duration.ofMinutes(5);
     private static final List<String> RESPONSE_ARRAY_FIELDS = List.of(
             "data",
             "items",
@@ -28,16 +38,19 @@ public class VmsService {
 
     private final RestClient restClient;
     private final VmsTokenRepository vmsTokenRepository;
+    private final VmsEventRepository vmsEventRepository;
     private final VmsProperties vmsProperties;
     private final ObjectMapper objectMapper;
 
     public VmsService(
             @Qualifier("vmsRestClient") RestClient restClient,
             VmsTokenRepository vmsTokenRepository,
+            VmsEventRepository vmsEventRepository,
             VmsProperties vmsProperties,
             ObjectMapper objectMapper) {
         this.restClient = restClient;
         this.vmsTokenRepository = vmsTokenRepository;
+        this.vmsEventRepository = vmsEventRepository;
         this.vmsProperties = vmsProperties;
         this.objectMapper = objectMapper;
     }
@@ -57,6 +70,34 @@ public class VmsService {
                     "VMS_FETCH_FAILED",
                     ex.getStatusCode().value());
         }
+    }
+
+    public Optional<VmsEventEntity> fetchAndStoreLatestEventIfRecent() {
+        JsonNode event = fetchLatestRecord();
+
+        Optional<Instant> eventInstantOpt = extractEventInstant(event);
+        if (eventInstantOpt.isEmpty()) {
+            log.warn("Skip VMS event because field 'time' is missing or invalid: {}", event);
+            return Optional.empty();
+        }
+
+        Instant eventInstant = eventInstantOpt.get();
+        if (eventInstant.isBefore(Instant.now().minus(EVENT_LOOKBACK_WINDOW))) {
+            return Optional.empty();
+        }
+
+        Long eventId = extractEventId(event);
+        if (eventId == null) {
+            log.warn("Skip VMS event because field 'id' is missing or invalid: {}", event);
+            return Optional.empty();
+        }
+
+        if (vmsEventRepository.existsByVmsEventId(eventId)) {
+            return Optional.empty();
+        }
+
+        VmsEventEntity entity = mapEventEntity(event, eventId, eventInstant);
+        return Optional.of(vmsEventRepository.save(entity));
     }
 
     private JsonNode fetchLatestRecordWithToken(String accessToken) {
@@ -212,6 +253,57 @@ public class VmsService {
             }
         }
         return null;
+    }
+
+    private Optional<Instant> extractEventInstant(JsonNode event) {
+        JsonNode timeNode = event.get("time");
+        if (timeNode == null || !timeNode.isNumber()) {
+            return Optional.empty();
+        }
+
+        double epochSeconds = timeNode.asDouble();
+        long seconds = (long) epochSeconds;
+        long nanos = Math.round((epochSeconds - seconds) * 1_000_000_000L);
+        if (nanos == 1_000_000_000L) {
+            seconds += 1;
+            nanos = 0;
+        }
+
+        return Optional.of(Instant.ofEpochSecond(seconds, nanos));
+    }
+
+    private Long extractEventId(JsonNode event) {
+        JsonNode idNode = event.get("id");
+        if (idNode == null || !idNode.isNumber()) {
+            return null;
+        }
+        return idNode.asLong();
+    }
+
+    private VmsEventEntity mapEventEntity(JsonNode event, Long eventId, Instant eventInstant) {
+        JsonNode dataNode = event.path("data");
+        JsonNode faceNode = dataNode.path("face");
+
+        VmsEventEntity entity = new VmsEventEntity();
+        entity.setVmsEventId(eventId);
+        if (event.path("serviceId").isNumber()) {
+            entity.setServiceId(event.path("serviceId").asInt());
+        }
+        if (event.path("originId").isNumber()) {
+            entity.setOriginId(event.path("originId").asLong());
+        }
+        entity.setEventType(event.path("type").asText(null));
+        if (!event.path("isConfirmed").isMissingNode()) {
+            entity.setIsConfirmed(event.path("isConfirmed").asBoolean());
+        }
+        entity.setEventTime(LocalDateTime.ofInstant(eventInstant, ZoneOffset.UTC));
+        entity.setEventEpochSeconds(event.path("time").asDouble());
+        entity.setCameraUuid(dataNode.path("cameraUUID").asText(null));
+        entity.setMonitorType(dataNode.path("monitorType").asText(null));
+        entity.setProfileUuid(faceNode.path("profileUUID").asText(null));
+        entity.setProfileName(faceNode.path("profileName").asText(null));
+        entity.setPayload(event.toString());
+        return entity;
     }
 
     private record LoginRequest(String username, String password) {

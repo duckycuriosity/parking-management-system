@@ -3,6 +3,7 @@ package vio.barie.core.websocket;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.socket.WebSocketSession;
+import vio.barie.core.service.VmsService;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -13,7 +14,8 @@ class WebSocketMessageHandlerCallbackTest {
     @Test
     void shouldRequestReconnectOnTransportError() {
         VmsWebSocketReconnectService reconnectService = mock(VmsWebSocketReconnectService.class);
-        WebSocketMessageHandler handler = new WebSocketMessageHandler(new ObjectMapper(), reconnectService);
+        VmsService vmsService = mock(VmsService.class);
+        WebSocketMessageHandler handler = new WebSocketMessageHandler(new ObjectMapper(), reconnectService, vmsService);
         WebSocketSession session = mock(WebSocketSession.class);
         when(session.getId()).thenReturn("session-1");
 

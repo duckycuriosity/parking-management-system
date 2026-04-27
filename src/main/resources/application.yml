@@ -34,7 +34,7 @@ vms:
     url: "ws://192.168.168.30:8012/ws/Notify"
     reconnect-delay-ms: 3000
     cookie: key=uO50EwSqoolz1OzU
-    origin: http://192.168.168.30:8012
+    origin: http://192.168.168.30:8083
     user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36
     accept: "*/*"
     connection: keep-alive
