@@ -2,7 +2,6 @@ package vio.barie.core.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -17,7 +16,6 @@ import vio.barie.core.repository.VmsTokenRepository;
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 public class VmsService {
 
     private static final List<String> RESPONSE_ARRAY_FIELDS = List.of(
@@ -32,6 +30,17 @@ public class VmsService {
     private final VmsTokenRepository vmsTokenRepository;
     private final VmsProperties vmsProperties;
     private final ObjectMapper objectMapper;
+
+    public VmsService(
+            @Qualifier("vmsRestClient") RestClient restClient,
+            VmsTokenRepository vmsTokenRepository,
+            VmsProperties vmsProperties,
+            ObjectMapper objectMapper) {
+        this.restClient = restClient;
+        this.vmsTokenRepository = vmsTokenRepository;
+        this.vmsProperties = vmsProperties;
+        this.objectMapper = objectMapper;
+    }
 
     public JsonNode fetchLatestRecord() {
         String accessToken = getOrRefreshAccessToken();

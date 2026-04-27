@@ -2,6 +2,7 @@ package vio.barie.core.websocket;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.client.WebSocketConnectionManager;
 import vio.barie.core.config.VmsWebSocketProperties;
@@ -16,7 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class VmsWebSocketReconnectService {
 
     private final VmsWebSocketProperties properties;
-    private final WebSocketConnectionManager vmsWebSocketConnectionManager;
+    private final ObjectProvider<WebSocketConnectionManager> webSocketConnectionManagerProvider;
 
     private final AtomicBoolean reconnecting = new AtomicBoolean(false);
 
@@ -47,16 +48,22 @@ public class VmsWebSocketReconnectService {
             return;
         }
 
+        WebSocketConnectionManager webSocketConnectionManager = webSocketConnectionManagerProvider.getIfAvailable();
+        if (webSocketConnectionManager == null) {
+            log.warn("VMS websocket reconnect skipped because connection manager is not available");
+            return;
+        }
+
         try {
-            if (vmsWebSocketConnectionManager.isRunning()) {
-                vmsWebSocketConnectionManager.stop();
+            if (webSocketConnectionManager.isRunning()) {
+                webSocketConnectionManager.stop();
             }
         } catch (Exception ex) {
             log.warn("Error when stopping VMS websocket before reconnect: {}", ex.getMessage());
         }
 
         try {
-            vmsWebSocketConnectionManager.start();
+            webSocketConnectionManager.start();
             log.info("VMS websocket reconnect triggered: {}", properties.getUrl());
         } catch (Exception ex) {
             log.warn("VMS websocket reconnect failed: {}", ex.getMessage());
