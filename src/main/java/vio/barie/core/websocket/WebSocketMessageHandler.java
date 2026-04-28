@@ -1,5 +1,6 @@
 package vio.barie.core.websocket;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -18,8 +19,10 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class WebSocketMessageHandler extends TextWebSocketHandler {
 
-    private final ObjectMapper objectMapper;
-    private final VmsWebSocketReconnectService reconnectService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.context.annotation.Lazy
+    private VmsWebSocketReconnectService reconnectService;
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
