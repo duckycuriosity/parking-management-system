@@ -1,11 +1,12 @@
-CREATE TABLE IF NOT EXISTS vms_event (
-    id BIGSERIAL PRIMARY KEY,
-    vms_event_id BIGINT NOT NULL UNIQUE,
-    service_id INTEGER,
-    origin_id BIGINT,
-    event_type VARCHAR(120) NOT NULL,
-    is_confirmed BOOLEAN,
-    event_time TIMESTAMP NOT NULL,
+CREATE TABLE IF NOT EXISTS vms_event
+(
+    id                  BIGSERIAL PRIMARY KEY,
+    vms_event_id        BIGINT           NOT NULL UNIQUE,
+    service_id          INTEGER,
+    origin_id           BIGINT,
+    event_type          VARCHAR(120)     NOT NULL,
+    is_confirmed        BOOLEAN,
+    event_time          TIMESTAMP        NOT NULL,
     event_epoch_seconds DOUBLE PRECISION NOT NULL,
     camera_uuid VARCHAR(120),
     monitor_type VARCHAR(120),
