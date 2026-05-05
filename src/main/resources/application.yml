@@ -1,9 +1,9 @@
 mqtt:
-  host: tcp://localhost:1883
+  host: tcp://192.168.168.30:1883
   username: admin
   password: Trungkien123
   client-id: barie-core-service
-  default-topic: parking/v1/client/#
+  device-register-topic: parking/v1/client/#  # Parking Client
 
 spring:
   flyway:

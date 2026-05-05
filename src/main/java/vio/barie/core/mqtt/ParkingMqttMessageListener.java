@@ -29,22 +29,34 @@ public class ParkingMqttMessageListener implements MessageHandler {
                 return;
             }
             JsonNode json = objectMapper.readTree(payload);
-            if (topic.endsWith("/connect")) {
-                parkingMessageService.handleConnect(topic, json);
-                return;
-            }
-            if (topic.endsWith("/disconnect")) {
-                parkingMessageService.handleDisconnect(topic, json);
-                return;
+
+            String type = json.path("type").asText("");
+            if (type.isBlank()) {
+                type = extractTypeFromTopic(topic);
             }
 
-            if (topic.endsWith("/ping")) {
-                parkingMessageService.handlePing(topic, json);
-                return;
-            }
-            log.warn("Unsupported top {}", topic);
+            dispatch(topic, type, json);
         } catch (Exception ex) {
             log.error("MQTT process failed", ex);
         }
+    }
+
+    private void dispatch(String topic, String type, JsonNode json) {
+        String normalizedType = type == null ? "" : type.trim().toLowerCase();
+
+        switch (normalizedType) {
+            case "connect" -> parkingMessageService.handleConnect(topic, json);
+            case "disconnect" -> parkingMessageService.handleDisconnect(topic, json);
+            case "ping" -> parkingMessageService.handlePing(topic, json);
+            default -> log.warn("Unsupported MQTT message type={}, topic={}", type, topic);
+        }
+    }
+
+    private String extractTypeFromTopic(String topic) {
+        int lastSlash = topic.lastIndexOf('/');
+        if (lastSlash < 0 || lastSlash == topic.length() - 1) {
+            return "";
+        }
+        return topic.substring(lastSlash + 1);
     }
 }
