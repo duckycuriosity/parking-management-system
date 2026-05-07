@@ -118,4 +118,19 @@ public class ParkingMessageService {
 
         messageRepository.save(entity);
     }
+
+    public void publishVehicleInfo() {
+    }
+
+    // mở cổng trực tiếp cho xe có vé tháng (không thu tiền)
+    public void publishOpenForMonthlyTicket() {
+    }
+
+    // payment_success: cổng nhận xác nhận và mở barrier
+    public void publishPaymentSuccess() {
+    }
+
+    // open_cmd: lệnh mở cổng thủ công
+    public void publishOpenCommand() {
+    }
 }

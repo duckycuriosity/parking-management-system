@@ -5,13 +5,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import vio.barie.core.entity.CameraEntity;
-import vio.barie.core.entity.DeviceEntity;
-import vio.barie.core.entity.ParkingCustomerEntity;
-import vio.barie.core.entity.UserDevicePermissionEntity;
+import vio.barie.core.entity.*;
 import vio.barie.core.repository.CameraRepository;
 import vio.barie.core.repository.ParkingCustomerRepository;
-import vio.barie.core.repository.UserDevicePermissionRepository;
+import vio.barie.core.repository.VehicleUserPermissionRepository;
 
 import java.util.List;
 
@@ -22,7 +19,7 @@ public class ProfileHandler {
 
     private final ParkingCustomerRepository customerRepository;
     private final CameraRepository cameraRepository;
-    private final UserDevicePermissionRepository permissionRepository;
+    private final VehicleUserPermissionRepository permissionRepository;
 
     @Transactional(readOnly = true)
     public void handle(JsonNode event) {
@@ -58,19 +55,19 @@ public class ProfileHandler {
             return;
         }
 
-        List<UserDevicePermissionEntity> permissions =
-                permissionRepository.findByParkingCustomerIdWithDevice(customer.getId());
+        List<VehicleUserPermissionEntity> permissions =
+                permissionRepository.findByParkingCustomerIdWithVehicle(customer.getId());
 
         if (permissions.isEmpty()) {
             log.warn("ProfileHandler: parking customer id={} has no registered vehicles", customer.getId());
             return;
         }
 
-        List<DeviceEntity> devices = permissions.stream()
-                .map(UserDevicePermissionEntity::getDevice)
+        List<VehicleEntity> vehicles = permissions.stream()
+                .map(VehicleUserPermissionEntity::getVehicle)
                 .toList();
 
         // phần xử lý tiếp theo tong logic làm mịn dữ liệu ai
-        devices.forEach(device -> {});
+        vehicles.forEach(vehicle -> {});
     }
 }

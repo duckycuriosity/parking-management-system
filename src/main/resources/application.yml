@@ -1,71 +1,12 @@
-mqtt:
-  host: tcp://lab.viotech.com.vn:11883
-  username:
-  password:
-  client-id: barie-core-service-devs
-  device-register-topic: parking/v1/client/#  # Parking Client
-
 spring:
+  profiles:
+    active: dev
+  application:
+    name: core
   flyway:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: false
-  application:
-    name: core
-
-  datasource:
-    url: jdbc:postgresql://192.168.168.30:5434/barie
-    username: barie_dev
-    password: n7FuKNTV@@
-    driver-class-name: org.postgresql.Driver
-
   jpa:
     hibernate:
       ddl-auto: none
-
-ai:
-  core:
-    base-url: http://192.168.168.30:8088/api
-    user-agent: Mozilla/5.0
-    accept: "*/*"
-    cookie: key=uO50EwSqoolz1OzU
-    connection: close
-  ws:
-    enabled: true
-    url: "ws://192.168.168.30:8012/ws/Notify"
-    reconnect-delay-ms: 3000
-
-vms:
-  ws:
-    enabled: true
-    url: "ws://192.168.168.30:8012/ws/Notify"
-    reconnect-delay-ms: 3000
-    cookie: key=uO50EwSqoolz1OzU
-    origin: http://192.168.168.30:8083
-    user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36
-    accept: "*/*"
-    connection: keep-alive
-  core:
-    base-url: http://192.168.168.30:8012/api
-    login-path: /LogIn
-    data-path: /Data
-    username: admin
-    password: NAaW24Yc1mJyeiNH
-    cookie: key=uO50EwSqoolz1OzU
-    origin: http://192.168.168.30:8012
-    login-referer: http://192.168.168.30:8012/auth
-    data-referer: http://192.168.168.30:8012/face-unknown
-    user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36
-    accept: "*/*"
-    accept-language: vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5
-    connection: keep-alive
-    token-name: VMS_TOKEN
-    data-type: sensor-face-unknown-camera
-    data-order: desc
-    data-is-confirmed: 1
-    data-count: 150
-
-logging:
-  level:
-    org.flywaydb: DEBUG
-    org.springframework.boot.flyway.autoconfigure: DEBUG

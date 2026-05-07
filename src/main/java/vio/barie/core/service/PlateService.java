@@ -6,10 +6,10 @@ import org.springframework.stereotype.Service;
 import vio.barie.core.ai.AiPlateGateway;
 import vio.barie.core.dto.AiPlateResponse;
 import vio.barie.core.dto.PlateCreateRequest;
-import vio.barie.core.entity.DeviceEntity;
-import vio.barie.core.exception.BusinessException;
+import vio.barie.core.entity.VehicleEntity;
+import vio.barie.core.config.exception.BusinessException;
 import vio.barie.core.mapper.PlateMapper;
-import vio.barie.core.repository.DeviceRepository;
+import vio.barie.core.repository.VehicleRepository;
 
 import java.util.List;
 
@@ -17,12 +17,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PlateService {
     private final AiPlateGateway aiPlateGateway;
-    private final DeviceRepository deviceRepository;
+    private final VehicleRepository VehicleRepository;
     private final PlateMapper plateMapper;
 
     @Transactional
     public AiPlateResponse create(PlateCreateRequest request) {
-        if (deviceRepository.existsByPlateNumber(request.getPlate())) {
+        if (VehicleRepository.existsByPlateNumber(request.getPlate())) {
             throw new BusinessException(
                     "Plate number already exists",
                     "DUPLICATE_PLATE",
@@ -30,8 +30,8 @@ public class PlateService {
         }
         AiPlateResponse aiResponse = aiPlateGateway.create(request);
 
-        DeviceEntity device = plateMapper.toDevice(aiResponse);
-        deviceRepository.save(device);
+        VehicleEntity device = plateMapper.toVehicle(aiResponse);
+        VehicleRepository.save(device);
         return aiResponse;
     }
 

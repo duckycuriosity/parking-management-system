@@ -18,6 +18,8 @@ public class PlateController {
 
     private final PlateService plateService;
 
+
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<AiPlateResponse> create(
