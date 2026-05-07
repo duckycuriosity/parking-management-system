@@ -1,8 +1,8 @@
 mqtt:
-  host: tcp://192.168.168.30:1883
-  username: admin
-  password: Trungkien123
-  client-id: barie-core-service
+  host: tcp://lab.viotech.com.vn:11883
+  username:
+  password:
+  client-id: barie-core-service-devs
   device-register-topic: parking/v1/client/#  # Parking Client
 
 spring:
