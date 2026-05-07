@@ -18,9 +18,13 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class WebSocketMessageHandler extends TextWebSocketHandler {
 
+    private static final String EVENT_PROFILE = "sensor-face-unknown-camera";
+    private static final String EVENT_PLATE = "sensor-license-plate";
+
     private final ObjectMapper objectMapper;
     private final VmsWebSocketReconnectService reconnectService;
     private final vio.barie.core.service.VmsService vmsService;
+    private final ProfileHandler profileHandler;
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -35,8 +39,11 @@ public class WebSocketMessageHandler extends TextWebSocketHandler {
         try {
             JsonNode jsonNode = objectMapper.readTree(payload);
             log.info("VMS websocket message received: {}", jsonNode.toString());
+            // gửi đến handler tương ứng
+            routeEvent(jsonNode);
         } catch (IOException ex) {
             log.info("VMS websocket raw message received: {}", payload);
+            return;
         }
 
         try {
@@ -44,6 +51,29 @@ public class WebSocketMessageHandler extends TextWebSocketHandler {
                     saved -> log.info("Saved VMS event id={} from websocket trigger", saved.getVmsEventId()));
         } catch (Exception ex) {
             log.warn("Failed to fetch/store latest VMS event from websocket trigger: {}", ex.getMessage());
+        }
+    }
+
+    private boolean isProfileWsMsg(JsonNode event){
+        return !event.path("data").path("type").isMissingNode()
+                && EVENT_PROFILE.equals(event.path("data").path("type").asText())
+                && !event.path("data").path("data").path("face").isMissingNode()
+                && !event.path("data").path("data").path("face").isNull();
+    }
+
+    private void routeEvent(JsonNode event) {
+        if (isProfileWsMsg(event)) {
+            try {
+                if (event.has("data")) {
+                    profileHandler.handle(event.path("data"));
+                } else {
+                    log.warn("ProfileHandler has empty event : {}", event);
+                }
+            } catch (Exception ex) {
+                log.warn("ProfileHandler failed for event: {}", ex.getMessage());
+            }
+        } else {
+            log.debug("VMS websocket is not supporting this message format yet : {}", event);
         }
     }
 
