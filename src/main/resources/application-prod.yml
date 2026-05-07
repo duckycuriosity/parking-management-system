@@ -1,6 +1,0 @@
-keycloak:
-  server-url: ${KEYCLOAK_URI:https://sso.safelinksystem.app}
-  realm: barie
-  admin-realm: barie
-  admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:barie-client-be}
-  admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:ZWwuFVpGD8PgwwzTGGkpuVC6lyxRoWg0}

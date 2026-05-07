@@ -1,4 +1,4 @@
-package vio.barie.core.config;
+package vio.barie.core.config.vms;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

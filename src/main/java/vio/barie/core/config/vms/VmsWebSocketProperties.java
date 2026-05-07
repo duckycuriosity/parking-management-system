@@ -1,4 +1,4 @@
-package vio.barie.core.config;
+package vio.barie.core.config.vms;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;

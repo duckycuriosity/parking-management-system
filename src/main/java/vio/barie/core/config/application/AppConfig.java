@@ -1,4 +1,4 @@
-package vio.barie.core.config;
+package vio.barie.core.config.application;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;

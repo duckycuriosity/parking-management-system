@@ -1,4 +1,4 @@
-package vio.barie.core.exception;
+package vio.barie.core.config.exception;
 
 import lombok.Getter;
 

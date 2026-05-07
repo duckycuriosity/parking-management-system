@@ -1,26 +1,99 @@
 spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:https://sso.safelinksystem.app/realms/barie}
   datasource:
     url: jdbc:postgresql://localhost:5432/barie
     username: postgres
     password: postgres
+#    url: jdbc:postgresql://192.168.168.30:5434/barie
+#    username: barie_dev
+#    password: n7FuKNTV@@
     driver-class-name: org.postgresql.Driver
     hikari:
+      pool-name: HikariDev
       maximum-pool-size: 10
       minimum-idle: 2
       idle-timeout: 30000
       max-lifetime: 1800000
       connection-timeout: 20000
-      pool-name: MyHikariCP
 
-  megapay:
-    mer-id: EPAY000001
-    currency: VND
-    payType: VA
-    encode-key: rf8whwaejNhJiQG2bsFubSzccfRc/iRYyGUn6SPmT6y/L7A2XABbu9y4GvCoSTOTpvJykFi6b1G0crU8et2O0Q==
-    userLanguage: VN
-#    0 -> pc , 1 -> mobile
-    windowType: 0
-    endpoint: https://sandbox.megapay.vn/pg_was/createlink.do
-    callback-url: http://localhost:8080/api/payment/callback
-    notify-url: http://localhost:8080/api/payment/ipn
-    req-domain: http://localhost:8080
+logging:
+  level:
+    org.flywaydb: DEBUG
+    org.springframework.boot.flyway.autoconfigure: DEBUG
+
+bootstrap:
+  admin:
+    token: dev-bootstrap-token
+
+mqtt:
+  host: tcp://lab.viotech.com.vn:11883
+  username:
+  password:
+  client-id: barie-core-service-dev
+  device-register-topic: "parking/v1/client/#"
+
+megapay:
+  mer-id: EPAY000001
+  currency: VND
+  payType: VA
+  encode-key: rf8whwaejNhJiQG2bsFubSzccfRc/iRYyGUn6SPmT6y/L7A2XABbu9y4GvCoSTOTpvJykFi6b1G0crU8et2O0Q==
+  userLanguage: VN
+  windowType: 0
+  endpoint: https://sandbox.megapay.vn/pg_was/createlink.do
+  inquiry-endpoint: https://sandbox.megapay.vn/pg_was/order/trxStatusInvoiceNo.do
+  callback-url: http://localhost:8080/api/payment/callback
+  notify-url: http://localhost:8080/api/payment/ipn
+  req-domain: http://localhost:8080
+
+ai:
+  core:
+    base-url: http://192.168.168.30:8088/api
+    user-agent: "Mozilla/5.0"
+    accept: "*/*"
+    cookie: key=uO50EwSqoolz1OzU
+    connection: close
+  ws:
+    enabled: true
+    url: "ws://192.168.168.30:8012/ws/Notify"
+    reconnect-delay-ms: 3000
+
+vms:
+  core:
+    base-url: http://192.168.168.30:8012/api
+    login-path: /LogIn
+    data-path: /Data
+    username: admin
+    password: NAaW24Yc1mJyeiNH
+    cookie: key=uO50EwSqoolz1OzU
+    origin: http://192.168.168.30:8012
+    login-referer: http://192.168.168.30:8012/auth
+    data-referer: http://192.168.168.30:8012/face-unknown
+    user-agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"
+    accept: "*/*"
+    accept-language: "vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5"
+    connection: keep-alive
+    token-name: VMS_TOKEN
+    data-type: sensor-face-unknown-camera
+    data-order: desc
+    data-is-confirmed: 1
+    data-count: 150
+  ws:
+    enabled: true
+    url: "ws://192.168.168.30:8012/ws/Notify"
+    reconnect-delay-ms: 3000
+    cookie: key=uO50EwSqoolz1OzU
+    origin: http://192.168.168.30:8083
+    user-agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"
+    accept: "*/*"
+    connection: keep-alive
+
+keycloak:
+  server-url: ${KEYCLOAK_URI:https://sso.safelinksystem.app}
+  realm: barie
+  admin-realm: barie
+  admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:barie-client-be-dev}
+  admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:tDywGUVz29rYQ3JlBNlXXu0V0VshWY0E}
