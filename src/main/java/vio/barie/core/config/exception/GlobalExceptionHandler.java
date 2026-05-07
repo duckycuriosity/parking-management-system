@@ -2,12 +2,10 @@ package vio.barie.core.config.exception;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
@@ -31,6 +29,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .collect(Collectors.joining("; "));
         log.warn("Validation failed: {}", msg);
         return ResponseEntity.status(400).body((Object) Result.error(400, msg));
+    }
+
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<?> handleBusinessException(BusinessException ex, WebRequest request) {
+        log.warn("BusinessException: {}", ex.getMessage());
+        return Result.errorResponse(ex.getHttpStatus(), ex.getMessage());
     }
 
     @ExceptionHandler(Exception.class)

@@ -76,7 +76,9 @@ public class SecurityConfig {
                             "/core/swagger-ui/**",
                             "/core/swagger-ui.html",
                             "/core/swagger-ui/index.html"
-                        ).permitAll();
+                        ).permitAll()
+                        .requestMatchers("/api/payment/callback", "/api/payment/ipn").permitAll()
+                    ;
 
 
                     auth.anyRequest().authenticated();

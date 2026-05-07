@@ -13,11 +13,14 @@ import java.math.BigDecimal;
 @EqualsAndHashCode(callSuper = true)
 public class PricingRuleEntity extends BaseEntity {
 
+    @Column(name = "type", unique = true)
+    private String type; // 'DAY', 'MONTH'
+
     @Column(name = "name")
     private String name;
 
     @Column(name = "price")
-    private BigDecimal price;
+    private int price;
 
     @Column(name = "currency")
     private String currency;

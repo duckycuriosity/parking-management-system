@@ -1,5 +1,8 @@
 package vio.barie.core.dto.payment;
 
+import lombok.Data;
+
+@Data
 public class MegaPayResponse {
     private String resultCd;
     private String resultMsg;

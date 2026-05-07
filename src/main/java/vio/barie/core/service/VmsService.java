@@ -9,10 +9,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
-import vio.barie.core.config.VmsProperties;
+import vio.barie.core.config.vms.VmsProperties;
 import vio.barie.core.entity.VmsEventEntity;
 import vio.barie.core.entity.VmsTokenEntity;
-import vio.barie.core.exception.BusinessException;
+import vio.barie.core.config.exception.BusinessException;
 import vio.barie.core.repository.VmsEventRepository;
 import vio.barie.core.repository.VmsTokenRepository;
 

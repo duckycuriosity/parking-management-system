@@ -17,8 +17,8 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.web.socket.client.WebSocketConnectionManager;
-import vio.barie.core.config.VmsWebSocketConfig;
-import vio.barie.core.config.VmsWebSocketProperties;
+import vio.barie.core.config.vms.VmsWebSocketConfig;
+import vio.barie.core.config.vms.VmsWebSocketProperties;
 import vio.barie.core.service.VmsService;
 
 import java.util.concurrent.TimeUnit;

@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 
 @Data
 @Component
-@ConfigurationProperties(prefix = "payment.megapay")
+@ConfigurationProperties(prefix = "megapay")
 public class MegaPayConfig {
     private String merId;
     private String currency;
@@ -15,6 +15,7 @@ public class MegaPayConfig {
     private String userLanguage;
     private String windowType;
     private String endpoint;
+    private String inquiryEndpoint;
     private String callbackUrl;
     private String notifyUrl;
     private String reqDomain;

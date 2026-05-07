@@ -18,7 +18,7 @@ public class PaymentEntity extends BaseEntity {
     private String invoiceNo;
 
     @Column(name = "amount")
-    private BigDecimal amount;
+    private int amount;
 
     @Column(name = "currency")
     private String currency;

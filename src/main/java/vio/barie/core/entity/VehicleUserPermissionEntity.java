@@ -11,14 +11,12 @@ import java.time.LocalDateTime;
 @EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(
-        name = "user_device_permission",
+        name = "vehicle_customer_permission",
         uniqueConstraints = @UniqueConstraint(
-                name = "unique_user_device",
-                columnNames = {"parking_customer_id", "device_id"}
+                name = "unique_customer_vehicle",
+                columnNames = {"parking_customer_id", "vehicle_id"}
         )
 )
-@Data
-@EqualsAndHashCode(callSuper = true)
 public class VehicleUserPermissionEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parking_customer_id", nullable = false)
