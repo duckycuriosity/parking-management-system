@@ -7,6 +7,8 @@ import vio.barie.core.entity.base.BaseEntity;
 
 import java.time.LocalDateTime;
 
+@Data
+@EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(
         name = "user_device_permission",
