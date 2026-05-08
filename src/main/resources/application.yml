@@ -1,3 +1,10 @@
+mqtt:
+  host: tcp://192.168.168.30:1883
+  username:
+  password:
+  client-id: barie-core-service-devs
+  device-register-topic: parking/v1/client/#  # Parking Client
+
 spring:
   flyway:
     enabled: true
@@ -7,9 +14,9 @@ spring:
     name: core
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/payment_core
-    username: postgres
-    password: 123123
+    url: jdbc:postgresql://192.168.168.30:5434/barie
+    username: barie_dev
+    password: n7FuKNTV@@
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -28,3 +35,20 @@ logging:
   level:
     org.flywaydb: DEBUG
     org.springframework.boot.flyway.autoconfigure: DEBUG
+
+# Swagger/OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+    try-it-out-enabled: true
+    filter: true
+    display-request-duration: true
+  show-actuator: false
+  packages-to-scan: vio.barie.core.controller
+  paths-to-match: /**

@@ -1,5 +1,6 @@
 package vio.barie.core.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -14,6 +15,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/plates")
 @RequiredArgsConstructor
+@Tag(name = "Plate Management", description = "APIs for managing vehicle license plates")
 public class PlateController {
 
     private final PlateService plateService;

@@ -20,11 +20,11 @@ public class ParkingLotEntity extends BaseEntity {
     @JoinColumn(name = "building_id", nullable = false)
     private BuildingEntity building;
 
-//    // Quan hệ 1-n với Lane
-//    @OneToMany(mappedBy = "parkingLot", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-//    private List<LaneEntity> lanes;
-//
-//    // Quan hệ 1-n với ParkingSession
-//    @OneToMany(mappedBy = "parkingLot", fetch = FetchType.LAZY)
-//    private List<ParkingSessionEntity> parkingSessions;
+    // Quan hệ 1-n với Lane
+    @OneToMany(mappedBy = "parkingLot", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<LaneEntity> lanes;
+
+    // Quan hệ 1-n với ParkingSession
+    @OneToMany(mappedBy = "parkingLot", fetch = FetchType.LAZY)
+    private List<ParkingSessionEntity> parkingSessions;
 }
