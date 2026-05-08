@@ -6,6 +6,10 @@ mqtt:
   device-register-topic: parking/v1/client/#  # Parking Client
 
 spring:
+  profiles:
+    active: dev
+  application:
+    name: core
   flyway:
     enabled: true
     locations: classpath:db/migration
