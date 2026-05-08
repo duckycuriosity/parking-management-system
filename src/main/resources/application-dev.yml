@@ -5,12 +5,12 @@ spring:
         jwt:
           issuer-uri: ${KEYCLOAK_ISSUER_URI:https://sso.safelinksystem.app/realms/barie}
   datasource:
-    url: jdbc:postgresql://localhost:5432/barie
-    username: postgres
-    password: postgres
-#    url: jdbc:postgresql://192.168.168.30:5434/barie
-#    username: barie_dev
-#    password: n7FuKNTV@@
+#    url: jdbc:postgresql://localhost:5432/barie
+#    username: postgres
+#    password: postgres
+    url: jdbc:postgresql://192.168.168.30:5434/barie
+    username: barie_dev
+    password: n7FuKNTV@@
     driver-class-name: org.postgresql.Driver
     hikari:
       pool-name: HikariDev
@@ -30,7 +30,7 @@ bootstrap:
     token: dev-bootstrap-token
 
 mqtt:
-  host: tcp://lab.viotech.com.vn:11883
+  host: tcp://192.168.168.30:1883
   username:
   password:
   client-id: barie-core-service-dev
