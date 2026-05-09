@@ -101,6 +101,9 @@ public class MQTTService {
             case "connect" -> parkingMessageService.handleConnect(topic, json);
             case "disconnect" -> parkingMessageService.handleDisconnect(topic, json);
             case "ping" -> parkingMessageService.handlePing(topic, json);
+            case "payment" -> parkingMessageService.handlePayment(topic, json);
+            case "session_abandoned" -> parkingMessageService.handleSessionAbandoned(topic, json);
+            case "support_request" -> parkingMessageService.handleSupportRequest(topic, json);
             default -> log.warn("Unsupported MQTT message type={}, topic={}", type, topic);
         }
     }

@@ -35,6 +35,8 @@ mqtt:
   password:
   client-id: barie-core-service-dev
   device-register-topic: "parking/v1/client/#"
+  publish-cmd-topic-prefix: "parking/v1/server"
+  publish-cmd-topic-suffix: "/cmd"
 
 megapay:
   mer-id: EPAY000001

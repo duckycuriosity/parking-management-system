@@ -8,5 +8,5 @@ public class ParkingEvent {
     private String plateNumber;
     private String aiIdentityPlateId;
     private String aiIdentityCustomerId; // id khuôn mặt từ AI
-    private String cameraId;             // id thiết bị cổng (để bắn lệnh MQTT về đúng cổng)
+    private Long laneId;
 }

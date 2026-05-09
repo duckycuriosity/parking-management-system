@@ -17,7 +17,7 @@ public class ParkingCustomerEntity extends BaseEntity {
     @Column(name = "zalo_id", length = 100)
     private String zaloId;
 
-    @Column(nullable = false, length = 255)
+    @Column(length = 255)
     private String username;
 
     @Column(name = "phone_number", length = 20)
