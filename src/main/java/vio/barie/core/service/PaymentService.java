@@ -15,12 +15,18 @@ import vio.barie.core.entity.ParkingSessionEntity;
 import vio.barie.core.entity.PaymentEntity;
 import vio.barie.core.repository.PaymentRepository;
 
+import javax.crypto.Cipher;
+import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.Calendar;
+
+import static cn.hutool.core.convert.Convert.hexToBytes;
 
 @Slf4j
 @Service
@@ -173,6 +179,20 @@ public class PaymentService {
             log.error("Input: ", response.getMerchantToken());
         }
         return isValid;
+    }
+
+    // paymentLink từ MegaPay được encode bằng 3DES, cần decode trước khi dùng
+    public String decodePaymentLink(String hexEncoded) {
+        try {
+            byte[] keyBytes = config.getEncodeKey().substring(0, 24).getBytes(StandardCharsets.UTF_8);
+            SecretKeySpec keySpec = new SecretKeySpec(keyBytes, "DESede");
+            Cipher cipher = Cipher.getInstance("DESede/ECB/PKCS5Padding");
+            cipher.init(Cipher.DECRYPT_MODE, keySpec);
+            byte[] decrypted = cipher.doFinal(hexToBytes(hexEncoded));
+            return new String(decrypted, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new RuntimeException("Decode paymentLink thất bại", e);
+        }
     }
 
     // truy vấn lại dữ liệu thanh toán cũ dựa trên invoiceNo

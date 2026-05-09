@@ -1,4 +1,4 @@
-package vio.barie.core.mqtt;
+package vio.barie.core.config.mqtt;
 
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.springframework.beans.factory.annotation.Value;
