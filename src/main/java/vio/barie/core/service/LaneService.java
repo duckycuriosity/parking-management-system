@@ -11,6 +11,10 @@ import vio.barie.core.exception.BusinessException;
 import vio.barie.core.mapper.LaneMapper;
 import vio.barie.core.repository.LaneRepository;
 import vio.barie.core.repository.ParkingLotRepository;
+import vio.barie.core.repository.CameraRepository;
+import vio.barie.core.repository.ParkingDeviceRepository;
+import vio.barie.core.entity.CameraEntity;
+import vio.barie.core.entity.ParkingDeviceEntity;
 
 import java.util.List;
 
@@ -21,6 +25,8 @@ public class LaneService {
     private final LaneRepository laneRepository;
     private final ParkingLotRepository parkingLotRepository;
     private final LaneMapper laneMapper;
+    private final CameraRepository cameraRepository;
+    private final ParkingDeviceRepository parkingDeviceRepository;
 
     @Transactional
     public LaneResponse create(LaneCreateRequest request) {
@@ -31,6 +37,25 @@ public class LaneService {
         entity.setParkingLot(parkingLot);
 
         LaneEntity saved = laneRepository.save(entity);
+
+        // associate cameras
+        if (request.getCameraIds() != null && !request.getCameraIds().isEmpty()) {
+            Iterable<CameraEntity> cams = cameraRepository.findAllById(request.getCameraIds());
+            for (CameraEntity cam : cams) {
+                cam.setLane(saved);
+            }
+            cameraRepository.saveAll(cams);
+        }
+
+        // associate parking devices
+        if (request.getParkingDeviceIds() != null && !request.getParkingDeviceIds().isEmpty()) {
+            Iterable<ParkingDeviceEntity> devs = parkingDeviceRepository.findAllById(request.getParkingDeviceIds());
+            for (ParkingDeviceEntity d : devs) {
+                d.setLane(saved);
+            }
+            parkingDeviceRepository.saveAll(devs);
+        }
+
         return laneMapper.toResponse(saved);
     }
 
@@ -58,6 +83,24 @@ public class LaneService {
         entity.setParkingLot(parkingLot);
 
         LaneEntity saved = laneRepository.save(entity);
+
+        // update camera associations (simple strategy: set lane for listed cameras)
+        if (request.getCameraIds() != null) {
+            Iterable<CameraEntity> cams = cameraRepository.findAllById(request.getCameraIds());
+            for (CameraEntity cam : cams) {
+                cam.setLane(saved);
+            }
+            cameraRepository.saveAll(cams);
+        }
+
+        if (request.getParkingDeviceIds() != null) {
+            Iterable<ParkingDeviceEntity> devs = parkingDeviceRepository.findAllById(request.getParkingDeviceIds());
+            for (ParkingDeviceEntity d : devs) {
+                d.setLane(saved);
+            }
+            parkingDeviceRepository.saveAll(devs);
+        }
+
         return laneMapper.toResponse(saved);
     }
 
@@ -66,5 +109,27 @@ public class LaneService {
         LaneEntity entity = laneRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Lane not found", "LANE_NOT_FOUND", 404));
         laneRepository.delete(entity);
+    }
+
+    @Transactional
+    public void assignCameras(Long laneId, java.util.List<Long> cameraIds) {
+        LaneEntity lane = laneRepository.findById(laneId)
+                .orElseThrow(() -> new BusinessException("Lane not found", "LANE_NOT_FOUND", 404));
+        Iterable<CameraEntity> cams = cameraRepository.findAllById(cameraIds);
+        for (CameraEntity cam : cams) {
+            cam.setLane(lane);
+        }
+        cameraRepository.saveAll(cams);
+    }
+
+    @Transactional
+    public void assignParkingDevices(Long laneId, java.util.List<Long> deviceIds) {
+        LaneEntity lane = laneRepository.findById(laneId)
+                .orElseThrow(() -> new BusinessException("Lane not found", "LANE_NOT_FOUND", 404));
+        Iterable<ParkingDeviceEntity> devs = parkingDeviceRepository.findAllById(deviceIds);
+        for (ParkingDeviceEntity d : devs) {
+            d.setLane(lane);
+        }
+        parkingDeviceRepository.saveAll(devs);
     }
 }

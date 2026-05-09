@@ -31,27 +31,68 @@ public class LaneController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<LaneResponse> create(@Valid @RequestBody LaneCreateRequest request) {
-        return new ApiResponse<>("SUCCESS", "Lane created successfully", laneService.create(request));
+        ApiResponse<LaneResponse> resp = new ApiResponse<>();
+        resp.setCode("SUCCESS");
+        resp.setMessage("Lane created successfully");
+        resp.setData(laneService.create(request));
+        return resp;
     }
 
     @GetMapping
     public ApiResponse<List<LaneResponse>> findAll() {
-        return new ApiResponse<>("SUCCESS", "Lane list fetched successfully", laneService.findAll());
+        ApiResponse<java.util.List<LaneResponse>> resp = new ApiResponse<>();
+        resp.setCode("SUCCESS");
+        resp.setMessage("Lane list fetched successfully");
+        resp.setData(laneService.findAll());
+        return resp;
     }
 
     @GetMapping("/{id}")
     public ApiResponse<LaneResponse> findById(@PathVariable Long id) {
-        return new ApiResponse<>("SUCCESS", "Lane fetched successfully", laneService.findById(id));
+        ApiResponse<LaneResponse> resp = new ApiResponse<>();
+        resp.setCode("SUCCESS");
+        resp.setMessage("Lane fetched successfully");
+        resp.setData(laneService.findById(id));
+        return resp;
     }
 
     @PutMapping("/{id}")
     public ApiResponse<LaneResponse> update(@PathVariable Long id, @Valid @RequestBody LaneCreateRequest request) {
-        return new ApiResponse<>("SUCCESS", "Lane updated successfully", laneService.update(id, request));
+        ApiResponse<LaneResponse> resp = new ApiResponse<>();
+        resp.setCode("SUCCESS");
+        resp.setMessage("Lane updated successfully");
+        resp.setData(laneService.update(id, request));
+        return resp;
+    }
+
+    @PostMapping("/{id}/assign-cameras")
+    public ApiResponse<String> assignCameras(@PathVariable Long id, @RequestBody java.util.List<Long> cameraIds) {
+        laneService.assignCameras(id, cameraIds);
+        ApiResponse<String> resp = new ApiResponse<>();
+        resp.setCode("SUCCESS");
+        resp.setMessage("Cameras assigned to lane");
+        resp.setData(null);
+        return resp;
+    }
+
+    @PostMapping("/{id}/assign-parking-devices")
+    public ApiResponse<String> assignParkingDevices(@PathVariable Long id,
+            @RequestBody java.util.List<Long> deviceIds) {
+        laneService.assignParkingDevices(id, deviceIds);
+        ApiResponse<String> resp = new ApiResponse<>();
+        resp.setCode("SUCCESS");
+        resp.setMessage("Parking devices assigned to lane");
+        resp.setData(null);
+        return resp;
     }
 
     @DeleteMapping("/{id}")
     public ApiResponse<String> delete(@PathVariable Long id) {
         laneService.delete(id);
-        return new ApiResponse<>("SUCCESS", "Lane deleted successfully", null);
+        ApiResponse<String> resp = new ApiResponse<>();
+        resp.setCode("SUCCESS");
+        resp.setMessage("Lane deleted successfully");
+        resp.setData(null);
+        return resp;
     }
 }

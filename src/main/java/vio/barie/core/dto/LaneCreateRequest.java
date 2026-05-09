@@ -22,4 +22,8 @@ public class LaneCreateRequest {
 
     @NotNull(message = "parkingLotId is required")
     private Long parkingLotId;
+
+    // optional grouping
+    private java.util.List<Long> cameraIds;
+    private java.util.List<Long> parkingDeviceIds;
 }

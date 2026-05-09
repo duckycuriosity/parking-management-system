@@ -21,6 +21,6 @@ public class CameraEntity extends BaseEntity {
     private String status;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "lane_id", nullable = false)
+    @JoinColumn(name = "lane_id")
     private LaneEntity lane;
 }

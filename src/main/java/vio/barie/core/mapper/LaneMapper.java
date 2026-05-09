@@ -28,6 +28,12 @@ public class LaneMapper {
         if (entity.getParkingLot() != null) {
             response.setParkingLotId(entity.getParkingLot().getId());
         }
+        if (entity.getCameras() != null) {
+            response.setCameraIds(entity.getCameras().stream().map(c -> c.getId()).toList());
+        }
+        if (entity.getParkingDevices() != null) {
+            response.setParkingDeviceIds(entity.getParkingDevices().stream().map(d -> d.getId()).toList());
+        }
         return response;
     }
 
