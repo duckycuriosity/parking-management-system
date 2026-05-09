@@ -34,7 +34,7 @@ public class ProfileController {
                 profileService.findAll());
     }
 
-    // Lấy thông tin theo ID (GET)
+ 
     @GetMapping("/{id}")
     public ApiResponse<AiProfileResponse> findById(@PathVariable Integer id) {
         return new ApiResponse<>(
@@ -43,7 +43,7 @@ public class ProfileController {
                 profileService.findById(id));
     }
 
-    // Cập nhật Profile (PUT)
+
     @PutMapping("/{id}")
     public ApiResponse<AiProfileResponse> update(
             @PathVariable Integer id,
@@ -54,7 +54,7 @@ public class ProfileController {
                 profileService.update(id, request));
     }
 
-    // Xóa Profile (DELETE)
+
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Integer id) {
         profileService.delete(id);

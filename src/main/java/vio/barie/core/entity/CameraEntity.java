@@ -20,6 +20,25 @@ public class CameraEntity extends BaseEntity {
     @Column(name = "status")
     private String status;
 
+    @Column(name = "camera_uuid")
+    private String cameraUuid;
+
+    @Column(name = "name")
+    private String name;
+
+    @Column(name = "url")
+    private String url;
+
+    @Column(name = "type")
+    private String type;
+
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "lane_id")
     private LaneEntity lane;
