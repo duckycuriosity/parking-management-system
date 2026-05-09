@@ -28,7 +28,7 @@ public class ParkingService {
     private final ParkingMessageService ioTService;
     private final LaneRepository laneRepository;
 
-    private final String barrier= "pk_cb42f9e063514417_01";
+    private final String device = "pk_cb42f9e063514417";
 
     public void handle(ParkingEvent req){
         VehicleEntity vehicle = findVehicle(req);
@@ -56,7 +56,7 @@ public class ParkingService {
                 vehicle.getId(), vehicle.getPlateNumber(), laneId);
 
         // TODO: từ lane tìm thấy barrier
-        ioTService.publishOpenCommand(barrier, session.getId(), vehicle.getPlateNumber(), "manual_override");
+        ioTService.publishOpenCommand(device, session.getId(), vehicle.getPlateNumber(), "manual_override");
     }
 
     // TODO: tạm thời cmt để test
@@ -69,7 +69,7 @@ public class ParkingService {
         if (ticket != null) {
             session.setExitTime(LocalDateTime.now());
             parkingSessionRepository.save(session);
-            ioTService.publishOpenForMonthlyTicket(barrier, session.getId(), vehicle.getPlateNumber(),
+            ioTService.publishOpenForMonthlyTicket(device, session.getId(), vehicle.getPlateNumber(),
                     "parking_customer_monthly", ticket.getExpireAt());
             return;
         }
@@ -96,16 +96,23 @@ public class ParkingService {
         parkingSessionRepository.save(session);
 
         // TODO: từ lane tìm thấy barrier
-        ioTService.publishVehicleInfo(barrier, session.getId(), vehicle.getPlateNumber(),
+        ioTService.publishVehicleInfo(device, session.getId(), vehicle.getPlateNumber(),
                 session.getEntryTime(), amount, paymentService.decodePaymentLink(qr.getPaymentLink()));
 
-        // TODO: thay bằng webhook thanh toán thực, tạm thời tự động mở cổng sau 10s
         try {
-            Thread.sleep(10_000L);
+            Thread.sleep(3_000L);
+            ioTService.publishPaymentConfirmed(device, session.getId(), amount, qr.getInvoiceNo());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        ioTService.publishPaymentSuccess(barrier, session.getId(), vehicle.getPlateNumber());
+
+        // TODO: thay bằng webhook thanh toán thực, tạm thời tự động mở cổng sau 10s
+        try {
+            Thread.sleep(3_000L);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        ioTService.publishPaymentSuccess(device, session.getId(), vehicle.getPlateNumber());
     }
 
     private VehicleEntity findVehicle(ParkingEvent req) {

@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import vio.barie.core.dto.parking.OpenCmdCommand;
+import vio.barie.core.dto.parking.PaymentConfirmedCommand;
 import vio.barie.core.dto.parking.PaymentSuccessCommand;
 import vio.barie.core.dto.parking.VehicleInfoCommand;
 import vio.barie.core.entity.ParkingDeviceEntity;
@@ -174,7 +175,7 @@ public class ParkingMessageService {
 
         VehicleInfoCommand cmd = VehicleInfoCommand.builder()
                 .sessionId(String.valueOf(sessionId))
-                .barrierId(deviceId)
+                .barrierId(deviceId+ "_01")
                 .direction("exit")
                 .plate(plate)
                 .ticketType("hourly")
@@ -199,7 +200,7 @@ public class ParkingMessageService {
 
         VehicleInfoCommand infoCmd = VehicleInfoCommand.builder()
                 .sessionId(String.valueOf(sessionId))
-                .barrierId(deviceId)
+                .barrierId(deviceId+ "_01")
                 .direction("exit")
                 .plate(plate)
                 .ticketType("monthly")
@@ -219,25 +220,33 @@ public class ParkingMessageService {
 
         PaymentSuccessCommand successCmd = PaymentSuccessCommand.builder()
                 .sessionId(String.valueOf(sessionId))
-                .barrierIds(List.of(deviceId))
+                .barrierIds(List.of(deviceId+ "_01"))
                 .plate(plate)
                 .status("success")
                 .autoIdleSeconds(0)
                 .timestamp(LocalDateTime.now().format(DT_FMT))
                 .build();
 
-        OpenCmdCommand openCmd = OpenCmdCommand.builder()
-                .barrierId(deviceId)
+        publish(deviceId, successCmd);
+    }
+
+    public void publishPaymentConfirmed(String deviceId, Long sessionId, int amountPaid, String invoiceNo) {
+        if (deviceId == null) {
+            log.warn("publishPaymentSuccess: deviceId is null, skipping — sessionId={}", sessionId);
+            return;
+        }
+
+        PaymentConfirmedCommand confirmedCmd = PaymentConfirmedCommand.builder()
                 .sessionId(String.valueOf(sessionId))
-                .reason("payment_confirmed")
-                .playSound(true)
-                .soundFile("payment_success.mp3")
-                .autoCloseSeconds(5)
+                .barrierId(deviceId + "_01")
+                .amountPaid(amountPaid)
+                .transactionId(invoiceNo)
+                .timestamp(LocalDateTime.now().format(DT_FMT))
                 .build();
 
-        publish(deviceId, successCmd);
-        publish(deviceId, openCmd);
+        publish(deviceId, confirmedCmd);
     }
+
 
     public void publishOpenCommand(String deviceId, Long sessionId, String plate, String reason) {
         if (deviceId == null) {
@@ -246,7 +255,7 @@ public class ParkingMessageService {
         }
 
         OpenCmdCommand cmd = OpenCmdCommand.builder()
-                .barrierId(deviceId)
+                .barrierId(deviceId+ "_01")
                 .sessionId(String.valueOf(sessionId))
                 .reason(reason)
                 .playSound(true)
