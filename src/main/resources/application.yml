@@ -4,6 +4,8 @@ mqtt:
   password:
   client-id: barie-core-service-devs
   device-register-topic: parking/v1/client/#  # Parking Client
+  publish-cmd-topic-prefix: "parking/v1/server"
+  publish-cmd-topic-suffix: "/cmd"
 
 spring:
   profiles:
