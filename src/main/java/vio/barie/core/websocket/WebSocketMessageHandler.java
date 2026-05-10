@@ -25,6 +25,7 @@ public class WebSocketMessageHandler extends TextWebSocketHandler {
     private final VmsWebSocketReconnectService reconnectService;
     private final vio.barie.core.service.VmsService vmsService;
     private final ProfileHandler profileHandler;
+    private final PlateHandler plateHandler;
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -35,6 +36,7 @@ public class WebSocketMessageHandler extends TextWebSocketHandler {
     protected void handleTextMessage(WebSocketSession session, TextMessage message)
             throws IOException {
         String payload = message.getPayload();
+        log.info("VMS websocket message received: sessionId={}, payload={}", session.getId(), payload);
 
         try {
             JsonNode jsonNode = objectMapper.readTree(payload);
@@ -54,26 +56,40 @@ public class WebSocketMessageHandler extends TextWebSocketHandler {
         }
     }
 
-    private boolean isProfileWsMsg(JsonNode event){
+    private boolean isProfileWsMsg(JsonNode event) {
         return !event.path("data").path("type").isMissingNode()
                 && EVENT_PROFILE.equals(event.path("data").path("type").asText())
                 && !event.path("data").path("data").path("face").isMissingNode()
                 && !event.path("data").path("data").path("face").isNull();
     }
 
+    private boolean isPlateWsMsg(JsonNode event) {
+        return !event.path("data").path("type").isMissingNode()
+                && EVENT_PLATE.equals(event.path("data").path("type").asText())
+                && !event.path("data").path("data").path("plate").isMissingNode()
+                && !event.path("data").path("data").path("plate").isNull();
+    }
+
     private void routeEvent(JsonNode event) {
+        JsonNode data = event.path("data");
+        if (data.isMissingNode()) {
+            log.debug("VMS websocket: event has no data node — {}", event);
+            return;
+        }
         if (isProfileWsMsg(event)) {
             try {
-                if (event.has("data")) {
-                    profileHandler.handle(event.path("data"));
-                } else {
-                    log.warn("ProfileHandler has empty event : {}", event);
-                }
+                profileHandler.handle(data);
             } catch (Exception ex) {
-                log.warn("ProfileHandler failed for event: {}", ex.getMessage());
+                log.warn("ProfileHandler failed: {}", ex.getMessage());
+            }
+        } else if (isPlateWsMsg(event)) {
+            try {
+                plateHandler.handle(data);
+            } catch (Exception ex) {
+                log.warn("PlateHandler failed: {}", ex.getMessage());
             }
         } else {
-            log.debug("VMS websocket is not supporting this message format yet : {}", event);
+            log.debug("VMS websocket: unsupported message format — {}", event);
         }
     }
 

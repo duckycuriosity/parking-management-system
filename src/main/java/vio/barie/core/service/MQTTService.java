@@ -8,12 +8,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
 public class MQTTService {
     @Autowired
+    @Lazy
     private ParkingMessageService parkingMessageService;
 
     @Autowired
@@ -101,6 +103,9 @@ public class MQTTService {
             case "connect" -> parkingMessageService.handleConnect(topic, json);
             case "disconnect" -> parkingMessageService.handleDisconnect(topic, json);
             case "ping" -> parkingMessageService.handlePing(topic, json);
+            case "payment" -> parkingMessageService.handlePayment(topic, json);
+            case "session_abandoned" -> parkingMessageService.handleSessionAbandoned(topic, json);
+            case "support_request" -> parkingMessageService.handleSupportRequest(topic, json);
             default -> log.warn("Unsupported MQTT message type={}, topic={}", type, topic);
         }
     }

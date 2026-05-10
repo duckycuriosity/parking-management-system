@@ -10,7 +10,6 @@ import vio.barie.core.entity.VehicleEntity;
 import vio.barie.core.config.exception.BusinessException;
 import vio.barie.core.mapper.PlateMapper;
 import vio.barie.core.repository.VehicleRepository;
-
 import java.util.List;
 
 @Service
@@ -23,10 +22,7 @@ public class PlateService {
     @Transactional
     public AiPlateResponse create(PlateCreateRequest request) {
         if (VehicleRepository.existsByPlateNumber(request.getPlate())) {
-            throw new BusinessException(
-                    "Plate number already exists",
-                    "DUPLICATE_PLATE",
-                    409);
+            throw new BusinessException("Plate number already exists", "DUPLICATE_PLATE", 409);
         }
         AiPlateResponse aiResponse = aiPlateGateway.create(request);
 

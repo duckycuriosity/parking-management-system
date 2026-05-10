@@ -55,6 +55,10 @@ public class ParkingDeviceEntity {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "lane_id")
+    private LaneEntity lane;
+
     @PrePersist
     public void prePersist() {
         LocalDateTime now = LocalDateTime.now();
