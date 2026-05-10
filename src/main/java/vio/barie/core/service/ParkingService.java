@@ -10,6 +10,7 @@ import vio.barie.core.dto.payment.CreatePaymentRequest;
 import vio.barie.core.dto.payment.CreatePaymentResponse;
 import vio.barie.core.entity.*;
 import vio.barie.core.repository.*;
+import vio.barie.core.service.mqtt.ParkingMessageService;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -22,13 +23,14 @@ public class ParkingService {
     private final VehicleRepository vehicleRepository;
     private final TicketRepository ticketRepository;
     private final ParkingSessionRepository parkingSessionRepository;
-    private final PaymentRepository paymentRepository;
+    private final ParkingCustomerRepository parkingCustomerRepository;
     private final CalculatorService calculatorService;
     private final PaymentService paymentService;
     private final ParkingMessageService ioTService;
     private final LaneRepository laneRepository;
 
-    private final String device = "pk_cb42f9e063514417";
+    // todo: tạm thời fix cứng
+    private final String device = "pk_df102790fdca47ad";
 
     public void handle(ParkingEvent req){
         VehicleEntity vehicle = findVehicle(req);
@@ -36,38 +38,48 @@ public class ParkingService {
         Optional<ParkingSessionEntity> session = parkingSessionRepository
                 .findFirstByVehicleIdAndExitTimeIsNullOrderByEntryTimeDesc(vehicle.getId());
         if (session.isPresent()){
-            handleExitEvent(session.get());
-        } else handleEntryEvent(vehicle, req.getLaneId());
+            handleExitEvent(req);
+        } else handleEntryEvent(req);
     }
 
     @Transactional
-    public void handleEntryEvent(VehicleEntity vehicle, Long laneId) {
-        LaneEntity lane = laneRepository.findByIdWithParkingLot(laneId)
-                .orElseThrow(() -> new ServiceException("Lane not found: " + laneId, 404));
+    public void handleEntryEvent(ParkingEvent req) {
+        VehicleEntity vehicle = findVehicle(req);
+        ParkingCustomerEntity customer = findCustomer(req);
+        LaneEntity lane = findLane(req);
 
         ParkingSessionEntity session = new ParkingSessionEntity();
         session.setVehicle(vehicle);
+        session.setEntryCustomer(customer);
         session.setEntryTime(LocalDateTime.now());
         session.setEntryLane(lane);
         session.setParkingLot(lane.getParkingLot());
         parkingSessionRepository.save(session);
 
         log.info("handleEntryEvent: entry session created — vehicleId={}, plate={}, laneId={}",
-                vehicle.getId(), vehicle.getPlateNumber(), laneId);
+                vehicle.getId(), vehicle.getPlateNumber(), req.getLaneId());
 
         // TODO: từ lane tìm thấy barrier
-        ioTService.publishOpenCommand(device, session.getId(), vehicle.getPlateNumber(), "manual_override");
+        ioTService.publishOpenCommand(device, session.getId(), "vehicle_entry");
     }
 
     // TODO: tạm thời cmt để test
     // @Transactional
-    public void handleExitEvent(ParkingSessionEntity session) {
-        VehicleEntity vehicle = session.getVehicle();
+    public void handleExitEvent(ParkingEvent req) {
+        VehicleEntity vehicle = findVehicle(req);
+        ParkingCustomerEntity customer = findCustomer(req);
+        LaneEntity lane = findLane(req);
+
+        ParkingSessionEntity session = parkingSessionRepository
+                .findFirstByVehicleIdAndExitTimeIsNullOrderByEntryTimeDesc(vehicle.getId())
+                .orElseThrow(() -> new ServiceException("Không tìm thấy hoạt động đi vào của xe", 404));
+        session.setExitCustomer(customer);
+        session.setExitTime(LocalDateTime.now());
+        session.setExitLane(lane);
 
         // Luồng vé tháng
         TicketEntity ticket = findValidMonthlyTicket(vehicle.getId());
         if (ticket != null) {
-            session.setExitTime(LocalDateTime.now());
             parkingSessionRepository.save(session);
             ioTService.publishOpenForMonthlyTicket(device, session.getId(), vehicle.getPlateNumber(),
                     "parking_customer_monthly", ticket.getExpireAt());
@@ -92,7 +104,6 @@ public class ParkingService {
 //        payment.setStatus("PENDING");
 //        paymentRepository.save(payment);
 
-        session.setExitTime(LocalDateTime.now());
         parkingSessionRepository.save(session);
 
         // TODO: từ lane tìm thấy barrier
@@ -123,6 +134,16 @@ public class ParkingService {
         }
         return vehicleRepository.findByPlateNumber(req.getPlateNumber())
                 .orElseThrow(() -> new ServiceException("Không tìm thấy xe", 404));
+    }
+
+    private ParkingCustomerEntity findCustomer(ParkingEvent req) {
+        return parkingCustomerRepository.findByAiIdentityId(req.getAiIdentityCustomerId())
+                .orElseThrow(() -> new ServiceException("Không tìm thấy người ", 404));
+    }
+
+    private LaneEntity findLane(ParkingEvent req) {
+        return laneRepository.findByIdWithParkingLot(req.getLaneId())
+                .orElseThrow(() -> new ServiceException("Không tìm thấy lane: ", 404));
     }
 
     private TicketEntity findValidMonthlyTicket(Long vehicleId) {

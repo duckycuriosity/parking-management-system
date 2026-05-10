@@ -4,11 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import vio.barie.core.entity.CameraEntity;
 import vio.barie.core.entity.VehicleEntity;
 import vio.barie.core.repository.CameraRepository;
 import vio.barie.core.repository.VehicleRepository;
-import vio.barie.core.websocket.AiEventBuffer;
+
+import java.time.LocalDateTime;
 
 @Slf4j
 @Component
@@ -17,21 +19,26 @@ public class PlateMessageService {
 
     private final VehicleRepository vehicleRepository;
     private final CameraRepository cameraRepository;
-    private final AiEventBuffer aiEventBuffer;
+    private final AiMQTTEventBuffer aiEventBuffer;
+    private ParkingMessageService parkingMessageService;
 
+    // todo: tạm thời fix cứng
+    private final String device = "pk_df102790fdca47ad";
+
+    @Transactional()
     public void handle(JsonNode event) {
-        long cameraId = event.path("cameraId").asLong();
+        String cameraCode = event.path("cameraId").asText();
         String plateNumber = event.path("plateNumber").asText(null);
         String plateId = event.path("plateId").asText(null);
 
         if (plateId == null) {
-            log.warn("PlateHandler: plate event has no plateNumber — cameraId={}", cameraId);
+            log.warn("PlateHandler: plate event has no plateNumber — cameraId={}", cameraCode);
             return;
         }
 
-        CameraEntity camera = cameraRepository.findByIdWithLane(cameraId).orElse(null);
+        CameraEntity camera = cameraRepository.findByCodeWithLane(cameraCode).orElse(null);
         if (camera == null) {
-            log.warn("PlateHandler: unknown camera — cameraId={}", cameraId);
+            log.warn("ProfileHandler: unknown camera — cameraId={}", cameraCode);
             return;
         }
 
@@ -44,6 +51,8 @@ public class PlateMessageService {
             newVehicle.setAiIdentityPlateId(plateId);
             vehicleRepository.save(newVehicle);
         }
+
+        parkingMessageService.publishEntryVehicleInfo(device,plateNumber, LocalDateTime.now());
 
         aiEventBuffer.addPlateEvent(laneId, plateNumber, plateId);
     }

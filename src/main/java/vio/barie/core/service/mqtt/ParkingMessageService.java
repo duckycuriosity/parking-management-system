@@ -164,6 +164,29 @@ public class ParkingMessageService {
         // TODO: alert ops dashboard, chờ manual override
     }
 
+    public void publishEntryVehicleInfo(String deviceId, String plate,
+                                   LocalDateTime entryTime){
+        if (deviceId == null) {
+            log.warn("publishVehicleInfo: deviceId is null");
+            return;
+        }
+
+        VehicleInfoCommand cmd = VehicleInfoCommand.builder()
+                .sessionId("entry_auth_"+LocalDateTime.now())
+                .scenarioTag("entry_authorized")
+                .barrierId(deviceId+ "_01")
+                .direction("entry")
+                .plate(plate)
+                .ticketType("free")
+                .entryTime(entryTime != null ? entryTime.format(DT_FMT) : null)
+                .amountDue(0)
+                .currency("VND")
+                .open(false)
+                .build();
+
+        publish(deviceId, cmd);
+    }
+
     public void publishVehicleInfo(String deviceId, Long sessionId, String plate,
                                    LocalDateTime entryTime, Integer amountDue, String qrUrl) {
         if (deviceId == null) {

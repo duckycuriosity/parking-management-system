@@ -19,6 +19,9 @@ public class VehicleInfoCommand {
     @JsonProperty("session_id")
     private String sessionId;
 
+    @JsonProperty("scenario_tag")
+    private String scenarioTag;
+
     @JsonProperty("barrier_id")
     private String barrierId;
 

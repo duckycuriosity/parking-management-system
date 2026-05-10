@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class AiEventBuffer {
+public class AiMQTTEventBuffer {
 
     private static final long TIMEOUT_MS = 60_000L;
 
