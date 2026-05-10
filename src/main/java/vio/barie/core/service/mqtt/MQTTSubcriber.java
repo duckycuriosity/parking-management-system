@@ -1,46 +1,36 @@
-package vio.barie.core.service;
+package vio.barie.core.service.mqtt;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.*;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
-public class MQTTService {
-    @Autowired
-    @Lazy
-    private ParkingMessageService parkingMessageService;
+@RequiredArgsConstructor
+public class MQTTSubcriber {
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    private final MqttClient client;
+    private final ProfileMessageService profileMessageService;
+    private final PlateMessageService plateMessageService;
+    private final ParkingMessageService parkingMessageService;
+    private final ObjectMapper objectMapper;
 
     @Value("${mqtt.device-register-topic}")
     private String deviceRegisterTopic;
-
-    @Value("${mqtt.host}")
-    private String broker;
-
-    @Value("${mqtt.client-id}")
-    private String clientId;
-
-    private MqttClient client;
+    @Value("${mqtt.aibox-face-topic}")
+    private String aiboxFaceTopic;
+    @Value("${mqtt.aibox-plate-topic}")
+    private String aiboxPlateTopic;
 
     @PostConstruct
     public void init() {
         try {
-            client = new MqttClient(broker, clientId);
-
-            MqttConnectOptions options = new MqttConnectOptions();
-            options.setAutomaticReconnect(true);
-            options.setCleanSession(true);
-
             client.setCallback(new MqttCallback() {
                 @Override
                 public void connectionLost(Throwable cause) {
@@ -60,24 +50,13 @@ public class MQTTService {
                 }
             });
 
-            client.connect(options);
-            log.info("Connected to MQTT broker");
-
             // Subscribe default topic
             client.subscribe(deviceRegisterTopic);
+            client.subscribe(aiboxFaceTopic);
+            client.subscribe(aiboxPlateTopic);
 
         } catch (Exception e) {
             log.error("MQTT init error", e);
-        }
-    }
-
-    public void publish(String topic, String payload) {
-        try {
-            MqttMessage message = new MqttMessage(payload.getBytes());
-            message.setQos(1);
-            client.publish(topic, message);
-        } catch (Exception e) {
-            log.error("Publish error", e);
         }
     }
 
@@ -97,16 +76,21 @@ public class MQTTService {
     }
 
     private void dispatch(String topic, String type, JsonNode json) {
-        String normalizedType = type == null ? "" : type.trim().toLowerCase();
+        if(topic.equals(aiboxFaceTopic)){
+            profileMessageService.handle(json);
+        } else if (topic.equals(aiboxPlateTopic)) {
+            plateMessageService.handle(json);
+        } else {
+            String normalizedType = type == null ? "" : type.trim().toLowerCase();
 
-        switch (normalizedType) {
-            case "connect" -> parkingMessageService.handleConnect(topic, json);
-            case "disconnect" -> parkingMessageService.handleDisconnect(topic, json);
-            case "ping" -> parkingMessageService.handlePing(topic, json);
-            case "payment" -> parkingMessageService.handlePayment(topic, json);
-            case "session_abandoned" -> parkingMessageService.handleSessionAbandoned(topic, json);
-            case "support_request" -> parkingMessageService.handleSupportRequest(topic, json);
-            default -> log.warn("Unsupported MQTT message type={}, topic={}", type, topic);
+            switch (normalizedType) {
+                case "connect" -> parkingMessageService.handleConnect(topic, json);
+                case "disconnect" -> parkingMessageService.handleDisconnect(topic, json);
+                case "ping" -> parkingMessageService.handlePing(topic, json);
+                case "payment" -> parkingMessageService.handlePayment(topic, json);
+                case "event" -> parkingMessageService.handleEvent(topic, json);
+                default -> log.warn("Unsupported MQTT message type={}, topic={}", type, topic);
+            }
         }
     }
 
