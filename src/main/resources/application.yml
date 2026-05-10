@@ -6,6 +6,7 @@ mqtt:
   device-register-topic: parking/v1/client/#  # Parking Client
   publish-cmd-topic-prefix: "parking/v1/server"
   publish-cmd-topic-suffix: "/cmd"
+  receive-ai-event: aibox/face/#
 
 spring:
   profiles:

@@ -37,6 +37,7 @@ mqtt:
   device-register-topic: "parking/v1/client/#"
   publish-cmd-topic-prefix: "parking/v1/server"
   publish-cmd-topic-suffix: "/cmd"
+  receive-ai-event: "aibox/face/#"
 
 megapay:
   mer-id: EPAY000001
@@ -60,7 +61,8 @@ ai:
     connection: close
   ws:
     enabled: true
-    url: "ws://192.168.168.30:8012/ws/Notify"
+#    url: "ws://192.168.168.30:8012/ws/Notify"
+    url: "wss://echo.websocket.org"
     reconnect-delay-ms: 3000
 
 vms:
