@@ -20,7 +20,7 @@ public class PlateMessageService {
     private final VehicleRepository vehicleRepository;
     private final CameraRepository cameraRepository;
     private final AiMQTTEventBuffer aiEventBuffer;
-    private ParkingMessageService parkingMessageService;
+    private final ParkingMessageService parkingMessageService;
 
     // todo: tạm thời fix cứng
     private final String device = "pk_df102790fdca47ad";
