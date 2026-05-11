@@ -14,6 +14,9 @@ public class ParkingCustomerEntity extends BaseEntity {
     @Column(name = "ai_identity_id", nullable = false, length = 100)
     private String aiIdentityId;
 
+    @Column(name = "ai_profile_id", nullable = false, length = 100)
+    private int aiProfileId;
+
     @Column(name = "zalo_id", length = 100)
     private String zaloId;
 

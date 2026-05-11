@@ -10,6 +10,8 @@ import vio.barie.core.entity.ParkingCustomerEntity;
 import vio.barie.core.repository.CameraRepository;
 import vio.barie.core.repository.ParkingCustomerRepository;
 
+import java.util.UUID;
+
 
 @Slf4j
 @Component
@@ -23,7 +25,7 @@ public class ProfileMessageService {
     @Transactional()
     public void handle(JsonNode event) {
         Long cameraCode = event.path("cameraId").asLong();
-        String profileId = event.path("profileId").asText(null);
+        Integer profileId = event.path("profileId").asInt();
         String profileName = event.path("name").asText(null);
 
         if (profileId == null) {
@@ -45,9 +47,11 @@ public class ProfileMessageService {
         long laneId = cameraInLane.getLane().getId();
         log.debug("ProfileHandler: face event — laneId={}, profileId={}, profileName={}", laneId, profileId, profileName);
 
-        if(customerRepository.findByAiIdentityId(profileId).isEmpty()){
+        if(customerRepository.findByAiProfileId(profileId).isEmpty()){
             ParkingCustomerEntity newCustomer = new ParkingCustomerEntity();
-            newCustomer.setAiIdentityId(profileId);
+            UUID uuid = UUID.randomUUID();
+            newCustomer.setAiIdentityId("temp_customer" + uuid.toString());
+            newCustomer.setAiProfileId(profileId);
             newCustomer.setUsername(profileName);
             customerRepository.save(newCustomer);
         }

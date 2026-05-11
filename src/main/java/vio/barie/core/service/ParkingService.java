@@ -137,7 +137,7 @@ public class ParkingService {
     }
 
     private ParkingCustomerEntity findCustomer(ParkingEvent req) {
-        return parkingCustomerRepository.findByAiIdentityId(req.getAiIdentityCustomerId())
+        return parkingCustomerRepository.findByAiProfileId(req.getAiIdentityCustomerId())
                 .orElseThrow(() -> new ServiceException("Không tìm thấy người ", 404));
     }
 

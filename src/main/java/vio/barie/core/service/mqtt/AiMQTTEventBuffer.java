@@ -21,7 +21,7 @@ public class AiMQTTEventBuffer {
     private final ParkingService parkingService;
     private final ConcurrentHashMap<Long, PendingLaneEvent> buffer = new ConcurrentHashMap<>();
 
-    public void addFaceEvent(long laneId, String profileId) {
+    public void addFaceEvent(long laneId, Integer profileId) {
         AtomicReference<PendingPlateEvent> matched = new AtomicReference<>();
 
         buffer.compute(laneId, (id, existing) -> {
@@ -59,7 +59,7 @@ public class AiMQTTEventBuffer {
         }
     }
 
-    private void trigger(String plateNumber, String aiPlateId, String profileId, long laneId) {
+    private void trigger(String plateNumber, String aiPlateId, Integer profileId, long laneId) {
         try {
             ParkingEvent event = new ParkingEvent();
             event.setPlateNumber(plateNumber);
@@ -96,7 +96,7 @@ public class AiMQTTEventBuffer {
         volatile PendingPlateEvent plate;
     }
 
-    record PendingFaceEvent(String profileId, long timestamp) {
+    record PendingFaceEvent(Integer profileId, long timestamp) {
         boolean isExpired(long timeoutMs) {
             return System.currentTimeMillis() - timestamp > timeoutMs;
         }

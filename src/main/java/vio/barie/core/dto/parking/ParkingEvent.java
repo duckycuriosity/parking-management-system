@@ -7,6 +7,6 @@ import lombok.Data;
 public class ParkingEvent {
     private String plateNumber;
     private String aiIdentityPlateId;
-    private String aiIdentityCustomerId; // id khuôn mặt từ AI
+    private Integer aiIdentityCustomerId; // id khuôn mặt từ AI
     private Long laneId;
 }

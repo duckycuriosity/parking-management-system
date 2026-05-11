@@ -9,4 +9,5 @@ import java.util.Optional;
 
 public interface ParkingCustomerRepository extends JpaRepository<ParkingCustomerEntity, Long> {
     Optional<ParkingCustomerEntity> findByAiIdentityId (String aiIdentityId);
+    Optional<ParkingCustomerEntity> findByAiProfileId (Integer aiProfileId);
 }

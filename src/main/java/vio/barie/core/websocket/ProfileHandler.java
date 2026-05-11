@@ -28,7 +28,7 @@ public class ProfileHandler {
         long cameraId = dataNode.path("cameraId").asLong();
         String cameraUuid = dataNode.path("cameraUUID").asText(null);
 
-        String profileId = faceNode.path("profileId").asText(null);
+        Integer profileId = faceNode.path("profileId").asInt();
         String profileName = faceNode.path("profileName").asText(null);
 
         if (profileId == null) {
@@ -45,9 +45,9 @@ public class ProfileHandler {
         long laneId = camera.getLane().getId();
         log.debug("ProfileHandler: face event — laneId={}, profileId={}, profileName={}", laneId, profileId, profileName);
 
-        if(customerRepository.findByAiIdentityId(profileId).isEmpty()){
+        if(customerRepository.findByAiProfileId(profileId).isEmpty()){
             ParkingCustomerEntity newCustomer = new ParkingCustomerEntity();
-            newCustomer.setAiIdentityId(profileId);
+            newCustomer.setAiProfileId(profileId);
             newCustomer.setUsername(profileName);
             customerRepository.save(newCustomer);
         }

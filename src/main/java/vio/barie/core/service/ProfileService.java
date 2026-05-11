@@ -48,7 +48,6 @@ public class ProfileService {
 
   
         ParkingCustomerEntity entity = profileMapper.toEntity(finalProfile);
-        entity.setUsername(name);
         parkingCustomerRepository.save(entity);
 
         return finalProfile;
