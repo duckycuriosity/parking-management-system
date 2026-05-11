@@ -17,13 +17,6 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: false
-
-  datasource:
-    url: jdbc:postgresql://192.168.168.30:5434/barie
-    username: barie_dev
-    password: n7FuKNTV@@
-    driver-class-name: org.postgresql.Driver
-
   jpa:
     hibernate:
       ddl-auto: none

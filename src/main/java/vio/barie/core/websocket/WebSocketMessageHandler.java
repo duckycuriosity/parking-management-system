@@ -33,16 +33,16 @@ public class WebSocketMessageHandler extends TextWebSocketHandler {
     }
 
     @Override
-    protected void handleTextMessage(WebSocketSession session, TextMessage message)
-            throws IOException {
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws IOException {
         String payload = message.getPayload();
         log.info("VMS websocket message received: sessionId={}, payload={}", session.getId(), payload);
 
         try {
             JsonNode jsonNode = objectMapper.readTree(payload);
             log.info("VMS websocket message received: {}", jsonNode.toString());
+            // todo: disabled
             // gửi đến handler tương ứng
-            routeEvent(jsonNode);
+//            routeEvent(jsonNode);
         } catch (IOException ex) {
             log.info("VMS websocket raw message received: {}", payload);
             return;

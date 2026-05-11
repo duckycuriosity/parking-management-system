@@ -21,6 +21,7 @@ public class VmsWebSocketBootstrap {
             log.info("VMS websocket is disabled");
             return;
         }
-        reconnectService.requestReconnect("initial startup");
+        // todo: disable ws
+//        reconnectService.requestReconnect("initial startup");
     }
 }

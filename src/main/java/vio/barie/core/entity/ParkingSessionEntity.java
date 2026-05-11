@@ -27,10 +27,18 @@ public class ParkingSessionEntity extends BaseEntity {
     private LocalDateTime exitTime;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "entry_lane_id") // Giả sử FK tới lane
+    @JoinColumn(name = "entry_customer_id")
+    private ParkingCustomerEntity entryCustomer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "exit_customer_id")
+    private ParkingCustomerEntity exitCustomer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "entry_lane_id")
     private LaneEntity entryLane;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "exit_lane_id") // Giả sử FK tới lane
+    @JoinColumn(name = "exit_lane_id")
     private LaneEntity exitLane;
 }

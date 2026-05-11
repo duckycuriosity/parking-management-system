@@ -3,6 +3,7 @@ package vio.barie.core.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import vio.barie.core.entity.base.BaseEntity;
 
 @Entity
@@ -42,6 +43,8 @@ public class CameraEntity extends BaseEntity {
     private Double longitude;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     @JoinColumn(name = "lane_id", nullable = true)
     private LaneEntity lane;
 }
