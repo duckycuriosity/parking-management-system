@@ -1,0 +1,1 @@
+ALTER TABLE camera ADD COLUMN IF NOT EXISTS ai_camera_id bigint;

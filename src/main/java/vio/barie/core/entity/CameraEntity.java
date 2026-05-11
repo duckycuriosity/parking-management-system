@@ -11,6 +11,21 @@ import vio.barie.core.entity.base.BaseEntity;
 @EqualsAndHashCode(callSuper = true)
 public class CameraEntity extends BaseEntity {
 
+    @Column(name = "ai_camera_id", unique = true)
+    private Long aiCameraId;
+
+    @Column(name = "name")
+    private String name;
+
+    @Column(name = "uuid", unique = true)
+    private String uuid;
+
+    @Column(name = "url")
+    private String url;
+
+    @Column(name = "type")
+    private String type;
+
     @Column(name = "code")
     private String code;
 
@@ -20,26 +35,13 @@ public class CameraEntity extends BaseEntity {
     @Column(name = "status")
     private String status;
 
-    @Column(name = "camera_uuid")
-    private String cameraUuid;
-
-    @Column(name = "name")
-    private String name;
-
-    @Column(name = "url")
-    private String url;
-
-    @Column(name = "type")
-    private String type;
-
     @Column(name = "latitude")
     private Double latitude;
 
     @Column(name = "longitude")
     private Double longitude;
 
-
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "lane_id")
+    @JoinColumn(name = "lane_id", nullable = true)
     private LaneEntity lane;
 }
