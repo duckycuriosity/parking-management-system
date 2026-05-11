@@ -11,4 +11,7 @@ import java.util.Optional;
 public interface CameraRepository extends JpaRepository<CameraEntity, Long> {
     @Query("SELECT c FROM CameraEntity c JOIN FETCH c.lane WHERE c.id = :id")
     Optional<CameraEntity> findByIdWithLane(@Param("id") Long id);
+
+    @Query("SELECT c FROM CameraEntity c JOIN FETCH c.lane WHERE c.code = :cameraCode")
+    Optional<CameraEntity> findByCodeWithLane(@Param("cameraCode") String cameraCode);
 }

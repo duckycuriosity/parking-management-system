@@ -1,4 +1,4 @@
-package vio.barie.core.service;
+package vio.barie.core.service.mqtt;
 
 import cn.hutool.json.JSONUtil;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -27,7 +27,7 @@ import java.util.List;
 public class ParkingMessageService {
     private final ParkingMessageRepository messageRepository;
     private final ParkingDeviceRepository deviceRepository;
-    private final MQTTService mqttService;
+    private final MQTTPublisher mqttPublisher;
     private static final DateTimeFormatter DT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     @Value("${mqtt.publish-cmd-topic-prefix}")
     private String prefix;
@@ -143,6 +143,9 @@ public class ParkingMessageService {
     }
 
     @Transactional
+    public void handleEvent(String topic, JsonNode json){}
+
+    @Transactional
     public void handleSessionAbandoned(String topic, JsonNode json) {
         String deviceId  = json.path("device_id").asText();
         String sessionId = json.path("session_id").asText();
@@ -159,6 +162,29 @@ public class ParkingMessageService {
         saveHistory(topic, json, "support_request");
         log.info("Support request: deviceId={} sessionId={} reason={}", deviceId, sessionId, reason);
         // TODO: alert ops dashboard, chờ manual override
+    }
+
+    public void publishEntryVehicleInfo(String deviceId, String plate,
+                                   LocalDateTime entryTime){
+        if (deviceId == null) {
+            log.warn("publishVehicleInfo: deviceId is null");
+            return;
+        }
+
+        VehicleInfoCommand cmd = VehicleInfoCommand.builder()
+                .sessionId("entry_auth_"+LocalDateTime.now())
+                .scenarioTag("entry_authorized")
+                .barrierId(deviceId+ "_01")
+                .direction("entry")
+                .plate(plate)
+                .ticketType("free")
+                .entryTime(entryTime != null ? entryTime.format(DT_FMT) : null)
+                .amountDue(0)
+                .currency("VND")
+                .open(false)
+                .build();
+
+        publish(deviceId, cmd);
     }
 
     public void publishVehicleInfo(String deviceId, Long sessionId, String plate,
@@ -248,7 +274,7 @@ public class ParkingMessageService {
     }
 
 
-    public void publishOpenCommand(String deviceId, Long sessionId, String plate, String reason) {
+    public void publishOpenCommand(String deviceId, Long sessionId, String reason) {
         if (deviceId == null) {
             log.warn("publishOpenCommand: deviceId is null, skipping — sessionId={}", sessionId);
             return;
@@ -276,7 +302,7 @@ public class ParkingMessageService {
         try {
             String topic = prefix + "/" + deviceId + suffix;
             String json = JSONUtil.toJsonStr(payload);
-            mqttService.publish(topic, json);
+            mqttPublisher.publish(topic, json);
             log.info("Published cmd to topic={}", topic);
         } catch (Exception e) {
             log.error("Failed to publish to deviceId={}: {}", deviceId, e.getMessage(), e);

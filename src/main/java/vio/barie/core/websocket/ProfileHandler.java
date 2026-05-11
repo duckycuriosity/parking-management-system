@@ -29,19 +29,10 @@ public class ProfileHandler {
         String cameraUuid = dataNode.path("cameraUUID").asText(null);
 
         String profileId = faceNode.path("profileId").asText(null);
-        String profileUuid = faceNode.path("profileUUID").asText(null);
         String profileName = faceNode.path("profileName").asText(null);
-        boolean isVerified = faceNode.path("isVerified").asBoolean(false);
 
         if (profileId == null) {
             log.warn("ProfileHandler: face event has no profileId — cameraId={}", cameraId);
-            return;
-        }
-
-        ParkingCustomerEntity customer = customerRepository.findByAiIdentityId(profileId).orElse(null);
-        if (customer == null) {
-            log.info("ProfileHandler: unregistered face — profileUUID={}, profileName={}, isVerified={}, cameraId={}",
-                    profileUuid, profileName, isVerified, cameraId);
             return;
         }
 
@@ -57,6 +48,7 @@ public class ProfileHandler {
         if(customerRepository.findByAiIdentityId(profileId).isEmpty()){
             ParkingCustomerEntity newCustomer = new ParkingCustomerEntity();
             newCustomer.setAiIdentityId(profileId);
+            newCustomer.setUsername(profileName);
             customerRepository.save(newCustomer);
         }
 
