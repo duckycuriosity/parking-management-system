@@ -36,7 +36,7 @@ mqtt:
   client-id: barie-core-service-dev
   device-register-topic: "parking/v1/client/#"
   aibox-face-topic: "aibox/face"
-  aibox-plate-topic: "aibox/plate"
+  aibox-plate-topic: "aibox/licenseplate"
   publish-cmd-topic-prefix: "parking/v1/server"
   publish-cmd-topic-suffix: "/cmd"
   receive-ai-event: "aibox/face/#"

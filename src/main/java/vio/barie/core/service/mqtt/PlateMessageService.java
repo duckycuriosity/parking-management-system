@@ -11,6 +11,7 @@ import vio.barie.core.repository.CameraRepository;
 import vio.barie.core.repository.VehicleRepository;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Slf4j
 @Component
@@ -27,33 +28,41 @@ public class PlateMessageService {
 
     @Transactional()
     public void handle(JsonNode event) {
-        String cameraCode = event.path("cameraId").asText();
-        String plateNumber = event.path("plateNumber").asText(null);
-        String plateId = event.path("plateId").asText(null);
+        Long cameraCode = event.path("cameraId").asLong();
+        String plateNumber = event.path("plate").path("plate").asText(null);
+        Boolean isVerified = event.path("plate").path("isVerified").asBoolean(false);
 
-        if (plateId == null) {
+        if (plateNumber == null) {
             log.warn("PlateHandler: plate event has no plateNumber — cameraId={}", cameraCode);
+            // publish to hardware
             return;
         }
 
-        CameraEntity camera = cameraRepository.findByCodeWithLane(cameraCode).orElse(null);
-        if (camera == null) {
+        CameraEntity aiCamera = cameraRepository.findCameraByAiCameraId(cameraCode).orElse(null);
+        if (aiCamera == null) {
+            log.warn("Camera not found in AI system");
+            return;
+        }
+        CameraEntity cameraInLane = cameraRepository.findByCodeWithLane(aiCamera.getId().toString()).orElse(null);
+        if (cameraInLane == null) {
             log.warn("ProfileHandler: unknown camera — cameraId={}", cameraCode);
             return;
         }
 
-        long laneId = camera.getLane().getId();
+        long laneId = cameraInLane.getLane().getId();
         log.debug("PlateHandler: plate={} on laneId={}", plateNumber, laneId);
 
-        if(vehicleRepository.findByAiIdentityPlateId(plateId).isEmpty()){
+        if(vehicleRepository.existsByPlateNumber(plateNumber)){
             VehicleEntity newVehicle = new VehicleEntity();
             newVehicle.setPlateNumber(plateNumber);
-            newVehicle.setAiIdentityPlateId(plateId);
+            // Marked this vehicle is not registered in AI system
+            newVehicle.setAiIdentityPlateId(null);
             vehicleRepository.save(newVehicle);
         }
+        VehicleEntity vehicle = vehicleRepository.findPlateByPlateNumber(plateNumber);
 
         parkingMessageService.publishEntryVehicleInfo(device,plateNumber, LocalDateTime.now());
 
-        aiEventBuffer.addPlateEvent(laneId, plateNumber, plateId);
+        aiEventBuffer.addPlateEvent(laneId, plateNumber, vehicle.getId().intValue());
     }
 }

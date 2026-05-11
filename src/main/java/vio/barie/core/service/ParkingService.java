@@ -128,8 +128,7 @@ public class ParkingService {
 
     private VehicleEntity findVehicle(ParkingEvent req) {
         if (req.getAiIdentityPlateId() != null) {
-            return vehicleRepository.findByAiIdentityPlateId(req.getAiIdentityPlateId())
-                    .or(() -> vehicleRepository.findByPlateNumber(req.getPlateNumber()))
+            return vehicleRepository.findByPlateNumber(req.getPlateNumber())
                     .orElseThrow(() -> new ServiceException("Không tìm thấy xe", 404));
         }
         return vehicleRepository.findByPlateNumber(req.getPlateNumber())

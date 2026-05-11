@@ -40,7 +40,7 @@ public class AiMQTTEventBuffer {
         }
     }
 
-    public void addPlateEvent(long laneId, String plateNumber, String aiPlateId) {
+    public void addPlateEvent(long laneId, String plateNumber, Integer aiPlateId) {
         AtomicReference<PendingFaceEvent> matched = new AtomicReference<>();
 
         buffer.compute(laneId, (id, existing) -> {
@@ -59,7 +59,7 @@ public class AiMQTTEventBuffer {
         }
     }
 
-    private void trigger(String plateNumber, String aiPlateId, Integer profileId, long laneId) {
+    private void trigger(String plateNumber, Integer aiPlateId, Integer profileId, long laneId) {
         try {
             ParkingEvent event = new ParkingEvent();
             event.setPlateNumber(plateNumber);
@@ -102,7 +102,7 @@ public class AiMQTTEventBuffer {
         }
     }
 
-    record PendingPlateEvent(String plateNumber, String aiPlateId, long timestamp) {
+    record PendingPlateEvent(String plateNumber, Integer aiPlateId, long timestamp) {
         boolean isExpired(long timeoutMs) {
             return System.currentTimeMillis() - timestamp > timeoutMs;
         }

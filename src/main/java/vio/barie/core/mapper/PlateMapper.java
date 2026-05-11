@@ -9,6 +9,7 @@ public class PlateMapper {
         VehicleEntity vehicle = new VehicleEntity();
         vehicle.setPlateNumber(ai.getPlate());
         vehicle.setAiIdentityPlateId(ai.getUuid());
+        vehicle.setVehicleType(ai.getType());
         vehicle.setInfo("""
                 {
                  "aiId": %d,
