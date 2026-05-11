@@ -17,9 +17,11 @@ import vio.barie.core.dto.ApiResponse;
 import vio.barie.core.dto.LaneCreateRequest;
 import vio.barie.core.dto.LaneResponse;
 import vio.barie.core.service.LaneService;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/lanes")
 @RequiredArgsConstructor
@@ -31,6 +33,7 @@ public class LaneController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<LaneResponse> create(@Valid @RequestBody LaneCreateRequest request) {
+        log.info("Log xem post", request);
         ApiResponse<LaneResponse> resp = new ApiResponse<>();
         resp.setCode("SUCCESS");
         resp.setMessage("Lane created successfully");
@@ -77,7 +80,7 @@ public class LaneController {
 
     @PostMapping("/{id}/assign-parking-devices")
     public ApiResponse<String> assignParkingDevices(@PathVariable Long id,
-            @RequestBody java.util.List<Long> deviceIds) {
+                                                    @RequestBody java.util.List<Long> deviceIds) {
         laneService.assignParkingDevices(id, deviceIds);
         ApiResponse<String> resp = new ApiResponse<>();
         resp.setCode("SUCCESS");

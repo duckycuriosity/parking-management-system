@@ -1,0 +1,2 @@
+ALTER TABLE camera
+    ALTER COLUMN lane_id DROP NOT NULL;

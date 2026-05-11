@@ -1,3 +1,13 @@
+mqtt:
+  host: tcp://192.168.168.30:1883
+  username:
+  password:
+  client-id: barie-core-service-devs
+  device-register-topic: parking/v1/client/#  # Parking Client
+  publish-cmd-topic-prefix: "parking/v1/server"
+  publish-cmd-topic-suffix: "/cmd"
+  receive-ai-event: aibox/face/#
+
 spring:
   profiles:
     active: dev
@@ -18,7 +28,9 @@ ai:
     accept: "*/*"
     cookie: key=uO50EwSqoolz1OzU
     connection: close
-
+  face:
+    base-url: http://192.168.168.30:8088
+    cookie-key: uO50EwSqoolz1OzU
 logging:
   level:
     org.flywaydb: DEBUG

@@ -37,7 +37,6 @@ public class SecurityConfig {
     private final UserContextFilter userContextFilter;
     private final JwtAuthConverter jwtAuthConverter;
 
-
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
@@ -62,24 +61,27 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> {
                     auth
-                        // keep public endpoints
-                        .requestMatchers("/core/public/**").permitAll()
-                        .requestMatchers("/api/ingest/**",
-                            "/webhook/stringee/**").permitAll()
-                        // allow OpenAPI/Swagger UI and JSON (both with and without context-path)
-                        .requestMatchers("/admin/bootstrap/**",
-                            "/v3/api-docs/**",
-                            "/swagger-ui/**",
-                            "/swagger-ui.html",
-                            "/swagger-ui/index.html",
-                            "/core/v3/api-docs/**",
-                            "/core/swagger-ui/**",
-                            "/core/swagger-ui.html",
-                            "/core/swagger-ui/index.html"
-                        ).permitAll()
-                        .requestMatchers("/api/payment/callback", "/api/payment/ipn").permitAll()
-                    ;
+                            // keep public endpoints
+                            .requestMatchers("/core/public/**").permitAll()
+                            .requestMatchers("/api/ingest/**",
+                                    "/webhook/stringee/**")
+                            .permitAll()
+                            // allow OpenAPI/Swagger UI and JSON (both with and without context-path)
+                            .requestMatchers("/admin/bootstrap/**",
+                                    "/api-docs/**",
+                                    "/v3/api-docs/**",
+                                    "/swagger-ui/**",
+                                    "/swagger-ui.html",
+                                    "/swagger-ui/index.html",
+                                    "/core/api-docs/**",
+                                    "/core/v3/api-docs/**",
+                                    "/core/swagger-ui/**",
+                                    "/core/swagger-ui.html",
+                                    "/core/swagger-ui/index.html",
+                                    "/profile-controller/findAll")
 
+                            .permitAll()
+                            .requestMatchers("/api/payment/callback", "/api/payment/ipn").permitAll();
 
                     auth.anyRequest().authenticated();
                 })
@@ -87,14 +89,11 @@ public class SecurityConfig {
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .authenticationEntryPoint(customAuthEntryPoint())
                         .jwt(jwt -> jwt
-                                .jwtAuthenticationConverter(jwtAuthConverter)
-                        )
-                )
+                                .jwtAuthenticationConverter(jwtAuthConverter)))
 
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(customAuthEntryPoint())
-                        .accessDeniedHandler(customAccessDeniedHandler())
-                );
+                        .accessDeniedHandler(customAccessDeniedHandler()));
 
         http.addFilterAfter(userContextFilter, BearerTokenAuthenticationFilter.class);
 
@@ -133,13 +132,11 @@ public class SecurityConfig {
 
             } else if (cause instanceof AccessDeniedException) {
                 message = authException.getMessage();
-            } else if
-            (authException instanceof InsufficientAuthenticationException) {
+            } else if (authException instanceof InsufficientAuthenticationException) {
                 message = "Missing authentication token";
             }
 
-            Result<Object> result =
-                    Result.error(HttpStatus.UNAUTHORIZED.value(), message);
+            Result<Object> result = Result.error(HttpStatus.UNAUTHORIZED.value(), message);
 
             response.setContentType("application/json;charset=UTF-8");
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -160,13 +157,11 @@ public class SecurityConfig {
                     path,
                     ip,
                     accessDeniedException.getMessage(),
-                    accessDeniedException
-            );
+                    accessDeniedException);
 
             Result<Object> result = Result.error(
                     HttpStatus.FORBIDDEN.value(),
-                    HttpStatus.FORBIDDEN.getReasonPhrase()
-            );
+                    HttpStatus.FORBIDDEN.getReasonPhrase());
 
             response.setContentType("application/json;charset=UTF-8");
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);

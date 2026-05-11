@@ -35,6 +35,7 @@ public class WebSocketMessageHandler extends TextWebSocketHandler {
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws IOException {
         String payload = message.getPayload();
+        log.info("VMS websocket message received: sessionId={}, payload={}", session.getId(), payload);
 
         try {
             JsonNode jsonNode = objectMapper.readTree(payload);

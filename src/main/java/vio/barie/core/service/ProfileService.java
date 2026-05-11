@@ -3,59 +3,81 @@ package vio.barie.core.service;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import vio.barie.core.ai.AiProfileGateway;
+import vio.barie.core.client.AiFaceApiClient;
+import vio.barie.core.dto.AiFaceCheckResponse;
 import vio.barie.core.dto.AiProfileResponse;
-import vio.barie.core.dto.ProfileCreateRequest;
 import vio.barie.core.entity.ParkingCustomerEntity;
 import vio.barie.core.mapper.ProfileMapper;
 import vio.barie.core.repository.ParkingCustomerRepository;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class ProfileService {
-    private final AiProfileGateway aiProfileGateway;
     private final ParkingCustomerRepository parkingCustomerRepository;
     private final ProfileMapper profileMapper;
+    private final AiFaceApiClient aiFaceApiClient;
 
     @Transactional
-    public AiProfileResponse create(ProfileCreateRequest request) {
+    public AiProfileResponse create(String name, Integer groupId, MultipartFile image)
+            throws IOException {
 
-        AiProfileResponse aiResponse = aiProfileGateway.create(request);
+        // BƯỚC 1: Crop face
+        String faceId = aiFaceApiClient.faceCrop(image);
 
-        ParkingCustomerEntity entity = profileMapper.toEntity(aiResponse);
+        // BƯỚC 2: Tạo profile NGAY (trước khi faceId expire)
+        AiProfileResponse created = aiFaceApiClient.createProfile(name, groupId);
+        Integer profileId = created.getId();
 
+        // BƯỚC 3: Gắn ảnh vào profile NGAY sau FaceCrop
+        aiFaceApiClient.faceImageCrop(profileId, faceId);
+
+        // BƯỚC 4: FaceCheck sau cùng (không cần thiết cho flow tạo)
+        List<AiFaceCheckResponse> faces = aiFaceApiClient.faceCheck(image);
+        if (faces.isEmpty()) {
+            throw new RuntimeException("Không phát hiện khuôn mặt trong ảnh");
+        }
+
+        // Verify
+        AiProfileResponse finalProfile = aiFaceApiClient.getProfile(profileId);
+
+  
+        ParkingCustomerEntity entity = profileMapper.toEntity(finalProfile);
+        entity.setUsername(name);
         parkingCustomerRepository.save(entity);
 
-        return aiResponse;
+        return finalProfile;
     }
 
     public List<AiProfileResponse> findAll() {
-        return aiProfileGateway.findAll();
+        return Arrays.asList(aiFaceApiClient.getAllProfiles());
     }
+
     public AiProfileResponse findById(Integer id) {
-        // Gọi Gateway để lấy chi tiết 1 profile từ AI Server
-        return aiProfileGateway.findById(id);
+        return aiFaceApiClient.getProfile(id);
     }
 
     @Transactional
-    public AiProfileResponse update(Integer id, ProfileCreateRequest request) {
-        // Cập nhật thông tin trên AI Server
-        AiProfileResponse aiResponse = aiProfileGateway.update(id, request);
+    public AiProfileResponse update(Integer id, String name, Integer groupId,
+                                    MultipartFile image) throws IOException {
+        // Nếu có ảnh mới → crop và gắn lại
+        if (image != null && !image.isEmpty()) {
+            String faceId = aiFaceApiClient.faceCrop(image);
+            aiFaceApiClient.faceImageCrop(id, faceId);
+        }
 
-        // Gợi ý: Nếu bạn có lưu thông tin khách hàng (tên, sđt) trong DB local,
-        // bạn nên thực hiện cập nhật đồng bộ ở đây.
-
-        return aiResponse;
+        // Cập nhật tên trên AI server
+        return aiFaceApiClient.updateProfile(id, name, groupId);
     }
 
     @Transactional
     public void delete(Integer id) {
-        // 1. Xóa trên AI Server
-        aiProfileGateway.delete(id);
+        aiFaceApiClient.deleteProfile(id);
 
-        // 2. Xóa trong Database local dựa trên ID AI (UUID) để tránh rác dữ liệu
-        // Ví dụ: parkingCustomerRepository.deleteByAiIdentityId(id.toString());
     }
 }
