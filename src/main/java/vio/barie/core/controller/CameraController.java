@@ -22,7 +22,6 @@ public class CameraController {
     @PostMapping("/create")
     public ApiResponse<CameraResponse> createCamera(@RequestBody CameraCreateRequest clientBody) {
         CameraResponse createdCamera = cameraService.createCamera(clientBody);
-        // return ResponseEntity.ok(createdCamera);
         return new ApiResponse<>(
                 "SUCCESS",
                 "Camera created successfully",

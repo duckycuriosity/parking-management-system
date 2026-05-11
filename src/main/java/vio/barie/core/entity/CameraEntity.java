@@ -35,10 +35,13 @@ public class CameraEntity extends BaseEntity {
     @Column(name = "status")
     private String status;
 
-    @Column(name = "extra")
-    private String extra;
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "lane_id")
+    @JoinColumn(name = "lane_id", nullable = true)
     private LaneEntity lane;
 }

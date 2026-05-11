@@ -56,7 +56,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.cors(cors -> {
-        })
+                })
                 .csrf(csrf -> csrf.disable())
 
                 .authorizeHttpRequests(auth -> {
@@ -77,7 +77,9 @@ public class SecurityConfig {
                                     "/core/v3/api-docs/**",
                                     "/core/swagger-ui/**",
                                     "/core/swagger-ui.html",
-                                    "/core/swagger-ui/index.html")
+                                    "/core/swagger-ui/index.html",
+                                    "/profile-controller/findAll")
+
                             .permitAll()
                             .requestMatchers("/api/payment/callback", "/api/payment/ipn").permitAll();
 
