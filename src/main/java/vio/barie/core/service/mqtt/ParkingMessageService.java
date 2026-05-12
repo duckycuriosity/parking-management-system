@@ -42,12 +42,11 @@ public class ParkingMessageService {
         String deviceId = json.path("device_id").asText();
         saveHistory(topic, json, "connect");
 
-        ParkingDeviceEntity device =
-                deviceRepository.findByDeviceId(deviceId)
-                        .orElse(ParkingDeviceEntity.builder()
-                                .deviceId(deviceId)
-                                .createdAt(LocalDateTime.now())
-                                .build());
+        ParkingDeviceEntity device = deviceRepository.findByDeviceId(deviceId)
+                .orElse(ParkingDeviceEntity.builder()
+                        .deviceId(deviceId)
+                        .createdAt(LocalDateTime.now())
+                        .build());
         device.setStatus("Online");
         device.setFirmwareVersion(json.path("firmware_version").asText(null));
         device.setHasCashReader(json.path("has_cash_reader").asBoolean());
@@ -61,7 +60,17 @@ public class ParkingMessageService {
             saveBarrier.setDescription(barrier.path("description").asText());
             saveBarrier.setModbusAddr(barrier.path("modbus_addr").asInt());
             saveBarrier.setParkingDevice(device);
-            barrierRepository.save(saveBarrier);
+
+            BarrierEntity existing = barrierRepository.findByBarrierId(saveBarrier.getBarrierId()).orElse(null);
+            if (existing != null) {
+                existing.setDirection(saveBarrier.getDirection());
+                existing.setDescription(saveBarrier.getDescription());
+                existing.setModbusAddr(saveBarrier.getModbusAddr());
+                existing.setParkingDevice(device);
+                barrierRepository.save(existing);
+            } else {
+                barrierRepository.save(saveBarrier);
+            }
         });
 
         deviceRepository.save(device);
@@ -91,12 +100,11 @@ public class ParkingMessageService {
 
         saveHistory(topic, json, "ping");
 
-        ParkingDeviceEntity device =
-                deviceRepository.findByDeviceId(deviceId)
-                        .orElse(ParkingDeviceEntity.builder()
-                                .deviceId(deviceId)
-                                .createdAt(LocalDateTime.now())
-                                .build());
+        ParkingDeviceEntity device = deviceRepository.findByDeviceId(deviceId)
+                .orElse(ParkingDeviceEntity.builder()
+                        .deviceId(deviceId)
+                        .createdAt(LocalDateTime.now())
+                        .build());
 
         device.setStatus("Online");
         device.setLastSeen(LocalDateTime.now());
@@ -105,8 +113,7 @@ public class ParkingMessageService {
 
         if (json.has("cpu_temp_c")) {
             device.setCpuTempC(
-                    BigDecimal.valueOf(json.path("cpu_temp_c").asDouble())
-            );
+                    BigDecimal.valueOf(json.path("cpu_temp_c").asDouble()));
         }
 
         deviceRepository.save(device);
@@ -126,20 +133,16 @@ public class ParkingMessageService {
                 .uptimeSeconds(
                         json.has("uptime_seconds")
                                 ? json.path("uptime_seconds").asLong()
-                                : null
-                )
+                                : null)
                 .freeMemMb(
                         json.has("free_mem_mb")
                                 ? json.path("free_mem_mb").asInt()
-                                : null
-                )
+                                : null)
                 .cpuTempC(
                         json.has("cpu_temp_c")
                                 ? BigDecimal.valueOf(
-                                json.path("cpu_temp_c").asDouble()
-                        )
-                                : null
-                )
+                                        json.path("cpu_temp_c").asDouble())
+                                : null)
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -148,7 +151,7 @@ public class ParkingMessageService {
 
     @Transactional
     public void handlePayment(String topic, JsonNode json) {
-        String deviceId  = json.path("device_id").asText();
+        String deviceId = json.path("device_id").asText();
         String sessionId = json.path("session_id").asText();
         saveHistory(topic, json, "payment");
         log.info("Payment received: deviceId={} sessionId={}", deviceId, sessionId);
@@ -156,11 +159,12 @@ public class ParkingMessageService {
     }
 
     @Transactional
-    public void handleEvent(String topic, JsonNode json){}
+    public void handleEvent(String topic, JsonNode json) {
+    }
 
     @Transactional
     public void handleSessionAbandoned(String topic, JsonNode json) {
-        String deviceId  = json.path("device_id").asText();
+        String deviceId = json.path("device_id").asText();
         String sessionId = json.path("session_id").asText();
         saveHistory(topic, json, "session_abandoned");
         log.info("Session abandoned: deviceId={} sessionId={}", deviceId, sessionId);
@@ -169,25 +173,25 @@ public class ParkingMessageService {
 
     @Transactional
     public void handleSupportRequest(String topic, JsonNode json) {
-        String deviceId  = json.path("device_id").asText();
+        String deviceId = json.path("device_id").asText();
         String sessionId = json.path("session_id").asText();
-        String reason    = json.path("reason").asText();
+        String reason = json.path("reason").asText();
         saveHistory(topic, json, "support_request");
         log.info("Support request: deviceId={} sessionId={} reason={}", deviceId, sessionId, reason);
         // TODO: alert ops dashboard, chờ manual override
     }
 
     public void publishEntryVehicleInfo(String deviceId, String plate,
-                                        LocalDateTime entryTime){
+            LocalDateTime entryTime) {
         if (deviceId == null) {
             log.warn("publishVehicleInfo: deviceId is null");
             return;
         }
 
         VehicleInfoCommand cmd = VehicleInfoCommand.builder()
-                .sessionId("entry_auth_"+LocalDateTime.now())
+                .sessionId("entry_auth_" + LocalDateTime.now())
                 .scenarioTag("entry_authorized")
-                .barrierId(deviceId+ "_01")
+                .barrierId(deviceId + "_01")
                 .direction("entry")
                 .plate(plate)
                 .ticketType("free")
@@ -201,7 +205,7 @@ public class ParkingMessageService {
     }
 
     public void publishVehicleInfo(String deviceId, Long sessionId, String plate,
-                                   LocalDateTime entryTime, Integer amountDue, String qrUrl) {
+            LocalDateTime entryTime, Integer amountDue, String qrUrl) {
         if (deviceId == null) {
             log.warn("publishVehicleInfo: deviceId is null, skipping — sessionId={}", sessionId);
             return;
@@ -214,7 +218,7 @@ public class ParkingMessageService {
 
         VehicleInfoCommand cmd = VehicleInfoCommand.builder()
                 .sessionId(String.valueOf(sessionId))
-                .barrierId(deviceId+ "_01")
+                .barrierId(deviceId + "_01")
                 .direction("exit")
                 .plate(plate)
                 .ticketType("hourly")
@@ -231,7 +235,7 @@ public class ParkingMessageService {
     }
 
     public void publishOpenForMonthlyTicket(String deviceId, Long sessionId, String plate,
-                                            String ownerName, LocalDateTime validUntil) {
+            String ownerName, LocalDateTime validUntil) {
         if (deviceId == null) {
             log.warn("publishOpenForMonthlyTicket: deviceId is null, skipping — sessionId={}", sessionId);
             return;
@@ -239,7 +243,7 @@ public class ParkingMessageService {
 
         VehicleInfoCommand infoCmd = VehicleInfoCommand.builder()
                 .sessionId(String.valueOf(sessionId))
-                .barrierId(deviceId+ "_01")
+                .barrierId(deviceId + "_01")
                 .direction("exit")
                 .plate(plate)
                 .ticketType("monthly")
@@ -259,7 +263,7 @@ public class ParkingMessageService {
 
         PaymentSuccessCommand successCmd = PaymentSuccessCommand.builder()
                 .sessionId(String.valueOf(sessionId))
-                .barrierIds(List.of(deviceId+ "_01"))
+                .barrierIds(List.of(deviceId + "_01"))
                 .plate(plate)
                 .status("success")
                 .autoIdleSeconds(0)
@@ -286,7 +290,6 @@ public class ParkingMessageService {
         publish(deviceId, confirmedCmd);
     }
 
-
     public void publishOpenCommand(String deviceId, Long sessionId, String reason) {
         if (deviceId == null) {
             log.warn("publishOpenCommand: deviceId is null, skipping — sessionId={}", sessionId);
@@ -294,7 +297,7 @@ public class ParkingMessageService {
         }
 
         OpenCmdCommand cmd = OpenCmdCommand.builder()
-                .barrierId(deviceId+ "_01")
+                .barrierId(deviceId + "_01")
                 .sessionId(String.valueOf(sessionId))
                 .reason(reason)
                 .playSound(true)

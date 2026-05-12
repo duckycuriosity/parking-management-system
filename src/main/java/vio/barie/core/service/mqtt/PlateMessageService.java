@@ -12,6 +12,7 @@ import vio.barie.core.repository.VehicleRepository;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -22,6 +23,7 @@ public class PlateMessageService {
     private final CameraRepository cameraRepository;
     private final AiMQTTEventBuffer aiEventBuffer;
     private final ParkingMessageService parkingMessageService;
+    UUID uuid = UUID.randomUUID();
 
     // todo: tạm thời fix cứng
     private final String device = "pk_df102790fdca47ad";
@@ -52,11 +54,12 @@ public class PlateMessageService {
         long laneId = cameraInLane.getLane().getId();
         log.debug("PlateHandler: plate={} on laneId={}", plateNumber, laneId);
 
-        if(vehicleRepository.existsByPlateNumber(plateNumber)){
+        if(!vehicleRepository.existsByPlateNumber(plateNumber)){
             VehicleEntity newVehicle = new VehicleEntity();
             newVehicle.setPlateNumber(plateNumber);
             // Marked this vehicle is not registered in AI system
-            newVehicle.setAiIdentityPlateId(null);
+            newVehicle.setAiIdentityPlateId("UNVERIFIED_" + uuid.toString());
+            newVehicle.setVehicleType("OTHER");
             vehicleRepository.save(newVehicle);
         }
         VehicleEntity vehicle = vehicleRepository.findPlateByPlateNumber(plateNumber);
