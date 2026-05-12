@@ -23,6 +23,15 @@ public class MQTTConfig {
     @Value("${mqtt.client-id}")
     private String clientId;
 
+    @Value("${mqtt.queue.core-pool-size}")
+    private Integer corePoolSize;
+
+    @Value("${mqtt.queue.max-pool-size}")
+    private Integer maxPoolSize;
+
+    @Value("${mqtt.queue.queue-capacity}")
+    private Integer queueCapacity;
+
     @Bean(destroyMethod = "disconnect")
     public MqttClient mqttClient() throws MqttException {
         MqttConnectOptions options = new MqttConnectOptions();
@@ -48,9 +57,9 @@ public class MQTTConfig {
     @Bean(name = "mqttExecutor")
     public Executor mqttExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(5);
-        executor.setMaxPoolSize(10);
-        executor.setQueueCapacity(100);
+        executor.setCorePoolSize(corePoolSize);
+        executor.setMaxPoolSize(maxPoolSize);
+        executor.setQueueCapacity(queueCapacity);
         executor.setThreadNamePrefix("mqtt-handler-");
         executor.initialize();
         return executor;

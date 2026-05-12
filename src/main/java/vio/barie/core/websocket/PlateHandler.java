@@ -41,13 +41,13 @@ public class PlateHandler {
         long laneId = camera.getLane().getId();
         log.debug("PlateHandler: plate={} on laneId={}", plateNumber, laneId);
 
-        if(vehicleRepository.existsByPlateNumber(plateNumber)){
+        if (vehicleRepository.existsByPlateNumber(plateNumber)) {
             VehicleEntity newVehicle = new VehicleEntity();
             newVehicle.setPlateNumber(plateNumber);
             newVehicle.setAiIdentityPlateId(null);
             vehicleRepository.save(newVehicle);
         }
 
-        aiEventBuffer.addPlateEvent(laneId, plateNumber, plateId);
+        aiEventBuffer.addPlateEvent(cameraId, laneId, plateNumber, plateId);
     }
 }

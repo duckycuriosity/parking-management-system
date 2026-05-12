@@ -9,4 +9,5 @@ public class ParkingEvent {
     private Integer aiIdentityPlateId;
     private Integer aiIdentityCustomerId; // id khuôn mặt từ AI
     private Long laneId;
+    private String barrierId;
 }

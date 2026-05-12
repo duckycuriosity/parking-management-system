@@ -12,7 +12,6 @@ import vio.barie.core.repository.ParkingCustomerRepository;
 
 import java.util.UUID;
 
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -38,16 +37,17 @@ public class ProfileMessageService {
             log.warn("Camera not found in AI system");
             return;
         }
-        CameraEntity cameraInLane = cameraRepository.findByCodeWithLane(aiCamera.getId().toString()).orElse(null);
+        CameraEntity cameraInLane = cameraRepository.findByIdWithLane(aiCamera.getId()).orElse(null);
         if (cameraInLane == null) {
             log.warn("ProfileHandler: unknown camera — cameraId={}", cameraCode);
             return;
         }
 
         long laneId = cameraInLane.getLane().getId();
-        log.debug("ProfileHandler: face event — laneId={}, profileId={}, profileName={}", laneId, profileId, profileName);
+        log.debug("ProfileHandler: face event — laneId={}, profileId={}, profileName={}", laneId, profileId,
+                profileName);
 
-        if(customerRepository.findByAiProfileId(profileId).isEmpty()){
+        if (customerRepository.findByAiProfileId(profileId).isEmpty()) {
             ParkingCustomerEntity newCustomer = new ParkingCustomerEntity();
             UUID uuid = UUID.randomUUID();
             newCustomer.setAiIdentityId("temp_customer" + uuid.toString());
@@ -56,6 +56,6 @@ public class ProfileMessageService {
             customerRepository.save(newCustomer);
         }
 
-        aiEventBuffer.addFaceEvent(laneId, profileId);
+        aiEventBuffer.addFaceEvent(cameraInLane.getId(), laneId, profileId);
     }
 }

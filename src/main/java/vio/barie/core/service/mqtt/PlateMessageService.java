@@ -22,11 +22,9 @@ public class PlateMessageService {
     private final VehicleRepository vehicleRepository;
     private final CameraRepository cameraRepository;
     private final AiMQTTEventBuffer aiEventBuffer;
+    private final DetectionMatchingService detectionMatchingService;
     private final ParkingMessageService parkingMessageService;
-    UUID uuid = UUID.randomUUID();
-
-    // todo: tạm thời fix cứng
-    private final String device = "pk_df102790fdca47ad";
+    private final UUID uuid = UUID.randomUUID();
 
     @Transactional()
     public void handle(JsonNode event) {
@@ -45,7 +43,7 @@ public class PlateMessageService {
             log.warn("Camera not found in AI system");
             return;
         }
-        CameraEntity cameraInLane = cameraRepository.findByCodeWithLane(aiCamera.getId().toString()).orElse(null);
+        CameraEntity cameraInLane = cameraRepository.findByIdWithLane(aiCamera.getId()).orElse(null);
         if (cameraInLane == null) {
             log.warn("ProfileHandler: unknown camera — cameraId={}", cameraCode);
             return;
@@ -54,7 +52,7 @@ public class PlateMessageService {
         long laneId = cameraInLane.getLane().getId();
         log.debug("PlateHandler: plate={} on laneId={}", plateNumber, laneId);
 
-        if(!vehicleRepository.existsByPlateNumber(plateNumber)){
+        if (!vehicleRepository.existsByPlateNumber(plateNumber)) {
             VehicleEntity newVehicle = new VehicleEntity();
             newVehicle.setPlateNumber(plateNumber);
             // Marked this vehicle is not registered in AI system
@@ -64,8 +62,14 @@ public class PlateMessageService {
         }
         VehicleEntity vehicle = vehicleRepository.findPlateByPlateNumber(plateNumber);
 
-        parkingMessageService.publishEntryVehicleInfo(device,plateNumber, LocalDateTime.now());
+        String barrierId = detectionMatchingService.resolveBarrierId(cameraInLane.getId(), "plate").orElse(null);
+        if (barrierId == null) {
+            log.warn("PlateHandler: no barrier mapping for cameraId={} laneId={}", cameraInLane.getId(), laneId);
+            return;
+        }
 
-        aiEventBuffer.addPlateEvent(laneId, plateNumber, vehicle.getId().intValue());
+        parkingMessageService.publishEntryVehicleInfo(barrierId, plateNumber, LocalDateTime.now());
+
+        aiEventBuffer.addPlateEvent(cameraInLane.getId(), laneId, plateNumber, vehicle.getId().intValue());
     }
 }

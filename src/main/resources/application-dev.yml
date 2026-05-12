@@ -33,13 +33,17 @@ mqtt:
   host: tcp://192.168.168.30:1883
   username:
   password:
-  client-id: barie-core-service-dev
+  client-id: barie-core-service-dev-01
   device-register-topic: "parking/v1/client/#"
   aibox-face-topic: "aibox/face"
   aibox-plate-topic: "aibox/licenseplate"
   publish-cmd-topic-prefix: "parking/v1/server"
   publish-cmd-topic-suffix: "/cmd"
   receive-ai-event: "aibox/face/#"
+  queue:
+    core-pool-size: 5
+    max-pool-size: 10
+    queue-capacity: 100
 
 megapay:
   mer-id: EPAY000001

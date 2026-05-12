@@ -10,7 +10,6 @@ import vio.barie.core.entity.ParkingCustomerEntity;
 import vio.barie.core.repository.CameraRepository;
 import vio.barie.core.repository.ParkingCustomerRepository;
 
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -43,15 +42,16 @@ public class ProfileHandler {
         }
 
         long laneId = camera.getLane().getId();
-        log.debug("ProfileHandler: face event — laneId={}, profileId={}, profileName={}", laneId, profileId, profileName);
+        log.debug("ProfileHandler: face event — laneId={}, profileId={}, profileName={}", laneId, profileId,
+                profileName);
 
-        if(customerRepository.findByAiProfileId(profileId).isEmpty()){
+        if (customerRepository.findByAiProfileId(profileId).isEmpty()) {
             ParkingCustomerEntity newCustomer = new ParkingCustomerEntity();
             newCustomer.setAiProfileId(profileId);
             newCustomer.setUsername(profileName);
             customerRepository.save(newCustomer);
         }
 
-        aiEventBuffer.addFaceEvent(laneId, profileId);
+        aiEventBuffer.addFaceEvent(camera.getId(), laneId, profileId);
     }
 }

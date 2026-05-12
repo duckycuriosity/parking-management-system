@@ -22,6 +22,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -181,17 +182,18 @@ public class ParkingMessageService {
         // TODO: alert ops dashboard, chờ manual override
     }
 
-    public void publishEntryVehicleInfo(String deviceId, String plate,
+    public void publishEntryVehicleInfo(String barrierId, String plate,
             LocalDateTime entryTime) {
+        String deviceId = resolveDeviceId(barrierId);
         if (deviceId == null) {
-            log.warn("publishVehicleInfo: deviceId is null");
+            log.warn("publishVehicleInfo: barrierId is null or not found");
             return;
         }
 
         VehicleInfoCommand cmd = VehicleInfoCommand.builder()
                 .sessionId("entry_auth_" + LocalDateTime.now())
                 .scenarioTag("entry_authorized")
-                .barrierId(deviceId + "_01")
+                .barrierId(barrierId)
                 .direction("entry")
                 .plate(plate)
                 .ticketType("free")
@@ -204,10 +206,11 @@ public class ParkingMessageService {
         publish(deviceId, cmd);
     }
 
-    public void publishVehicleInfo(String deviceId, Long sessionId, String plate,
+    public void publishVehicleInfo(String barrierId, Long sessionId, String plate,
             LocalDateTime entryTime, Integer amountDue, String qrUrl) {
+        String deviceId = resolveDeviceId(barrierId);
         if (deviceId == null) {
-            log.warn("publishVehicleInfo: deviceId is null, skipping — sessionId={}", sessionId);
+            log.warn("publishVehicleInfo: barrierId is null or not found, skipping — sessionId={}", sessionId);
             return;
         }
 
@@ -218,7 +221,7 @@ public class ParkingMessageService {
 
         VehicleInfoCommand cmd = VehicleInfoCommand.builder()
                 .sessionId(String.valueOf(sessionId))
-                .barrierId(deviceId + "_01")
+                .barrierId(barrierId)
                 .direction("exit")
                 .plate(plate)
                 .ticketType("hourly")
@@ -234,16 +237,17 @@ public class ParkingMessageService {
         publish(deviceId, cmd);
     }
 
-    public void publishOpenForMonthlyTicket(String deviceId, Long sessionId, String plate,
+    public void publishOpenForMonthlyTicket(String barrierId, Long sessionId, String plate,
             String ownerName, LocalDateTime validUntil) {
+        String deviceId = resolveDeviceId(barrierId);
         if (deviceId == null) {
-            log.warn("publishOpenForMonthlyTicket: deviceId is null, skipping — sessionId={}", sessionId);
+            log.warn("publishOpenForMonthlyTicket: barrierId is null or not found, skipping — sessionId={}", sessionId);
             return;
         }
 
         VehicleInfoCommand infoCmd = VehicleInfoCommand.builder()
                 .sessionId(String.valueOf(sessionId))
-                .barrierId(deviceId + "_01")
+                .barrierId(barrierId)
                 .direction("exit")
                 .plate(plate)
                 .ticketType("monthly")
@@ -255,15 +259,16 @@ public class ParkingMessageService {
         publish(deviceId, infoCmd);
     }
 
-    public void publishPaymentSuccess(String deviceId, Long sessionId, String plate) {
+    public void publishPaymentSuccess(String barrierId, Long sessionId, String plate) {
+        String deviceId = resolveDeviceId(barrierId);
         if (deviceId == null) {
-            log.warn("publishPaymentSuccess: deviceId is null, skipping — sessionId={}", sessionId);
+            log.warn("publishPaymentSuccess: barrierId is null or not found, skipping — sessionId={}", sessionId);
             return;
         }
 
         PaymentSuccessCommand successCmd = PaymentSuccessCommand.builder()
                 .sessionId(String.valueOf(sessionId))
-                .barrierIds(List.of(deviceId + "_01"))
+                .barrierIds(List.of(barrierId))
                 .plate(plate)
                 .status("success")
                 .autoIdleSeconds(0)
@@ -273,15 +278,16 @@ public class ParkingMessageService {
         publish(deviceId, successCmd);
     }
 
-    public void publishPaymentConfirmed(String deviceId, Long sessionId, int amountPaid, String invoiceNo) {
+    public void publishPaymentConfirmed(String barrierId, Long sessionId, int amountPaid, String invoiceNo) {
+        String deviceId = resolveDeviceId(barrierId);
         if (deviceId == null) {
-            log.warn("publishPaymentSuccess: deviceId is null, skipping — sessionId={}", sessionId);
+            log.warn("publishPaymentSuccess: barrierId is null or not found, skipping — sessionId={}", sessionId);
             return;
         }
 
         PaymentConfirmedCommand confirmedCmd = PaymentConfirmedCommand.builder()
                 .sessionId(String.valueOf(sessionId))
-                .barrierId(deviceId + "_01")
+                .barrierId(barrierId)
                 .amountPaid(amountPaid)
                 .transactionId(invoiceNo)
                 .timestamp(LocalDateTime.now().format(DT_FMT))
@@ -290,14 +296,15 @@ public class ParkingMessageService {
         publish(deviceId, confirmedCmd);
     }
 
-    public void publishOpenCommand(String deviceId, Long sessionId, String reason) {
+    public void publishOpenCommand(String barrierId, Long sessionId, String reason) {
+        String deviceId = resolveDeviceId(barrierId);
         if (deviceId == null) {
-            log.warn("publishOpenCommand: deviceId is null, skipping — sessionId={}", sessionId);
+            log.warn("publishOpenCommand: barrierId is null or not found, skipping — sessionId={}", sessionId);
             return;
         }
 
         OpenCmdCommand cmd = OpenCmdCommand.builder()
-                .barrierId(deviceId + "_01")
+                .barrierId(barrierId)
                 .sessionId(String.valueOf(sessionId))
                 .reason(reason)
                 .playSound(true)
@@ -323,6 +330,17 @@ public class ParkingMessageService {
         } catch (Exception e) {
             log.error("Failed to publish to deviceId={}: {}", deviceId, e.getMessage(), e);
         }
+    }
+
+    private String resolveDeviceId(String barrierId) {
+        if (barrierId == null || barrierId.isBlank()) {
+            return null;
+        }
+
+        return barrierRepository.findByBarrierIdWithDevice(barrierId)
+                .map(BarrierEntity::getParkingDevice)
+                .map(ParkingDeviceEntity::getDeviceId)
+                .orElse(null);
     }
 
 }
