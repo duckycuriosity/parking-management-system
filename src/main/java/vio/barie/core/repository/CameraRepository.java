@@ -16,4 +16,7 @@ public interface CameraRepository extends JpaRepository<CameraEntity, Long> {
 
     @Query("SELECT c FROM CameraEntity c WHERE c.aiCameraId = :aiCameraId")
     Optional<CameraEntity> findCameraByAiCameraId(@Param("aiCameraId") Long aiCameraId);
+
+    @Query("SELECT c FROM CameraEntity c WHERE c.uuid = :cameraUUID")
+    Optional<CameraEntity> findCameraByUUID(@Param("cameraUUID") String cameraUUID);
 }

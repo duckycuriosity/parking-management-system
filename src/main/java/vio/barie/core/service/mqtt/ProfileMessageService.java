@@ -24,15 +24,16 @@ public class ProfileMessageService {
     @Transactional()
     public void handle(JsonNode event) {
         Long cameraCode = event.path("cameraId").asLong();
+        String cameraUUID = event.path("cameraUUID").asText();
         Integer profileId = event.path("profileId").asInt();
         String profileName = event.path("name").asText(null);
 
-        if (profileId == null) {
+        if (cameraUUID == null) {
             log.warn("ProfileHandler: face event has no profileId — cameraId={}", cameraCode);
             return;
         }
 
-        CameraEntity aiCamera = cameraRepository.findCameraByAiCameraId(cameraCode).orElse(null);
+        CameraEntity aiCamera = cameraRepository.findCameraByUUID(cameraUUID).orElse(null);
         if (aiCamera == null) {
             log.warn("Camera not found in AI system");
             return;

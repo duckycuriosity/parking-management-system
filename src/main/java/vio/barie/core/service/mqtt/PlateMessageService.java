@@ -30,15 +30,16 @@ public class PlateMessageService {
     public void handle(JsonNode event) {
         Long cameraCode = event.path("cameraId").asLong();
         String plateNumber = event.path("plate").path("plate").asText(null);
+        String cameraUUID = event.path("cameraUUID").asText();
         Boolean isVerified = event.path("plate").path("isVerified").asBoolean(false);
 
-        if (plateNumber == null) {
+        if (plateNumber == null || cameraUUID == null) {
             log.warn("PlateHandler: plate event has no plateNumber — cameraId={}", cameraCode);
             // publish to hardware
             return;
         }
 
-        CameraEntity aiCamera = cameraRepository.findCameraByAiCameraId(cameraCode).orElse(null);
+        CameraEntity aiCamera = cameraRepository.findCameraByUUID(cameraUUID).orElse(null);
         if (aiCamera == null) {
             log.warn("Camera not found in AI system");
             return;
