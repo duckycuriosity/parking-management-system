@@ -26,10 +26,12 @@ public class UserResponseDTO {
     private Long organizeId;
     private Long branchId;
     private String branchName;
+    @Builder.Default
     private List<String> roleCodes = new ArrayList<>();
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private OrganizeResponse org;
     private BranchResponse branch;
+    @Builder.Default
     private Set<RoleResponse> roles = new HashSet<>();
 }

@@ -9,7 +9,9 @@ import lombok.Data;
 public class AdminMonthlyTicketRegistrationRequest {
 
     @NotBlank(message = "Customer name required")
-    private String customerName;
+    private String name;
+
+    private Integer groupId = 0;
 
     @NotBlank(message = "Phone number required")
     @Pattern(regexp = "^0\\d{9}$", message = "Invalid phone format (must be 10 digits starting with 0)")
@@ -28,7 +30,8 @@ public class AdminMonthlyTicketRegistrationRequest {
     private String vehiclePlateNumber;
 
     @NotBlank(message = "Vehicle type required")
-    private String vehicleType; // "SEDAN", "SUV", "TRUCK", etc
+    @Pattern(regexp = "^(CAR|MOTOBIKE|OTHER|MOTORBIKE|SEDAN|SUV|TRUCK|BIKE)$", message = "Invalid vehicle type")
+    private String vehicleType;
 
     @NotBlank(message = "Plate type required")
     @Pattern(regexp = "^(NORMAL|DIPLOMATIC|OFFICIAL)$", message = "Invalid plate type")

@@ -14,4 +14,6 @@ public class TicketDTO {
     private LocalDateTime expireAt;
     private String status; // 'ACTIVE', 'DEAD'
     private LocalDateTime createdAt;
+    private String ticketType;
+    private Long customerId;
 }

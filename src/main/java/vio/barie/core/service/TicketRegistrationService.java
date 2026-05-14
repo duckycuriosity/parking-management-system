@@ -20,6 +20,7 @@ import vio.barie.core.repository.VehicleRepository;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.Locale;
 import java.util.Optional;
 
 @Slf4j
@@ -44,32 +45,35 @@ public class TicketRegistrationService {
             MultipartFile faceImage) throws IOException {
 
         log.info("Starting monthly ticket registration for customer: {}, plate: {}",
-                req.getCustomerName(), req.getVehiclePlateNumber());
+                req.getName(), req.getVehiclePlateNumber());
 
         // 1️⃣ Validate input
         validateRequest(req, faceImage);
 
         // 2️⃣ Create or get customer
-        ParkingCustomerEntity customer = getOrCreateCustomer(
-                req.getCustomerName(),
+        boolean isCustomerExisting = getOrCreateCustomer(
+                req.getName(),
                 req.getCustomerPhone(),
                 req.getCustomerEmail(),
                 req.getCustomerZaloId());
-        log.debug("Customer resolved/created: customerId={}", customer.getId());
+        if (isCustomerExisting) {
+            log.error("Customer with phone {} is already existing", req.getCustomerPhone());
+            throw new ServiceException("Customer with phone " + req.getCustomerPhone() + " already exists", 400);
+        }
 
         // 3️⃣ Register face via AI
         AiProfileResponse profile = profileService.create(
-                req.getCustomerName(),
+                req.getName(),
                 0, // groupId = 0 (default)
                 faceImage);
         log.info("Face registered successfully: profileId={}, uuid={}",
                 profile.getId(), profile.getUuid());
 
-        // Update customer with profile info
-        customer.setAiProfileId(profile.getId());
-        customer.setAiIdentityId(profile.getUuid());
-        customer.setUsername(req.getCustomerName());
-        customer = parkingCustomerRepository.save(customer);
+        Optional<ParkingCustomerEntity> customer = parkingCustomerRepository.findByAiProfileId(profile.getId());
+        if (customer.isEmpty()) {
+            log.error("Customer not found after creation: name={}, phone={}", req.getName(), req.getCustomerPhone());
+            throw new ServiceException("Customer not found after creation", 500);
+        }
 
         // 4️⃣ Validate plate not already registered
         if (vehicleRepository.existsByPlateNumber(req.getVehiclePlateNumber())) {
@@ -79,7 +83,7 @@ public class TicketRegistrationService {
         // 5️⃣ Register plate via AI
         PlateCreateRequest plateReq = new PlateCreateRequest();
         plateReq.setPlate(req.getVehiclePlateNumber());
-        plateReq.setType(req.getPlateType());
+        plateReq.setType(req.getVehicleType());
         plateReq.setEnabled(true);
 
         AiPlateResponse plate = plateService.create(plateReq);
@@ -87,10 +91,11 @@ public class TicketRegistrationService {
                 plate.getId(), plate.getUuid());
 
         // 6️⃣ Create vehicle
+        String normalizedVehicleType = normalizeVehicleType(req.getVehicleType());
         VehicleEntity vehicle = new VehicleEntity();
         vehicle.setPlateNumber(req.getVehiclePlateNumber());
         vehicle.setAiIdentityPlateId(plate.getUuid());
-        vehicle.setVehicleType(req.getVehicleType());
+        vehicle.setVehicleType(normalizedVehicleType);
         vehicle.setInfo("{}"); // TODO: store plate metadata if needed
         VehicleEntity savedVehicle = vehicleRepository.save(vehicle);
         log.debug("Vehicle created: vehicleId={}", savedVehicle.getId());
@@ -101,6 +106,8 @@ public class TicketRegistrationService {
 
         TicketEntity ticket = new TicketEntity();
         ticket.setVehicle(savedVehicle);
+        ticket.setCustomerId(customer.map(ParkingCustomerEntity::getId).orElse(0L));
+        ticket.setTicketType(req.getTicketType());
         ticket.setRegisterAt(now);
         ticket.setExpireAt(expireAt);
         ticket.setStatus("ACTIVE"); // Ticket ngay lập tức active
@@ -116,9 +123,9 @@ public class TicketRegistrationService {
                 .ticketStatus(savedTicket.getStatus())
                 .registeredAt(savedTicket.getRegisterAt())
                 .expireAt(savedTicket.getExpireAt())
-                .customerId(customer.getId())
-                .customerName(customer.getUsername())
-                .customerPhone(customer.getPhoneNumber())
+                .customerId(customer.map(ParkingCustomerEntity::getId).orElse(null))
+                .customerName(customer.map(ParkingCustomerEntity::getUsername).orElse(null))
+                .customerPhone(customer.map(ParkingCustomerEntity::getPhoneNumber).orElse(null))
                 .vehicleId(savedVehicle.getId())
                 .plateNumber(savedVehicle.getPlateNumber())
                 .vehicleType(savedVehicle.getVehicleType())
@@ -128,7 +135,7 @@ public class TicketRegistrationService {
                 .build();
 
         log.info("Monthly ticket registration completed successfully: ticketId={}, customerId={}, vehicleId={}",
-                savedTicket.getId(), customer.getId(), savedVehicle.getId());
+                savedTicket.getId(), customer, savedVehicle.getId());
 
         return response;
     }
@@ -137,7 +144,7 @@ public class TicketRegistrationService {
      * Tạo mới hoặc lấy customer hiện có
      * Prioritize by phone number
      */
-    private ParkingCustomerEntity getOrCreateCustomer(
+    private boolean getOrCreateCustomer(
             String name,
             String phone,
             String email,
@@ -147,19 +154,7 @@ public class TicketRegistrationService {
         Optional<ParkingCustomerEntity> existing = parkingCustomerRepository
                 .findByPhoneNumber(phone);
 
-        if (existing.isPresent()) {
-            log.debug("Customer already exists with phone: {}", phone);
-            return existing.get();
-        }
-
-        // Create new customer
-        log.debug("Creating new customer: name={}, phone={}", name, phone);
-        ParkingCustomerEntity customer = new ParkingCustomerEntity();
-        customer.setUsername(name);
-        customer.setPhoneNumber(phone);
-        customer.setZaloId(zaloId);
-
-        return parkingCustomerRepository.save(customer);
+        return existing.isPresent();
     }
 
     /**
@@ -203,10 +198,30 @@ public class TicketRegistrationService {
             throw new ServiceException("Invalid ticket type: " + req.getTicketType(), 400);
         }
 
-        // Vehicle type validation
-        if (req.getVehicleType() == null || req.getVehicleType().isBlank()) {
-            throw new ServiceException("Vehicle type is required", 400);
+        // Vehicle type validation against DB constraint: CAR, MOTOBIKE, OTHER
+        if (normalizeVehicleType(req.getVehicleType()) == null) {
+            throw new ServiceException(
+                    "Invalid vehicleType. Supported: CAR, MOTOBIKE, OTHER (aliases: MOTORBIKE, SEDAN, SUV, TRUCK)",
+                    400);
         }
+    }
+
+    private String normalizeVehicleType(String rawVehicleType) {
+        if (rawVehicleType == null || rawVehicleType.isBlank()) {
+            return null;
+        }
+
+        String value = rawVehicleType.trim().toUpperCase(Locale.ROOT);
+        if ("CAR".equals(value) || "SEDAN".equals(value) || "SUV".equals(value) || "TRUCK".equals(value)) {
+            return "CAR";
+        }
+        if ("MOTOBIKE".equals(value) || "MOTORBIKE".equals(value) || "BIKE".equals(value)) {
+            return "MOTOBIKE";
+        }
+        if ("OTHER".equals(value)) {
+            return "OTHER";
+        }
+        return null;
     }
 
     /**

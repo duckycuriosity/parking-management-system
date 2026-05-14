@@ -9,7 +9,6 @@ import org.springframework.web.multipart.MultipartFile;
 import vio.barie.core.dto.AiFaceCheckResponse;
 import vio.barie.core.dto.AiProfileResponse;
 
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -51,8 +50,7 @@ public class AiFaceApiClient {
                 baseUrl + "/api/FaceCrop",
                 HttpMethod.POST,
                 req,
-                String[].class
-        );
+                String[].class);
 
         String faceId = res.getBody()[0];
         log.info("[FaceCrop] faceId={}", faceId);
@@ -76,9 +74,8 @@ public class AiFaceApiClient {
                 baseUrl + "/api/FaceCheck",
                 HttpMethod.POST,
                 req,
-                AiFaceCheckResponse[].class
-        );
-        log.info("[FaceCheck] raw response: {}", res.getBody());
+                AiFaceCheckResponse[].class);
+        log.info("[FaceCheck] raw response: {}", (Object) res.getBody());
 
         List<AiFaceCheckResponse> faces = Arrays.asList(res.getBody());
         log.info("[FaceCheck] faces={}, prob={}",
@@ -101,15 +98,14 @@ public class AiFaceApiClient {
                 baseUrl + "/api/Profile",
                 HttpMethod.POST,
                 new HttpEntity<>(body, headers),
-                AiProfileResponse.class
-        );
+                AiProfileResponse.class);
 
         log.info("[CreateProfile] raw response: {}", res.getBody());
         log.info("[CreateProfile] done in {}ms", System.currentTimeMillis() - start);
         return res.getBody();
     }
 
-    //    POST /api/FaceImageCrop?profileId={id}
+    // POST /api/FaceImageCrop?profileId={id}
     public void faceImageCrop(Integer profileId, String faceId) {
         long start = System.currentTimeMillis();
         HttpHeaders headers = baseHeaders();
@@ -119,12 +115,11 @@ public class AiFaceApiClient {
 
         log.info("[FaceImageCrop] profileId={}, body={}", profileId, body);
 
-        org.springframework.http.RequestEntity<String> requestEntity =
-                org.springframework.http.RequestEntity
-                        .post(java.net.URI.create(
-                                baseUrl + "/api/FaceImageCrop?profileId=" + profileId))
-                        .headers(headers)
-                        .body(body);
+        org.springframework.http.RequestEntity<String> requestEntity = org.springframework.http.RequestEntity
+                .post(java.net.URI.create(
+                        baseUrl + "/api/FaceImageCrop?profileId=" + profileId))
+                .headers(headers)
+                .body(body);
 
         restTemplate.exchange(requestEntity, Void.class);
 
@@ -139,20 +134,17 @@ public class AiFaceApiClient {
                 baseUrl + "/api/Profile/" + profileId,
                 HttpMethod.GET,
                 new HttpEntity<>(baseHeaders()),
-                AiProfileResponse.class
-        );
+                AiProfileResponse.class);
         log.info("[GetProfile] done in {}ms", System.currentTimeMillis() - start);
         return res.getBody();
     }
-
 
     public AiProfileResponse[] getAllProfiles() {
         ResponseEntity<AiProfileResponse[]> res = restTemplate.exchange(
                 baseUrl + "/api/Profile",
                 HttpMethod.GET,
                 new HttpEntity<>(baseHeaders()),
-                AiProfileResponse[].class
-        );
+                AiProfileResponse[].class);
         return res.getBody();
     }
 
@@ -168,8 +160,7 @@ public class AiFaceApiClient {
                 baseUrl + "/api/Profile/" + profileId,
                 HttpMethod.PUT,
                 new HttpEntity<>(body, headers),
-                AiProfileResponse.class
-        );
+                AiProfileResponse.class);
         return res.getBody();
     }
 
@@ -178,9 +169,7 @@ public class AiFaceApiClient {
                 baseUrl + "/api/Profile/" + profileId,
                 HttpMethod.DELETE,
                 new HttpEntity<>(baseHeaders()),
-                Void.class
-        );
+                Void.class);
     }
-
 
 }
