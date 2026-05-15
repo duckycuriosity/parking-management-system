@@ -62,8 +62,8 @@ Content-Type: multipart/form-data
 
 **Request:**
 ```
-Part 1: "data" (JSON) → AdminMonthlyTicketRegistrationRequest
-Part 2: "faceImage" (File) → MultipartFile
+Form fields → AdminMonthlyTicketRegistrationRequest fields
+File part "faceImage" → MultipartFile
 ```
 
 **Response:**
