@@ -28,10 +28,10 @@ public class UserListResponse {
 
     private String phone;
 
+    @Builder.Default
     private List<String> roleCodes = new ArrayList<>();
 
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
 }
-

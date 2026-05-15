@@ -14,6 +14,12 @@ import java.time.LocalDateTime;
 @EqualsAndHashCode(callSuper = true)
 public class TicketEntity extends BaseEntity {
 
+    @Column(name = "ticket_type")
+    private String ticketType;
+
+    @Column(name = "customer_id")
+    private Long customerId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_id")
     private VehicleEntity vehicle;
@@ -35,6 +41,8 @@ public class TicketEntity extends BaseEntity {
         dto.setExpireAt(entity.getExpireAt());
         dto.setStatus(entity.getStatus());
         dto.setCreatedAt(entity.getCreatedAt());
+        dto.setTicketType(entity.getTicketType());
+        dto.setCustomerId(entity.getCustomerId());
         return dto;
     }
 }

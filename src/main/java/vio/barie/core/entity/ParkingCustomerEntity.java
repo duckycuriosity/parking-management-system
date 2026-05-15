@@ -2,11 +2,13 @@ package vio.barie.core.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import vio.barie.core.entity.base.BaseEntity;
 
 import java.time.LocalDateTime;
 
 @Data
+@EqualsAndHashCode(callSuper = false)
 @Entity
 @Table(name = "parking_customer")
 public class ParkingCustomerEntity extends BaseEntity {
