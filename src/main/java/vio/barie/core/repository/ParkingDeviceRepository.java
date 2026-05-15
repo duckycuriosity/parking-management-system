@@ -12,10 +12,11 @@ import java.util.Optional;
 public interface ParkingDeviceRepository extends JpaRepository<ParkingDeviceEntity, Long> {
     Optional<ParkingDeviceEntity> findByDeviceId(String deviceId);
 
+    List<ParkingDeviceEntity> findByLane_Id(Long laneId);
+
     List<ParkingDeviceEntity> findByStatus(String status);
 
     List<ParkingDeviceEntity> findByLastSeenBeforeAndStatus(
             LocalDateTime time,
-            String status
-    );
+            String status);
 }

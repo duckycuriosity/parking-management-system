@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import vio.barie.core.dto.ApiResponse;
+import vio.barie.core.dto.BarrierCameraAssignmentRequest;
 import vio.barie.core.dto.LaneCreateRequest;
 import vio.barie.core.dto.LaneResponse;
 import vio.barie.core.service.LaneService;
@@ -85,6 +86,17 @@ public class LaneController {
         ApiResponse<String> resp = new ApiResponse<>();
         resp.setCode("SUCCESS");
         resp.setMessage("Parking devices assigned to lane");
+        resp.setData(null);
+        return resp;
+    }
+
+    @PostMapping("/{id}/assign-barrier-cameras")
+    public ApiResponse<String> assignBarrierCameras(@PathVariable Long id,
+                                                    @Valid @RequestBody java.util.List<BarrierCameraAssignmentRequest> requests) {
+        laneService.assignBarrierCameras(id, requests);
+        ApiResponse<String> resp = new ApiResponse<>();
+        resp.setCode("SUCCESS");
+        resp.setMessage("Barrier camera mappings assigned to lane");
         resp.setData(null);
         return resp;
     }

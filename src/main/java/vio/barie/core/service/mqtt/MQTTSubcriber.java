@@ -4,15 +4,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.*;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.util.concurrent.Executor;
+
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class MQTTSubcriber {
 
     private final MqttClient client;
@@ -20,6 +21,19 @@ public class MQTTSubcriber {
     private final PlateMessageService plateMessageService;
     private final ParkingMessageService parkingMessageService;
     private final ObjectMapper objectMapper;
+    private final Executor mqttExecutor;
+
+    public MQTTSubcriber(MqttClient client, ProfileMessageService profileMessageService,
+            PlateMessageService plateMessageService,
+            ParkingMessageService parkingMessageService, ObjectMapper objectMapper,
+            @Qualifier("mqttExecutor") Executor mqttExecutor) {
+        this.client = client;
+        this.profileMessageService = profileMessageService;
+        this.plateMessageService = plateMessageService;
+        this.parkingMessageService = parkingMessageService;
+        this.objectMapper = objectMapper;
+        this.mqttExecutor = mqttExecutor; // Inject the executor for async processing
+    }
 
     @Value("${mqtt.device-register-topic}")
     private String deviceRegisterTopic;
@@ -41,7 +55,8 @@ public class MQTTSubcriber {
                 public void messageArrived(String topic, MqttMessage message) {
                     String payload = new String(message.getPayload());
                     log.info("Received from {}: {}", topic, payload);
-                    listen(topic, payload);
+                    // Async handle to avoid blocking MQTT thread
+                    mqttExecutor.execute(() -> listen(topic, payload));
                 }
 
                 @Override
@@ -76,7 +91,7 @@ public class MQTTSubcriber {
     }
 
     private void dispatch(String topic, String type, JsonNode json) {
-        if(topic.equals(aiboxFaceTopic)){
+        if (topic.equals(aiboxFaceTopic)) {
             profileMessageService.handle(json);
         } else if (topic.equals(aiboxPlateTopic)) {
             plateMessageService.handle(json);

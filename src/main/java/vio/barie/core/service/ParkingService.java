@@ -28,18 +28,18 @@ public class ParkingService {
     private final PaymentService paymentService;
     private final ParkingMessageService ioTService;
     private final LaneRepository laneRepository;
+    private final BarrierRepository barrierRepository;
+    private final ParkingDeviceRepository parkingDeviceRepository;
 
-    // todo: tạm thời fix cứng
-    private final String device = "pk_df102790fdca47ad";
-
-    public void handle(ParkingEvent req){
+    public void handle(ParkingEvent req) {
         VehicleEntity vehicle = findVehicle(req);
 
         Optional<ParkingSessionEntity> session = parkingSessionRepository
                 .findFirstByVehicleIdAndExitTimeIsNullOrderByEntryTimeDesc(vehicle.getId());
-        if (session.isPresent()){
+        if (session.isPresent()) {
             handleExitEvent(req);
-        } else handleEntryEvent(req);
+        } else
+            handleEntryEvent(req);
     }
 
     @Transactional
@@ -55,12 +55,12 @@ public class ParkingService {
         session.setEntryLane(lane);
         session.setParkingLot(lane.getParkingLot());
         parkingSessionRepository.save(session);
+        String barrierId = resolveBarrierId(req, lane);
 
         log.info("handleEntryEvent: entry session created — vehicleId={}, plate={}, laneId={}",
                 vehicle.getId(), vehicle.getPlateNumber(), req.getLaneId());
 
-        // TODO: từ lane tìm thấy barrier
-        ioTService.publishOpenCommand(device, session.getId(), "vehicle_entry");
+        ioTService.publishOpenCommand(barrierId, session.getId(), "vehicle_entry");
     }
 
     // TODO: tạm thời cmt để test
@@ -76,12 +76,13 @@ public class ParkingService {
         session.setExitCustomer(customer);
         session.setExitTime(LocalDateTime.now());
         session.setExitLane(lane);
+        String barrierId = resolveBarrierId(req, lane);
 
         // Luồng vé tháng
         TicketEntity ticket = findValidMonthlyTicket(vehicle.getId());
         if (ticket != null) {
             parkingSessionRepository.save(session);
-            ioTService.publishOpenForMonthlyTicket(device, session.getId(), vehicle.getPlateNumber(),
+            ioTService.publishOpenForMonthlyTicket(barrierId, session.getId(), vehicle.getPlateNumber(),
                     "parking_customer_monthly", ticket.getExpireAt());
             return;
         }
@@ -96,23 +97,22 @@ public class ParkingService {
         payReq.setDescription("Phi gui xe bien so " + vehicle.getPlateNumber());
         CreatePaymentResponse qr = paymentService.createPaymentLink(payReq);
 
-//        PaymentEntity payment = new PaymentEntity();
-//        payment.setInvoiceNo(qr.getInvoiceNo());
-//        payment.setAmount(amount);
-//        payment.setCurrency("VND");
-//        payment.setPaymentMethod("QR");
-//        payment.setStatus("PENDING");
-//        paymentRepository.save(payment);
+        // PaymentEntity payment = new PaymentEntity();
+        // payment.setInvoiceNo(qr.getInvoiceNo());
+        // payment.setAmount(amount);
+        // payment.setCurrency("VND");
+        // payment.setPaymentMethod("QR");
+        // payment.setStatus("PENDING");
+        // paymentRepository.save(payment);
 
         parkingSessionRepository.save(session);
 
-        // TODO: từ lane tìm thấy barrier
-        ioTService.publishVehicleInfo(device, session.getId(), vehicle.getPlateNumber(),
+        ioTService.publishVehicleInfo(barrierId, session.getId(), vehicle.getPlateNumber(),
                 session.getEntryTime(), amount, paymentService.decodePaymentLink(qr.getPaymentLink()));
 
         try {
             Thread.sleep(3_000L);
-            ioTService.publishPaymentConfirmed(device, session.getId(), amount, qr.getInvoiceNo());
+            ioTService.publishPaymentConfirmed(barrierId, session.getId(), amount, qr.getInvoiceNo());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -123,13 +123,12 @@ public class ParkingService {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        ioTService.publishPaymentSuccess(device, session.getId(), vehicle.getPlateNumber());
+        ioTService.publishPaymentSuccess(barrierId, session.getId(), vehicle.getPlateNumber());
     }
 
     private VehicleEntity findVehicle(ParkingEvent req) {
         if (req.getAiIdentityPlateId() != null) {
-            return vehicleRepository.findByAiIdentityPlateId(req.getAiIdentityPlateId())
-                    .or(() -> vehicleRepository.findByPlateNumber(req.getPlateNumber()))
+            return vehicleRepository.findByPlateNumber(req.getPlateNumber())
                     .orElseThrow(() -> new ServiceException("Không tìm thấy xe", 404));
         }
         return vehicleRepository.findByPlateNumber(req.getPlateNumber())
@@ -150,5 +149,21 @@ public class ParkingService {
         return ticketRepository.findByVehicleIdAndStatus(vehicleId, "ACTIVE")
                 .filter(t -> t.getExpireAt() != null && t.getExpireAt().isAfter(LocalDateTime.now()))
                 .orElse(null);
+    }
+
+    private String resolveBarrierId(ParkingEvent req, LaneEntity lane) {
+        if (req.getBarrierId() != null && !req.getBarrierId().isBlank()) {
+            return req.getBarrierId();
+        }
+
+        Optional<ParkingDeviceEntity> device = parkingDeviceRepository.findByLane_Id(lane.getId()).stream().findFirst();
+        if (device.isEmpty()) {
+            throw new ServiceException("Không tìm thấy parking device cho lane", 404);
+        }
+
+        return barrierRepository.findAllByParkingDevice_Id(device.get().getId()).stream()
+                .map(BarrierEntity::getBarrierId)
+                .findFirst()
+                .orElseThrow(() -> new ServiceException("Không tìm thấy barrier cho lane", 404));
     }
 }

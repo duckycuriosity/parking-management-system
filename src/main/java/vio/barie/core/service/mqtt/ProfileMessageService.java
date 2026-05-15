@@ -12,7 +12,6 @@ import vio.barie.core.repository.ParkingCustomerRepository;
 
 import java.util.UUID;
 
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -25,29 +24,31 @@ public class ProfileMessageService {
     @Transactional()
     public void handle(JsonNode event) {
         Long cameraCode = event.path("cameraId").asLong();
+        String cameraUUID = event.path("cameraUUID").asText();
         Integer profileId = event.path("profileId").asInt();
         String profileName = event.path("name").asText(null);
 
-        if (profileId == null) {
+        if (cameraUUID == null) {
             log.warn("ProfileHandler: face event has no profileId — cameraId={}", cameraCode);
             return;
         }
 
-        CameraEntity aiCamera = cameraRepository.findCameraByAiCameraId(cameraCode).orElse(null);
+        CameraEntity aiCamera = cameraRepository.findCameraByUUID(cameraUUID).orElse(null);
         if (aiCamera == null) {
             log.warn("Camera not found in AI system");
             return;
         }
-        CameraEntity cameraInLane = cameraRepository.findByCodeWithLane(aiCamera.getId().toString()).orElse(null);
+        CameraEntity cameraInLane = cameraRepository.findByIdWithLane(aiCamera.getId()).orElse(null);
         if (cameraInLane == null) {
             log.warn("ProfileHandler: unknown camera — cameraId={}", cameraCode);
             return;
         }
 
         long laneId = cameraInLane.getLane().getId();
-        log.debug("ProfileHandler: face event — laneId={}, profileId={}, profileName={}", laneId, profileId, profileName);
+        log.debug("ProfileHandler: face event — laneId={}, profileId={}, profileName={}", laneId, profileId,
+                profileName);
 
-        if(customerRepository.findByAiProfileId(profileId).isEmpty()){
+        if (customerRepository.findByAiProfileId(profileId).isEmpty()) {
             ParkingCustomerEntity newCustomer = new ParkingCustomerEntity();
             UUID uuid = UUID.randomUUID();
             newCustomer.setAiIdentityId("temp_customer" + uuid.toString());
@@ -56,6 +57,6 @@ public class ProfileMessageService {
             customerRepository.save(newCustomer);
         }
 
-        aiEventBuffer.addFaceEvent(laneId, profileId);
+        aiEventBuffer.addFaceEvent(cameraInLane.getId(), laneId, profileId);
     }
 }

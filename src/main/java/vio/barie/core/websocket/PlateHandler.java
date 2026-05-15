@@ -25,7 +25,7 @@ public class PlateHandler {
 
         long cameraId = dataNode.path("cameraId").asLong();
         String plateNumber = plateNode.path("plateNumber").asText(null);
-        String plateId = plateNode.path("plateId").asText(null);
+        Integer plateId = plateNode.path("plateId").asInt();
 
         if (plateNumber == null) {
             log.warn("PlateHandler: plate event has no plateNumber — cameraId={}", cameraId);
@@ -41,13 +41,13 @@ public class PlateHandler {
         long laneId = camera.getLane().getId();
         log.debug("PlateHandler: plate={} on laneId={}", plateNumber, laneId);
 
-        if(vehicleRepository.findByAiIdentityPlateId(plateId).isEmpty()){
+        if (vehicleRepository.existsByPlateNumber(plateNumber)) {
             VehicleEntity newVehicle = new VehicleEntity();
             newVehicle.setPlateNumber(plateNumber);
-            newVehicle.setAiIdentityPlateId(plateId);
+            newVehicle.setAiIdentityPlateId(null);
             vehicleRepository.save(newVehicle);
         }
 
-        aiEventBuffer.addPlateEvent(laneId, plateNumber, plateId);
+        aiEventBuffer.addPlateEvent(cameraId, laneId, plateNumber, plateId);
     }
 }
