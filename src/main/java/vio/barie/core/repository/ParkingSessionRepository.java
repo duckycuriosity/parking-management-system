@@ -8,4 +8,8 @@ import java.util.Optional;
 public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEntity, Long> {
     // session "đang mở" = đã có entry_time, chưa có exit_time
     Optional<ParkingSessionEntity> findFirstByVehicleIdAndExitTimeIsNullOrderByEntryTimeDesc(Long vehicleId);
+
+    Optional<ParkingSessionEntity> findFirstByVehicleIdAndEntryCustomerIdAndExitTimeIsNullOrderByEntryTimeDesc(
+            Long vehicleId,
+            Long entryCustomerId);
 }

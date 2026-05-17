@@ -1,0 +1,5 @@
+ALTER TABLE parking_session ADD COLUMN IF NOT EXISTS entry_barrier VARCHAR(50),
+ADD COLUMN IF NOT EXISTS exit_barrier VARCHAR(50),
+ADD COLUMN IF NOT EXISTS ticket_id BIGINT,
+ADD COLUMN IF NOT EXISTS session_type VARCHAR(20) NOT NULL;
+ALTER TABLE parking_session ADD CONSTRAINT chk_session_type CHECK (session_type IN ('MONTHLY', 'QUARTERLY', 'YEARLY', 'DAILY'));

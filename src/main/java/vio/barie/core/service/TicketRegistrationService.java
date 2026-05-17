@@ -110,7 +110,7 @@ public class TicketRegistrationService {
         ticket.setTicketType(req.getTicketType());
         ticket.setRegisterAt(now);
         ticket.setExpireAt(expireAt);
-        ticket.setStatus("ACTIVE"); // Ticket ngay lập tức active
+        ticket.setStatus("INACTIVE"); // Ticket ngay lập tức active
 
         TicketEntity savedTicket = ticketRepository.save(ticket);
         log.info("Ticket created successfully: ticketId={}, expireAt={}",

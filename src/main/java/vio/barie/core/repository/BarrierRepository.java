@@ -16,6 +16,13 @@ public interface BarrierRepository extends JpaRepository<BarrierEntity, Long> {
     @Query("select b from BarrierEntity b join fetch b.parkingDevice where b.barrierId = :barrierId")
     Optional<BarrierEntity> findByBarrierIdWithDevice(@Param("barrierId") String barrierId);
 
+        @Query("select b from BarrierEntity b " +
+            "join fetch b.parkingDevice pd " +
+            "join fetch pd.lane l " +
+            "join fetch l.parkingLot " +
+            "where b.barrierId = :barrierId")
+        Optional<BarrierEntity> findByBarrierIdWithDeviceAndLaneAndParkingLot(@Param("barrierId") String barrierId);
+
     List<BarrierEntity> findAllByParkingDevice_Id(Long parkingDeviceId);
 
     List<BarrierEntity> findAllByParkingDevice_DeviceId(String deviceId);

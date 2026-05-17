@@ -3,6 +3,8 @@ package vio.barie.core.service.mqtt;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import vio.barie.core.entity.CameraEntity;
@@ -19,6 +21,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PlateMessageService {
 
+    // setup logger with class name
+    private static final Logger logger = LoggerFactory.getLogger(PlateMessageService.class);
+
     private final VehicleRepository vehicleRepository;
     private final CameraRepository cameraRepository;
     private final AiMQTTEventBuffer aiEventBuffer;
@@ -34,24 +39,24 @@ public class PlateMessageService {
         Boolean isVerified = event.path("plate").path("isVerified").asBoolean(false);
 
         if (plateNumber == null || cameraUUID == null) {
-            log.warn("PlateHandler: plate event has no plateNumber — cameraId={}", cameraCode);
+            logger.warn("PlateHandler: plate event has no plateNumber — cameraId={}", cameraCode);
             // publish to hardware
             return;
         }
 
         CameraEntity aiCamera = cameraRepository.findCameraByUUID(cameraUUID).orElse(null);
         if (aiCamera == null) {
-            log.warn("Camera not found in AI system");
+            logger.warn("Camera not found in AI system");
             return;
         }
         CameraEntity cameraInLane = cameraRepository.findByIdWithLane(aiCamera.getId()).orElse(null);
         if (cameraInLane == null) {
-            log.warn("ProfileHandler: unknown camera — cameraId={}", cameraCode);
+            logger.warn("ProfileHandler: unknown camera — cameraId={}", cameraCode);
             return;
         }
 
         long laneId = cameraInLane.getLane().getId();
-        log.debug("PlateHandler: plate={} on laneId={}", plateNumber, laneId);
+        logger.debug("PlateHandler: plate={} on laneId={}", plateNumber, laneId);
 
         if (!vehicleRepository.existsByPlateNumber(plateNumber)) {
             VehicleEntity newVehicle = new VehicleEntity();
@@ -63,7 +68,8 @@ public class PlateMessageService {
         }
         VehicleEntity vehicle = vehicleRepository.findPlateByPlateNumber(plateNumber);
 
-        String barrierId = detectionMatchingService.resolveBarrierId(cameraInLane.getId(), "plate").orElse(null);
+        String barrierId = detectionMatchingService.resolveBarrierId(cameraInLane.getId(), "plate", laneId)
+                .orElse(null);
         if (barrierId == null) {
             log.warn("PlateHandler: no barrier mapping for cameraId={} laneId={}", cameraInLane.getId(), laneId);
             return;
