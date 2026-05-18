@@ -11,6 +11,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import vio.barie.core.dto.ApiResponse;
+import vio.barie.core.dto.Result;
 import vio.barie.core.dto.ticket.AdminMonthlyTicketRegistrationRequest;
 import vio.barie.core.dto.ticket.TicketRegistrationResponseDTO;
 import vio.barie.core.service.TicketRegistrationService;
@@ -64,5 +65,14 @@ public class AdminTicketRegistrationController {
                                         request.getName(), ex.getMessage(), ex);
                         throw ex;
                 }
+        }
+
+        @GetMapping("/qrcode/{ticketId}")
+        public Result<String> getTicketRegistrationQrcode(@PathVariable Long ticketId) {
+                String qr = ticketRegistrationService.getTicketPayment(ticketId);
+                return new Result<>(
+                        200,
+                        "qrcode",
+                        qr);
         }
 }

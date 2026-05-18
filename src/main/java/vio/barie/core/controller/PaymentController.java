@@ -1,13 +1,16 @@
 package vio.barie.core.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vio.barie.core.dto.payment.MegaPayResponse;
-import vio.barie.core.service.ParkingService;
+import vio.barie.core.dto.payment.RefundRequest;
 import vio.barie.core.service.PaymentService;
 
-// controller để hứng callback từ megapay, tạo đơn thanh toán
+import java.util.Map;
+
 @Slf4j
 @RestController
 @RequestMapping("/api/payment")
@@ -16,21 +19,33 @@ public class PaymentController {
 
     private final PaymentService paymentService;
 
-    // todo: đây là megapay callback cho UI , tạm thời để đây, sau này có UI thì chỏ về UI
-    @PostMapping("/callback")
-    public void callback(@RequestBody MegaPayResponse response) {
-        log.info("MegaPay callback invoiceNo={} resultCd={}", response.getInvoiceNo(), response.getResultCd());
-
+    // redirect ve UI
+    @GetMapping("/callback")
+    public ResponseEntity<Void> callback(@RequestParam Map<String, String> params) {
+        log.info("MegaPay callback: invoiceNo={}, resultCd={}",
+                params.get("invoiceNo"), params.get("resultCd"));
+        paymentService.handleCallback(params);
+        return ResponseEntity.ok().build();
     }
 
-    // đây là megapay callback cho server
     @PostMapping("/ipn")
-    public void ipn(@RequestBody MegaPayResponse response) {
-        log.info("MegaPay IPN invoiceNo={} resultCd={}", response.getInvoiceNo(), response.getResultCd());
-        if (response.isSuccess()) {
-            paymentService.completePayment(response, "QR");
-        } else {
-            // todo: xử lý nếu thanh toán lỗi
-        }
+    public ResponseEntity<String> ipn(@RequestBody MegaPayResponse params) {
+        log.info("MegaPay IPN: invoiceNo, resultCd={}",
+                params.getInvoiceNo(), params.getResultCd());
+        paymentService.handleIPN(params);
+        return ResponseEntity.ok("OK");
+    }
+
+    @GetMapping("/inquiry/{invoiceNo}")
+    public ResponseEntity<MegaPayResponse> inquiry(@PathVariable String invoiceNo) {
+        MegaPayResponse resp = paymentService.inquiryByInvoiceNo(invoiceNo);
+        if (resp == null) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(resp);
+    }
+
+    @PostMapping("/refund")
+    public ResponseEntity<MegaPayResponse> refund(@Valid @RequestBody RefundRequest req) {
+        MegaPayResponse resp = paymentService.refund(req);
+        return ResponseEntity.ok(resp);
     }
 }
