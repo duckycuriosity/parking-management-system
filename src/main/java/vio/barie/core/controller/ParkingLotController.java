@@ -35,12 +35,14 @@ public class ParkingLotController {
     public Result<ParkingLotResponse> findById(@PathVariable Long id) {
         return Result.ok("Parking lot fetched", parkingLotService.findById(id));
     }
+    
 
     @PutMapping("/{id}")
     public Result<ParkingLotResponse> update(@PathVariable Long id,
                                              @Valid @RequestBody ParkingLotCreateRequest request) {
         return Result.ok("Parking lot updated", parkingLotService.update(id, request));
     }
+
 
     @DeleteMapping("/{id}")
     public Result<String> delete(@PathVariable Long id) {
