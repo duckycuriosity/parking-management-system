@@ -13,6 +13,7 @@ public class ParkingEvent {
     private Long ticketId;
     private String sessionType;
     private String entryBarrier;
+    private String exitBarrier;
     private Long entryLane;
     private Long exitLane;
 

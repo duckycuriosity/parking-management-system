@@ -48,6 +48,6 @@ public class PlateHandler {
             vehicleRepository.save(newVehicle);
         }
 
-        aiEventBuffer.addPlateEvent(cameraId, laneId, plateNumber, plateId);
+//        aiEventBuffer.addPlateEvent(cameraId, laneId, plateNumber, plateId);
     }
 }

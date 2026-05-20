@@ -13,7 +13,10 @@ import vio.barie.core.repository.*;
 import vio.barie.core.service.mqtt.ParkingMessageService;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -46,7 +49,7 @@ public class ParkingService {
     public void handleEntryEvent(ParkingEvent req) {
         VehicleEntity vehicle = findVehicle(req);
         ParkingCustomerEntity customer = findCustomer(req);
-        LaneEntity lane = findLane(req);
+        LaneEntity lane = findLane(req, "ENTRY");
 
         ParkingSessionEntity session = new ParkingSessionEntity();
         session.setVehicle(vehicle);
@@ -55,10 +58,10 @@ public class ParkingService {
         session.setEntryLane(lane);
         session.setParkingLot(lane.getParkingLot());
         parkingSessionRepository.save(session);
-        String barrierId = resolveBarrierId(req, lane);
+        String barrierId = resolveBarrierId(req, lane, "ENTRY");
 
         log.info("handleEntryEvent: entry session created — vehicleId={}, plate={}, laneId={}",
-                vehicle.getId(), vehicle.getPlateNumber(), req.getLaneId());
+                vehicle.getId(), vehicle.getPlateNumber(), req.getEntryLane());
 
         ioTService.publishOpenCommand(barrierId, session.getId(), "vehicle_entry");
     }
@@ -68,7 +71,7 @@ public class ParkingService {
     public void handleExitEvent(ParkingEvent req) {
         VehicleEntity vehicle = findVehicle(req);
         ParkingCustomerEntity customer = findCustomer(req);
-        LaneEntity lane = findLane(req);
+        LaneEntity lane = findLane(req, "EXIT");
 
         ParkingSessionEntity session = parkingSessionRepository
                 .findFirstByVehicleIdAndExitTimeIsNullOrderByEntryTimeDesc(vehicle.getId())
@@ -76,7 +79,7 @@ public class ParkingService {
         session.setExitCustomer(customer);
         session.setExitTime(LocalDateTime.now());
         session.setExitLane(lane);
-        String barrierId = resolveBarrierId(req, lane);
+        String barrierId = resolveBarrierId(req, lane, "EXIT");
 
         // Luồng vé tháng
         TicketEntity ticket = findValidMonthlyTicket(vehicle.getId());
@@ -140,9 +143,17 @@ public class ParkingService {
                 .orElseThrow(() -> new ServiceException("Không tìm thấy người ", 404));
     }
 
-    private LaneEntity findLane(ParkingEvent req) {
-        return laneRepository.findByIdWithParkingLot(req.getLaneId())
-                .orElseThrow(() -> new ServiceException("Không tìm thấy lane: ", 404));
+    private LaneEntity findLane(ParkingEvent req, String type) {
+        if (type.equals("ENTRY")) {
+            return laneRepository.findByIdWithParkingLot(req.getEntryLane())
+                    .orElseThrow(() -> new ServiceException("Không tìm thấy lane: ", 404));
+        } else if (type.equals("EXIT")) {
+            return laneRepository.findByIdWithParkingLot(req.getExitLane())
+                    .orElseThrow(() -> new ServiceException("Không tìm thấy lane: ", 404));
+        } else {
+            return null;
+        }
+
     }
 
     private TicketEntity findValidMonthlyTicket(Long vehicleId) {
@@ -151,19 +162,20 @@ public class ParkingService {
                 .orElse(null);
     }
 
-    private String resolveBarrierId(ParkingEvent req, LaneEntity lane) {
-        if (req.getBarrierId() != null && !req.getBarrierId().isBlank()) {
-            return req.getBarrierId();
-        }
+    private String resolveBarrierId(ParkingEvent req, LaneEntity lane, String type) {
 
-        Optional<ParkingDeviceEntity> device = parkingDeviceRepository.findByLane_Id(lane.getId()).stream().findFirst();
-        if (device.isEmpty()) {
-            throw new ServiceException("Không tìm thấy parking device cho lane", 404);
-        }
-
-        return barrierRepository.findAllByParkingDevice_Id(device.get().getId()).stream()
-                .map(BarrierEntity::getBarrierId)
-                .findFirst()
-                .orElseThrow(() -> new ServiceException("Không tìm thấy barrier cho lane", 404));
+            List<ParkingDeviceEntity> parkingDevices = parkingDeviceRepository.findByLane_Id(lane.getId());
+            List<BarrierEntity> barriers = barrierRepository.findAllByParkingDevice_DeviceId(parkingDevices.getFirst().getDeviceId());
+            List<String> ids = barriers.stream()
+                    .map(BarrierEntity::getBarrierId)
+                    .collect(Collectors.toList());
+            boolean isExists;
+            if (type.equals("ENTRY")) {
+                isExists = ids.contains(req.getEntryBarrier());
+                return isExists ?  req.getEntryBarrier() : null;
+            } else {
+                isExists = ids.contains(req.getExitBarrier());
+                return isExists ? req.getExitBarrier() : null;
+            }
     }
 }
