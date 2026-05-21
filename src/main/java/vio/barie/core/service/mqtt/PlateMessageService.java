@@ -90,6 +90,7 @@ public class PlateMessageService {
                 pd.setEntryBarrierId(barrier.map(BarrierEntity::getBarrierId).orElse(null));
                 pd.setEntryCameraId(cameraInLane.getId());
                 pd.setDirectionType(DirectionType.ENTRY);
+                parkingMessageService.publishEntryVehicleInfo(barrier.map(BarrierEntity::getBarrierId).orElse(null), plateNumber, LocalDateTime.now());
             } else if (barrier.map(BarrierEntity::getDirection).orElse("").equals(DirectionType.EXIT.toString().toLowerCase())) {
                 pd.setExitBarrierId(barrier.map(BarrierEntity::getBarrierId).orElse(null));
                 pd.setExitCameraId(cameraInLane.getId());
@@ -98,7 +99,6 @@ public class PlateMessageService {
             }
             pd.setTimestampMs(System.currentTimeMillis());
 
-            parkingMessageService.publishEntryVehicleInfo(barrier.map(BarrierEntity::getBarrierId).orElse(null), plateNumber, LocalDateTime.now());
             aiEventBuffer.addPlateEvent(pd);
         } catch (Exception ex) {
             log.error("PlateMessageService: failed to handle plate event — payload={} error={}", event, ex.getMessage(),

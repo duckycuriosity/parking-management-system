@@ -54,13 +54,22 @@ public class AdminTicketRegistrationController {
             return Result.ok("Monthly ticket registered successfully",
                     response);
 
-        } catch (IOException ex) {
-            log.error("IO error while processing face image: {}", ex.getMessage(), ex);
-            throw new RuntimeException("Failed to process face image: " + ex.getMessage(), ex);
-        } catch (Exception ex) {
-            log.error("Error registering monthly ticket - customer: {}, error: {}",
-                    request.getName(), ex.getMessage(), ex);
-            throw ex;
+                } catch (IOException ex) {
+                        log.error("IO error while processing face image: {}", ex.getMessage(), ex);
+                        throw new RuntimeException("Failed to process face image: " + ex.getMessage(), ex);
+                } catch (Exception ex) {
+                        log.error("Error registering monthly ticket - customer: {}, error: {}",
+                                        request.getName(), ex.getMessage(), ex);
+                        throw ex;
+                }
         }
-    }
+
+        @GetMapping("/qrcode/{ticketId}")
+        public Result<String> getTicketRegistrationQrcode(@PathVariable Long ticketId) {
+                String qr = ticketRegistrationService.getTicketPayment(ticketId);
+                return new Result<>(
+                        200,
+                        "qrcode",
+                        qr);
+        }
 }

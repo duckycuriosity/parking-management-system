@@ -12,12 +12,16 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import vio.barie.core.common.PaymentCallbackType;
+import vio.barie.core.common.TicketStatus;
 import vio.barie.core.common.TicketType;
 import vio.barie.core.config.exception.ServiceException;
 import vio.barie.core.config.payment.MegaPayConfig;
 import vio.barie.core.dto.payment.*;
 import vio.barie.core.entity.PaymentEntity;
+import vio.barie.core.entity.TicketEntity;
 import vio.barie.core.repository.PaymentRepository;
+import vio.barie.core.repository.TicketRepository;
+import vio.barie.core.service.mqtt.ParkingMessageService;
 import vio.barie.core.utils.MegaPaySignatureUtil;
 
 import javax.crypto.Cipher;
@@ -38,11 +42,11 @@ import static cn.hutool.core.convert.Convert.hexToBytes;
 public class PaymentService {
 
     private final PaymentRepository paymentRepository;
-    private final ParkingService parkingService;
-    private final TicketRegistrationService ticketRegistrationService;
+    private final TicketRepository ticketRepository;
     private final MegaPayConfig config;
     private final ObjectMapper objectMapper;
     private final RestClient restClient = RestClient.create();
+    private final ParkingMessageService ioTService;
 
     public PaymentEntity createSessionPayment(
             String invoiceNo,
@@ -188,15 +192,13 @@ public class PaymentService {
         if (payment.getCallbackType().equals(PaymentCallbackType.SESSION.name())){
             // thong bao den hardware qua mqtt de ui chuyen man hinh thanh: Dang xu ly
             JSONObject context = payment.getCallbackContext();
-            parkingService.handleExitEventPaymentConfirmed(
+            ioTService.publishPaymentConfirmed(context.getStr("barrierId"),
                     context.getLong("sessionId"),
-                    context.getStr("barrierId"),
-                    response.getInvoiceNo(),
-                    new BigDecimal(response.getAmount())
-            );
+                    new BigDecimal(response.getAmount()),
+                    response.getInvoiceNo());
         }
         else if (payment.getCallbackType().equals(PaymentCallbackType.TICKET.name())) {
-            // thong bao den ui qua ws,.. de ui chuyen man hinh thanh: Dang xu ly
+            // todo: thong bao den ui qua ws,.. de ui chuyen man hinh thanh: Dang xu ly
         } else {
             throw new ServiceException("Chưa hỗ trợ callback type: "+payment.getCallbackType(),404);
         }
@@ -228,17 +230,18 @@ public class PaymentService {
         // payment callback
         if (payment.getCallbackType().equals(PaymentCallbackType.SESSION.name())){
             JSONObject context = payment.getCallbackContext();
-            parkingService.handleExitEventCallback(
+            // thong bao giao dich thanh cong de mo cong
+            ioTService.publishPaymentSuccess(context.getStr("barrierId"),
                     context.getLong("sessionId"),
-                    context.getStr("barrierId"),
-                    context.getStr("plateNumber"),
-                    context.getInt("aiIdentityCustomerId"),
-                    context.getLong("laneId"),
-                    context.getLocalDateTime("exitTime",LocalDateTime.now())
-            );
+                    context.getStr("plateNumber"));
         } else if (payment.getCallbackType().equals(PaymentCallbackType.TICKET.name())) {
+            // ticket status dead -> active
             JSONObject context = payment.getCallbackContext();
-            ticketRegistrationService.handleTicketPaymentCallback(context.getLong("ticketId"));
+            TicketEntity ticket = ticketRepository.findById(context.getLong("ticketId")).orElseThrow(
+                    () -> new ServiceException("Không tìm ticket tương ", 404)
+            );
+            ticket.setStatus(TicketStatus.ACTIVE.name());
+            ticketRepository.save(ticket);
         } else {
             throw new ServiceException("Chưa hỗ trợ callback type: "+payment.getCallbackType(),404);
         }
@@ -324,16 +327,6 @@ public class PaymentService {
                 .body(MegaPayResponse.class);
     }
 
-    public MegaPayResponse refund(Map<String, String> params) {
-        log.debug("MegaPay refund params: {}", params);
-        MultiValueMap<String, String> form = toForm(params);
-        return restClient.post()
-                .uri(config.getCancelUrl())
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .body(form)
-                .retrieve()
-                .body(MegaPayResponse.class);
-    }
 
     public CreatePaymentResponse createPaymentLink(Map<String, Object> params) {
         log.debug("MegaPay createLink params: {}", params);
