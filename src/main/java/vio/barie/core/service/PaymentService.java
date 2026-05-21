@@ -2,29 +2,33 @@ package vio.barie.core.service;
 
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
+import vio.barie.core.common.PaymentCallbackType;
+import vio.barie.core.common.TicketType;
 import vio.barie.core.config.exception.ServiceException;
 import vio.barie.core.config.payment.MegaPayConfig;
 import vio.barie.core.dto.payment.*;
-import vio.barie.core.entity.ParkingSessionEntity;
 import vio.barie.core.entity.PaymentEntity;
 import vio.barie.core.repository.PaymentRepository;
+import vio.barie.core.utils.MegaPaySignatureUtil;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.Base64;
 import java.util.Calendar;
+import java.util.HashMap;
+import java.util.Map;
 
 import static cn.hutool.core.convert.Convert.hexToBytes;
 
@@ -34,157 +38,254 @@ import static cn.hutool.core.convert.Convert.hexToBytes;
 public class PaymentService {
 
     private final PaymentRepository paymentRepository;
-
+    private final ParkingService parkingService;
+    private final TicketRegistrationService ticketRegistrationService;
     private final MegaPayConfig config;
-
+    private final ObjectMapper objectMapper;
     private final RestClient restClient = RestClient.create();
 
-    public CreatePaymentResponse createPaymentLink(CreatePaymentRequest req) {
-        try {
-            JSONObject body = buildRequestBody(req);
-            String response = restClient.post()
-                    .uri(config.getEndpoint())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(body.toString())
-                    .retrieve()
-                    .body(String.class);
+    public PaymentEntity createSessionPayment(
+            String invoiceNo,
+            BigDecimal amount,
+            String payType,
+            String description,
+            Long sessionId,
+            String barrierId,
+            String plateNumber,
+            Integer aiIdentityCustomerId,
+            Long laneId,
+            LocalDateTime exitTime
+    ) {
+        PaymentEntity payment = new PaymentEntity();
 
-            return JSONUtil.toBean(response,CreatePaymentResponse.class);
-        } catch (Exception e) {
-            throw new RuntimeException("Create payment failed", e);
-        }
+        payment.setInvoiceNo(invoiceNo);
+        payment.setAmount(amount);
+        payment.setCurrency("VND");
+        payment.setPaymentMethod("QR");
+        payment.setPayType(payType);
+        payment.setDescription(sanitize(description));
+        payment.setStatus("PENDING");
+        payment.setCallbackType(PaymentCallbackType.SESSION.name());
+
+        JSONObject context = new JSONObject();
+        context.set("sessionId", sessionId);
+        context.set("barrierId", barrierId);
+        context.set("plateNumber", plateNumber);
+        context.set("aiIdentityCustomerId", aiIdentityCustomerId);
+        context.set("laneId", laneId);
+        context.set("exitTime", exitTime);
+
+        payment.setCallbackContext(context);
+
+        return paymentRepository.save(payment);
     }
 
-    private JSONObject buildRequestBody(CreatePaymentRequest req) {
-        JSONObject body = new JSONObject();
-        body.set("merId", config.getMerId());
-        body.set("currency", "VND");
-        body.set("amount", req.getAmount());
-        body.set("goodsNm", cleanSpecialChar(req.getGoodsName()));
-        body.set("payType", config.getPayType());
-        body.set("callBackUrl", config.getCallbackUrl());
-        body.set("notiUrl", config.getNotifyUrl());
-        body.set("reqDomain", config.getReqDomain());
-        body.set("descriptions", cleanSpecialChar(req.getDescription()));
-        body.set("userLanguage", config.getUserLanguage());
-        body.set("windowType", config.getWindowType());
+    public PaymentEntity createTicketPayment(
+            String invoiceNo,
+            BigDecimal amount,
+            String payType,
+            String description,
+            Long ticketId
+//            Long customerId
+    ) {
+        PaymentEntity payment = new PaymentEntity();
 
+        payment.setInvoiceNo(invoiceNo);
+        payment.setAmount(amount);
+        payment.setCurrency("VND");
+        payment.setPaymentMethod("QR");
+        payment.setPayType(payType);
+        payment.setDescription(sanitize(description));
+        payment.setStatus("PENDING");
+        payment.setCallbackType(PaymentCallbackType.TICKET.name());
+
+        JSONObject context = new JSONObject();
+        context.set("ticketId", ticketId);
+//        context.set("customerId", customerId);
+        payment.setCallbackContext(context);
+
+        return paymentRepository.save(payment);
+    }
+
+    // TẠO PAYMENT LINK — lưu PaymentEntity với trạng thái PENDING
+    public CreatePaymentResponse createPaymentLink(CreatePaymentRequest req) {
         String timeStamp = String.valueOf(System.currentTimeMillis());
-        String invoiceNo = generateInvoiceNo(req.getSession());
+        String amountStr = String.valueOf(req.getAmount());
+        String invoiceNo = generateInvoiceNo(req);
 
         String linkExptime = generateExpireTime();
+        String payType = req.getPayType() != null ? req.getPayType() : config.getPayType();
 
-        body.set("timeStamp", timeStamp);
-        body.set("invoiceNo", invoiceNo);
-        body.set("linkExptime", linkExptime);
+        String merchantToken = MegaPaySignatureUtil.generatePaymentToken(
+                timeStamp, invoiceNo, config.getMerId(), amountStr,linkExptime, config.getEncodeKey());
 
-        // TOKEN
-        String merchantToken = generateSHA256(
+        String hashData = invoiceNo + amountStr + config.getEncodeKey();
+        String hash = MegaPaySignatureUtil.sha256(hashData);
 
-                timeStamp
-                    + invoiceNo
-                    + body.get("merId")
-                    + body.get("amount")
-                    + linkExptime
-                    + config.getEncodeKey()
-        );
+        Map<String, Object> params = new HashMap<>();
+        params.put("merId", config.getMerId());
+        params.put("currency", "VND");
+        params.put("amount", amountStr);
+        params.put("invoiceNo", invoiceNo);
+        params.put("goodsNm", sanitize(req.getGoodsName()));
+        params.put("payType", payType);
+        params.put("callBackUrl", config.getCallbackUrl());
+        params.put("notiUrl", config.getNotifyUrl());
+        params.put("reqDomain", config.getReqDomain());
+        params.put("descriptions", sanitize(req.getDescription()));
+        params.put("merchantToken", merchantToken);
+        params.put("userLanguage", config.getUserLanguage() != null ? config.getUserLanguage() : "VN");
+        params.put("timeStamp", timeStamp);
+        params.put("linkExptime", linkExptime);
+        params.put("hash", hash);
+        if (config.getWindowColor() != null) params.put("windowColor", config.getWindowColor());
 
-        body.put("merchantToken", merchantToken);
-
-        // HASH
-        String hash = generateSHA256(
-                invoiceNo
-                + body.get("amount")
-                + config.getEncodeKey());
-        body.put("hash", hash);
-
-        return body;
-    }
-
-    private String cleanSpecialChar(String input) {
-        return input.replaceAll("[!@#$%&*<=>?^'|\"\\r\\n]", "");
-    }
-
-    // Encode sessionId vào invoiceNo để callback có thể truy ngược ra session
-    private String generateInvoiceNo(ParkingSessionEntity session) {
-        return "viotech_" + session.getId() + "_" + System.currentTimeMillis();
-    }
-
-    // QR hết hạn sau 15p
-    private String generateExpireTime() {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss");
-        Calendar cal = Calendar.getInstance();
-        cal.add(Calendar.MINUTE, 15);
-        return sdf.format(cal.getTime());
-    }
-
-    // Hàm phụ để sinh SHA256 cho gọn
-    private String generateSHA256(String input) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hashBytes = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hexString = new StringBuilder();
-            for (byte b : hashBytes) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) hexString.append('0');
-                hexString.append(hex);
+            CreatePaymentResponse response = createPaymentLink(params);
+
+            if (!"00_000".equals(response.getResultCd())) {
+                throw new ServiceException("Tạo link thanh toán thất bại: " + response.getResultMsg(), 400);
             }
-            return hexString.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
+            return response;
+
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("createPaymentLink error: {}", e.getMessage(), e);
+            throw new ServiceException("Tạo link thanh toán lỗi hệ thống", e);
         }
     }
 
-
-
+    // CALLBACK
     @Transactional
-    public void completePayment(MegaPayResponse response, String method) {
-        if (verify(response)) {
-            PaymentEntity payment = paymentRepository.findByInvoiceNo(response.getInvoiceNo())
-                    .orElseThrow(() -> new ServiceException("Không tìm thấy payment theo invoiceNo", 404));
+    public void handleCallback(Map<String, String> params) {
+    }
 
-            // tránh trùng lặp
-            if ("PAID".equals(payment.getStatus())) {
-                log.warn("Payment {} đã trả đủ ", response.getInvoiceNo());
-                return;
-            }
+    // IPN
+    @Transactional
+    public void handleIPN(MegaPayResponse response) {
 
-            // check amount, mặc định là khóa cứng
-            int amount = Integer.parseInt(response.getAmount());
-            if (amount != payment.getAmount()) {
-                log.error("Số tiền không khớp invoice={} db={} resp={}",
-                        response.getInvoiceNo(), payment.getAmount(), amount);
-                payment.setStatus("FRAUD_SUSPECTED");
-                paymentRepository.save(payment);
-                throw new ServiceException("Số tiền không khớp", 400);
-            }
+        boolean tokenValid = MegaPaySignatureUtil.verifyPaymentCallback(
+                response.getResultCd(),
+                response.getTimeStamp(),
+                response.getMerTrxId(),
+                response.getTrxId(),
+                config.getMerId(),
+                response.getAmount(),
+                config.getEncodeKey(),
+                response.getMerchantToken());
+        if (!tokenValid) {
+            log.warn("IPN token không hợp lệ, invoiceNo={}", response.getInvoiceNo());
+            return;
+        }
 
+        PaymentEntity payment = paymentRepository.findByInvoiceNo(response.getInvoiceNo())
+                .orElseThrow(() -> new ServiceException(
+                        "IPN: không tìm thấy payment với invoiceNo={}" + response.getInvoiceNo(),
+                        404));
+
+        // xac nhan thanh toan da hoan thanh
+        if (payment.getCallbackType().equals(PaymentCallbackType.SESSION.name())){
+            // thong bao den hardware qua mqtt de ui chuyen man hinh thanh: Dang xu ly
+            JSONObject context = payment.getCallbackContext();
+            parkingService.handleExitEventPaymentConfirmed(
+                    context.getLong("sessionId"),
+                    context.getStr("barrierId"),
+                    response.getInvoiceNo(),
+                    new BigDecimal(response.getAmount())
+            );
+        }
+        else if (payment.getCallbackType().equals(PaymentCallbackType.TICKET.name())) {
+            // thong bao den ui qua ws,.. de ui chuyen man hinh thanh: Dang xu ly
+        } else {
+            throw new ServiceException("Chưa hỗ trợ callback type: "+payment.getCallbackType(),404);
+        }
+
+        // Tránh xử lý 2 lần
+        if ("PAID".equals(payment.getStatus())) {
+            log.info("IPN: payment voi invoiceNo {} đã PAID, bỏ qua", response.getInvoiceNo());
+            return;
+        }
+
+        if ("00_000".equals(response.getResultCd())) {
             payment.setStatus("PAID");
             payment.setPaidAt(LocalDateTime.now());
-            if (method != null) payment.setPaymentMethod(method);
-            paymentRepository.save(payment);
+            // double check
+            inquiryByInvoiceNo(response.getInvoiceNo());
+        } else if ("99".equals(response.getResultCd())) {
+            payment.setStatus("PENDING");
+        } else {
+            payment.setStatus("FAILED");
+        }
+
+        payment.setResultCode(response.getResultCd());
+        payment.setResultMessage(response.getResultMsg());
+
+        if (response.getPayType() != null) payment.setPayType(response.getPayType());
+
+        paymentRepository.save(payment);
+        log.info("IPN processed: invoiceNo={}, status={}", response.getInvoiceNo(), payment.getStatus());
+        // payment callback
+        if (payment.getCallbackType().equals(PaymentCallbackType.SESSION.name())){
+            JSONObject context = payment.getCallbackContext();
+            parkingService.handleExitEventCallback(
+                    context.getLong("sessionId"),
+                    context.getStr("barrierId"),
+                    context.getStr("plateNumber"),
+                    context.getInt("aiIdentityCustomerId"),
+                    context.getLong("laneId"),
+                    context.getLocalDateTime("exitTime",LocalDateTime.now())
+            );
+        } else if (payment.getCallbackType().equals(PaymentCallbackType.TICKET.name())) {
+            JSONObject context = payment.getCallbackContext();
+            ticketRegistrationService.handleTicketPaymentCallback(context.getLong("ticketId"));
+        } else {
+            throw new ServiceException("Chưa hỗ trợ callback type: "+payment.getCallbackType(),404);
         }
     }
 
-    // check token hợp lệ
-    public boolean verify(MegaPayResponse response) {
-        String expected = generateSHA256(
-                response.getResultCd() + response.getTimeStamp() + response.getMerTrxId() +
-                        response.getTrxId() + response.getMerId() + response.getAmount() + config.getEncodeKey()
-        );
-        boolean isValid = expected.equalsIgnoreCase(response.getMerchantToken());
-        if (!isValid) {
-            log.error("Token của invoiceNo:[ {} ] không hợp lệ !", response.getInvoiceNo());
-            log.error("Expected: ", expected);
-            log.error("Input: ", response.getMerchantToken());
+    // TRA CỨU GIAO DỊCH
+    public MegaPayResponse inquiryByInvoiceNo(String invoiceNo) {
+        String timeStamp = String.valueOf(System.currentTimeMillis());
+        String token = MegaPaySignatureUtil.generateInquiryToken(
+                timeStamp, invoiceNo, config.getMerId(), config.getEncodeKey());
+
+        Map<String, String> params = new HashMap<>();
+        params.put("merId", config.getMerId());
+        params.put("invoiceNo", invoiceNo);
+        params.put("merchantToken", token);
+        params.put("timeStamp", timeStamp);
+
+        try {
+            MegaPayResponse resp = inquiryByInvoiceNo(params);
+            if (resp == null) return null;
+
+            paymentRepository.findByInvoiceNo(invoiceNo).ifPresent(tx -> {
+                String rc = resp.getResultCd();
+                if ("00_000".equals(rc)) {
+                    tx.setStatus("PAID");
+                    tx.setPaidAt(LocalDateTime.now());
+                } else if ("99".equals(rc)) {
+                    tx.setStatus("PENDING");
+                } else {
+                    tx.setStatus("FAILED");
+                }
+                tx.setResultCode(rc);
+                tx.setResultMessage(resp.getResultMsg());
+                paymentRepository.save(tx);
+            });
+
+            return resp;
+        } catch (Exception e) {
+            log.error("Inquiry error invoiceNo={}: {}", invoiceNo, e.getMessage(), e);
+            return null;
         }
-        return isValid;
     }
 
-    // paymentLink từ MegaPay được encode bằng 3DES, cần decode trước khi dùng
+    // DECODE 3DES ECB
     public String decodePaymentLink(String hexEncoded) {
         try {
-            byte[] keyBytes = config.getEncodeKey().substring(0, 24).getBytes(StandardCharsets.UTF_8);
+            byte[] keyBytes = config.getDecryptKey().getBytes(StandardCharsets.UTF_8);
             SecretKeySpec keySpec = new SecretKeySpec(keyBytes, "DESede");
             Cipher cipher = Cipher.getInstance("DESede/ECB/PKCS5Padding");
             cipher.init(Cipher.DECRYPT_MODE, keySpec);
@@ -195,30 +296,62 @@ public class PaymentService {
         }
     }
 
-    // truy vấn lại dữ liệu thanh toán cũ dựa trên invoiceNo
-    public MegaPayResponse inquiryByInvoiceNo(String invoiceNo) {
-        String timeStamp = String.valueOf(System.currentTimeMillis());
-        String token = generateSHA256(timeStamp + invoiceNo + config.getMerId() + config.getEncodeKey());
-
-        MegaPayInquiryRequest inquiryRequest = MegaPayInquiryRequest.builder()
-                .invoiceNo(invoiceNo)
-                .merId(config.getMerId())
-                .merchantToken(token)
-                .timeStamp(timeStamp)
-                .build();
-
-        MegaPayInquiryResponse resp = restClient.post()
-                .uri(config.getInquiryEndpoint())
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(JSONUtil.toJsonStr(inquiryRequest))
-                .retrieve()
-                .body(MegaPayInquiryResponse.class);
-
-        if (resp == null ) {
-            log.error("Truy vấn hóa đơn : {} thất bại", invoiceNo);
-            return null;
-        }
-        return resp.getData();
+    private String generateInvoiceNo(CreatePaymentRequest req) {
+        return "viotech_" + System.currentTimeMillis();
     }
+
+    private String generateExpireTime() {
+        // QR hết hạn sau 15 phút
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss");
+        Calendar cal = Calendar.getInstance();
+        cal.add(Calendar.MINUTE, 15);
+        return sdf.format(cal.getTime());
+    }
+
+    private String sanitize(String input) {
+        if (input == null) return "";
+        return input.replaceAll("[!@#$%&*<=>?^'|\"\\r\\n]", "").trim();
+    }
+
+    public MegaPayResponse inquiryByInvoiceNo(Map<String, String> params) {
+        log.debug("MegaPay inquiry (invoiceNo) params: {}", params);
+        MultiValueMap<String, String> form = toForm(params);
+        return restClient.post()
+                .uri(config.getInquiryByInvoiceNoUrl())
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(form)
+                .retrieve()
+                .body(MegaPayResponse.class);
+    }
+
+    public MegaPayResponse refund(Map<String, String> params) {
+        log.debug("MegaPay refund params: {}", params);
+        MultiValueMap<String, String> form = toForm(params);
+        return restClient.post()
+                .uri(config.getCancelUrl())
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(form)
+                .retrieve()
+                .body(MegaPayResponse.class);
+    }
+
+    public CreatePaymentResponse createPaymentLink(Map<String, Object> params) {
+        log.debug("MegaPay createLink params: {}", params);
+        String respBody = restClient.post()
+                .uri(config.getCreateLinkUrl())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(params)
+                .retrieve()
+                .body(String.class);
+        log.debug("MegaPay createLink response: {}",respBody);
+        return JSONUtil.toBean(respBody,CreatePaymentResponse.class);
+    }
+
+    private MultiValueMap<String, String> toForm(Map<String, String> params) {
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        params.forEach(form::add);
+        return form;
+    }
+    
     
 }

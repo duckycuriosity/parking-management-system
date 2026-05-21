@@ -31,7 +31,7 @@ public class TicketEntity extends BaseEntity {
     private LocalDateTime expireAt;
 
     @Column(name = "status")
-    private String status; // 'ACTIVE', 'DEAD'
+    private String status; // 'ACTIVE','DEAD'
 
     public static TicketDTO convertToDTO(TicketEntity entity) {
         TicketDTO dto = new TicketDTO();

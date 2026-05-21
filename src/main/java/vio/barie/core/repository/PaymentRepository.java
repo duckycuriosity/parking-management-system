@@ -6,7 +6,10 @@ import vio.barie.core.entity.PaymentEntity;
 import java.util.Optional;
 
 public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
-    Optional<PaymentEntity> findById(Long Id);
+    Optional<PaymentEntity> findById(Long id);
     Optional<PaymentEntity> findByInvoiceNo(String invoiceNo);
-    boolean existsById(Long Id);
+    Optional<PaymentEntity> findByInternalRefId(String internalRefId);
+    Optional<PaymentEntity> findByGatewayTrxId(String gatewayTrxId);
+    boolean existsById(Long id);
+    boolean existsByInternalRefId(String internalRefId);
 }

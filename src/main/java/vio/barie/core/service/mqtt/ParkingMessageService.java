@@ -210,7 +210,7 @@ public class ParkingMessageService {
                 .plate(plate)
                 .ticketType("free")
                 .entryTime(entryTime != null ? entryTime.format(DT_FMT) : null)
-                .amountDue(0)
+                .amountDue(BigDecimal.valueOf(0))
                 .currency("VND")
                 .open(false)
                 .build();
@@ -219,7 +219,7 @@ public class ParkingMessageService {
     }
 
     public void publishVehicleInfo(String barrierId, Long sessionId, String plate,
-            LocalDateTime entryTime, Integer amountDue, String qrUrl) {
+            LocalDateTime entryTime, BigDecimal amountDue, String qrUrl) {
         String deviceId = resolveDeviceId(barrierId);
         if (deviceId == null) {
             log.warn("publishVehicleInfo: barrierId is null or not found, skipping — sessionId={}", sessionId);
@@ -290,7 +290,7 @@ public class ParkingMessageService {
         publish(deviceId, successCmd);
     }
 
-    public void publishPaymentConfirmed(String barrierId, Long sessionId, int amountPaid, String invoiceNo) {
+    public void publishPaymentConfirmed(String barrierId, Long sessionId, BigDecimal amountPaid, String invoiceNo) {
         String deviceId = resolveDeviceId(barrierId);
         if (deviceId == null) {
             log.warn("publishPaymentSuccess: barrierId is null or not found, skipping — sessionId={}", sessionId);
