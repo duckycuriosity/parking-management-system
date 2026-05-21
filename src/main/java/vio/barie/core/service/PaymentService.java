@@ -282,64 +282,6 @@ public class PaymentService {
         }
     }
 
-    // HOÀN TIỀN
-    @Transactional
-    public MegaPayResponse refund(RefundRequest req) {
-        String merTrxId = config.getMerId() + "_RF_" + System.currentTimeMillis();
-        String timeStamp = String.valueOf(System.currentTimeMillis());
-        String amountStr = req.getAmount().toBigInteger().toString();
-
-        String token = MegaPaySignatureUtil.generateRefundToken(
-                timeStamp, merTrxId, req.getTrxId(),
-                config.getMerId(), amountStr, config.getEncodeKey());
-
-        Map<String, String> params = new HashMap<>();
-        params.put("trxId", req.getTrxId());
-        params.put("merId", config.getMerId());
-        params.put("merTrxId", merTrxId);
-        params.put("amount", amountStr);
-        params.put("payType", req.getPayType());
-        params.put("cancelMsg", req.getCancelMsg());
-        params.put("timeStamp", timeStamp);
-        params.put("merchantToken", token);
-        params.put("cancelPw", config.getCancelPw());
-
-        // Lưu giao dịch hoàn tiền
-        PaymentEntity refundPayment = new PaymentEntity();
-        refundPayment.setAmount(req.getAmount());
-        refundPayment.setPayType(req.getPayType());
-        refundPayment.setDescription("Hoàn tiền cho: " + req.getTrxId());
-        refundPayment.setStatus("PENDING");
-        refundPayment.setPaymentMethod("REFUND");
-        paymentRepository.save(refundPayment);
-
-        try {
-            MegaPayResponse resp = refund(params);
-
-            if ("00_000".equals(resp.getResultCd())) {
-                refundPayment.setStatus("PAID");
-                // Cập nhật giao dịch gốc → REFUNDED
-                paymentRepository.findByGatewayTrxId(req.getTrxId()).ifPresent(tx -> {
-                    tx.setStatus("REFUNDED");
-                    paymentRepository.save(tx);
-                });
-            } else {
-                refundPayment.setStatus("FAILED");
-            }
-
-            refundPayment.setResultCode(resp.getResultCd());
-            refundPayment.setResultMessage(resp.getResultMsg());
-            paymentRepository.save(refundPayment);
-            return resp;
-
-        } catch (Exception e) {
-            log.error("Refund error: {}", e.getMessage(), e);
-            refundPayment.setStatus("FAILED");
-            paymentRepository.save(refundPayment);
-            throw new RuntimeException("Hoàn tiền thất bại", e);
-        }
-    }
-
     // DECODE 3DES ECB
     public String decodePaymentLink(String hexEncoded) {
         try {

@@ -42,10 +42,4 @@ public class PaymentController {
         if (resp == null) return ResponseEntity.notFound().build();
         return ResponseEntity.ok(resp);
     }
-
-    @PostMapping("/refund")
-    public ResponseEntity<MegaPayResponse> refund(@Valid @RequestBody RefundRequest req) {
-        MegaPayResponse resp = paymentService.refund(req);
-        return ResponseEntity.ok(resp);
-    }
 }
