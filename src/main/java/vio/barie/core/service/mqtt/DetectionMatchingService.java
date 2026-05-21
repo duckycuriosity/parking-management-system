@@ -1,14 +1,20 @@
 package vio.barie.core.service.mqtt;
 
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import vio.barie.core.dto.parking.PendingEventDetection;
+import vio.barie.core.dto.payment.CreatePaymentRequest;
+import vio.barie.core.dto.payment.CreatePaymentResponse;
 import vio.barie.core.entity.*;
 import vio.barie.core.repository.*;
+import vio.barie.core.service.CalculatorService;
+import vio.barie.core.service.PaymentService;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -26,6 +32,9 @@ public class DetectionMatchingService {
     private final VehicleRepository vehicleRepository;
     private final ParkingCustomerRepository parkingCustomerRepository;
     private final ParkingSessionRepository parkingSessionRepository;
+    private final ParkingMessageService ioTService;
+    private final CalculatorService calculatorService;
+    private final PaymentService paymentService;
 
     public Optional<String> resolveBarrierId(Long cameraId, String role, Long laneId) {
         try {
@@ -169,12 +178,14 @@ public class DetectionMatchingService {
             log.info("handleEntryEvent: session created id={} plate={} customer={} sessionType={} ticketId={}",
                     session.getId(), vehicle.getPlateNumber(), customer.getId(),
                     session.getSessionType(), session.getTicketId());
+            ioTService.publishOpenCommand(barrierId, session.getId(), "vehicle_entry");
 
         } catch (Exception ex) {
             log.error("handleEntryEvent: failed — type={}: {}", detection.getType(), ex.getMessage(), ex);
         }
     }
 
+    @Transactional
     private void handleExitEvent(PendingEventDetection detection) {
         try {
             VehicleEntity vehicle = null;
@@ -222,9 +233,11 @@ public class DetectionMatchingService {
 
             LaneEntity lane = barrier.getParkingDevice().getLane();
 
+            LocalDateTime exitTime = LocalDateTime.now();
+
             // Close session
             openSession.setExitCustomer(customer);
-            openSession.setExitTime(LocalDateTime.now());
+            openSession.setExitTime(exitTime);
             openSession.setExitLane(lane);
             openSession.setExitBarrier(barrierId);
             parkingSessionRepository.save(openSession);
@@ -233,8 +246,55 @@ public class DetectionMatchingService {
                     openSession.getId(), vehicle.getPlateNumber(), customer.getId(),
                     openSession.getSessionType(), openSession.getTicketId());
 
+            TicketEntity ticket = findValidMonthlyTicket(vehicle.getId());
+            BigDecimal amount = new BigDecimal(0);
+            if (ticket != null && (ticket.getExpireAt().isAfter(exitTime) || ticket.getExpireAt().isEqual(exitTime))) {
+                ioTService.publishOpenForMonthlyTicket(barrierId, openSession.getId(), vehicle.getPlateNumber(),
+                        "parking_customer_monthly", ticket.getExpireAt());
+                return;
+            } else if (ticket != null && ticket.getExpireAt().isBefore(exitTime)) {
+                // ve xe active nhung da het han
+                // todo: tao function de tinh tien cho truong hop nay
+            } else {
+                // ko co ve xe
+                amount = calculatorService.calculate(openSession.getEntryTime(), LocalDateTime.now());
+            }
+
+            // tao QR
+            CreatePaymentRequest payReq = new CreatePaymentRequest();
+            payReq.setAmount(amount);
+            payReq.setGoodsName("Phi gui xe");
+            payReq.setDescription("Phi gui xe bien so " + vehicle.getPlateNumber());
+            CreatePaymentResponse qr = paymentService.createPaymentLink(payReq);
+
+            // tao payment
+            paymentService.createSessionPayment(
+                    qr.getInvoiceNo(),
+                    qr.getAmount(),
+                    qr.getPayType(),
+                    "Phi gui xe bien so " + vehicle.getPlateNumber(),
+                    openSession.getId(),
+                    barrierId,
+                    vehicle.getPlateNumber(),
+                    customer.getAiProfileId(),
+                    lane.getId(),
+                    exitTime);
+
+            ioTService.publishVehicleInfo(barrierId, openSession.getId(), vehicle.getPlateNumber(),
+                    openSession.getEntryTime(), amount,
+//                paymentService.decodePaymentLink(qr.getPaymentLink())
+                    qr.getQrCode()
+            );
+
         } catch (Exception ex) {
             log.error("handleExitEvent: failed — type={}: {}", detection.getType(), ex.getMessage(), ex);
         }
+    }
+
+    private TicketEntity findValidMonthlyTicket(Long vehicleId) {
+        // chỉ lấy ra vé gửi xe
+        return ticketRepository.findByVehicleIdAndStatus(vehicleId, "ACTIVE")
+//                .filter(t -> t.getExpireAt() != null && t.getExpireAt().isAfter(LocalDateTime.now()))
+                .orElse(null);
     }
 }

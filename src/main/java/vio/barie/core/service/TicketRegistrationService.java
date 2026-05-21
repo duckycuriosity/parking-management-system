@@ -176,16 +176,6 @@ public class TicketRegistrationService {
         return qr.getQrCode();
     }
 
-    @Transactional
-    public void handleTicketPaymentCallback(Long ticketId){
-        TicketEntity ticket = ticketRepository.findById(ticketId).orElseThrow(
-                () -> new ServiceException("Không tìm ticket tương ", 404)
-        );
-        ticket.setStatus(TicketStatus.ACTIVE.name());
-
-        ticketRepository.save(ticket);
-    }
-
     /**
      * Tạo mới hoặc lấy customer hiện có
      * Prioritize by phone number

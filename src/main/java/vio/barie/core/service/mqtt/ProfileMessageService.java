@@ -40,8 +40,8 @@ public class ProfileMessageService {
         try {
             Long cameraCode = event.path("cameraId").asLong();
             String cameraUUID = event.path("cameraUUID").asText();
-            Integer profileId = event.path("profileId").asInt();
-            String profileName = event.path("name").asText(null);
+            Integer profileId = event.path("face").path("profileId").asInt();
+            String profileName = event.path("face").path("profileName").asText(null);
 
             if (cameraUUID == null) {
                 logger.warn("ProfileHandler: face event has no profileId — cameraId={}", cameraCode);
@@ -78,6 +78,7 @@ public class ProfileMessageService {
                 newCustomer.setAiIdentityId("temp_customer" + uuid.toString());
                 newCustomer.setAiProfileId(profileId);
                 newCustomer.setUsername(profileName);
+                newCustomer.setZaloId("null");
                 customerRepository.save(newCustomer);
             }
 
