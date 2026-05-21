@@ -65,4 +65,6 @@ public class ParkingLotService {
                 .orElseThrow(() -> new BusinessException("Parking lot not found", "PARKING_LOT_NOT_FOUND", 404));
         parkingLotRepository.delete(entity);
     }
+    
+
 }

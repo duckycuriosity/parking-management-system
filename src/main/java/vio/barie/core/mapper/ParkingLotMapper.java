@@ -20,8 +20,10 @@ public class ParkingLotMapper {
         ParkingLotResponse resp = new ParkingLotResponse();
         resp.setId(entity.getId());
         resp.setName(entity.getName());
-        if (entity.getBuilding() != null)
+        if (entity.getBuilding() != null) {
             resp.setBuildingId(entity.getBuilding().getId());
+            resp.setBuildingName(entity.getBuilding().getName());
+        }
         resp.setCreatedAt(entity.getCreatedAt());
         return resp;
     }

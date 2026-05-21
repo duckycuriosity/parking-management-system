@@ -24,6 +24,8 @@ logging:
   level:
     org.flywaydb: DEBUG
     org.springframework.boot.flyway.autoconfigure: DEBUG
+    org.eclipse.paho.client.mqttv3: DEBUG
+    vio.barie.core.service.mqtt: DEBUG
 
 bootstrap:
   admin:
@@ -34,11 +36,17 @@ mqtt:
   username:
   password:
   client-id: barie-core-service-dev-01
+  # tuning values for diagnostics; adjust as needed
+  keep-alive-seconds: 120
+  connection-timeout-seconds: 60
+  max-inflight: 100
+  clean-session: true
   device-register-topic: "parking/v1/client/#"
   aibox-face-topic: "aibox/face"
   aibox-plate-topic: "aibox/licenseplate"
   publish-cmd-topic-prefix: "parking/v1/server"
   publish-cmd-topic-suffix: "/cmd"
+  publish-error-topic-suffix: "/error"
   receive-ai-event: "aibox/face/#"
   queue:
     core-pool-size: 5

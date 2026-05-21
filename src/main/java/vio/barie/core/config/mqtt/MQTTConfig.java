@@ -32,25 +32,28 @@ public class MQTTConfig {
     @Value("${mqtt.queue.queue-capacity}")
     private Integer queueCapacity;
 
-    @Bean(destroyMethod = "disconnect")
-    public MqttClient mqttClient() throws MqttException {
+    @Bean
+    public MqttConnectOptions mqttConnectOptions() {
         MqttConnectOptions options = new MqttConnectOptions();
         options.setServerURIs(new String[] { broker });
-        options.setCleanSession(true);
         options.setAutomaticReconnect(true);
-        options.setConnectionTimeout(30);
-        options.setKeepAliveInterval(60);
+        // Conservative defaults for unstable networks; tune as needed
+        options.setCleanSession(true);
+        options.setConnectionTimeout(60);
+        options.setKeepAliveInterval(120);
+        options.setMaxInflight(100);
+        log.info("MQTT connect options: cleanSession={}, connectionTimeout={}, keepAlive={}, maxInflight={}",
+                options.isCleanSession(), options.getConnectionTimeout(), options.getKeepAliveInterval(),
+                options.getMaxInflight());
+        return options;
+    }
 
+    @Bean(destroyMethod = "disconnect")
+    public MqttClient mqttClient() throws MqttException {
         // Nếu có auth:
         // options.setUserName("username");
         // options.setPassword("password".toCharArray());
         MqttClient client = new MqttClient(broker, clientId);
-
-        options.setAutomaticReconnect(true);
-        options.setCleanSession(true);
-
-        client.connect(options);
-        log.info("Connected to MQTT broker: {}", broker);
         return client;
     }
 
