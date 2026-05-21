@@ -18,6 +18,9 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
     Optional<ParkingSessionEntity> findFirstByVehicleIdAndEntryCustomerIdAndExitTimeIsNullOrderByEntryTimeDesc(
             Long vehicleId,
             Long entryCustomerId);
+
+    Optional<ParkingSessionEntity> findFirstByVehicleIdAndExitTimeIsNullOrderByEntryTimeDesc(Long vehicleId);
+
     @Query("SELECT new vio.barie.core.dto.ActivitySessionResponse(" +
             "s.id, v.plateNumber, v.vehicleType, " +
             "s.entryTime, s.exitTime, " +
