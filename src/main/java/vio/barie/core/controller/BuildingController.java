@@ -13,9 +13,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import vio.barie.core.dto.ApiResponse;
 import vio.barie.core.dto.BuildingCreateRequest;
 import vio.barie.core.dto.BuildingResponse;
+import vio.barie.core.dto.Result;
 import vio.barie.core.service.BuildingService;
 
 import java.util.List;
@@ -30,42 +30,34 @@ public class BuildingController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<BuildingResponse> create(@Valid @RequestBody BuildingCreateRequest request) {
-        return new ApiResponse<>(
-                "SUCCESS",
-                "Building created successfully",
+    public Result<BuildingResponse> create(@Valid @RequestBody BuildingCreateRequest request) {
+        return Result.ok("Building created successfully",
                 buildingService.create(request));
     }
 
     @GetMapping
-    public ApiResponse<List<BuildingResponse>> findAll() {
-        return new ApiResponse<>(
-                "SUCCESS",
-                "Building list fetched successfully",
+    public Result<List<BuildingResponse>> findAll() {
+        return Result.ok("Building list fetched successfully",
                 buildingService.findAll());
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<BuildingResponse> findById(@PathVariable Long id) {
-        return new ApiResponse<>(
-                "SUCCESS",
-                "Building fetched successfully",
+    public Result<BuildingResponse> findById(@PathVariable Long id) {
+        return Result.ok("Building fetched successfully",
                 buildingService.findById(id));
     }
 
     @PutMapping("/{id}")
-    public ApiResponse<BuildingResponse> update(
+    public Result<BuildingResponse> update(
             @PathVariable Long id,
             @Valid @RequestBody BuildingCreateRequest request) {
-        return new ApiResponse<>(
-                "SUCCESS",
-                "Building updated successfully",
+        return Result.ok("Building updated successfully",
                 buildingService.update(id, request));
     }
 
     @DeleteMapping("/{id}")
-    public ApiResponse<String> delete(@PathVariable Long id) {
+    public Result<String> delete(@PathVariable Long id) {
         buildingService.delete(id);
-        return new ApiResponse<>("SUCCESS", "Building deleted successfully", null);
+        return Result.ok("Building deleted successfully", null);
     }
 }
