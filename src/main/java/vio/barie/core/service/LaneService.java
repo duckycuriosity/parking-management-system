@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import vio.barie.core.dto.BarrierCameraAssignmentRequest;
 import vio.barie.core.dto.LaneCreateRequest;
 import vio.barie.core.dto.LaneResponse;
+import vio.barie.core.dto.ParkingLotResponse;
 import vio.barie.core.entity.BarrierCameraEntity;
 import vio.barie.core.entity.BarrierEntity;
 import vio.barie.core.entity.CameraEntity;
@@ -72,11 +73,18 @@ public class LaneService {
         return laneMapper.toResponseList(laneRepository.findAll());
     }
 
+
     public LaneResponse findById(Long id) {
         LaneEntity entity = laneRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Lane not found", "LANE_NOT_FOUND", 404));
         return laneMapper.toResponse(entity);
     }
+
+    public List<LaneResponse> findLanesByParkingLotId(Long parkingLotId) {
+        List<LaneEntity> lanes = laneRepository.findAllByParkingLotId(parkingLotId);
+        return laneMapper.toResponseList(lanes);
+    }
+
 
     @Transactional
     public LaneResponse update(Long id, LaneCreateRequest request) {
