@@ -78,8 +78,7 @@ public class SecurityConfig {
                                     "/core/swagger-ui/**",
                                     "/core/swagger-ui.html",
                                     "/core/swagger-ui/index.html",
-                                    "/profile-controller/findAll",
-                                    "/**")
+                                    "/profile-controller/findAll")
 
                             .permitAll()
                             .requestMatchers("/api/payment/callback", "/api/payment/ipn").permitAll();
