@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import vio.barie.core.dto.*;
 import vio.barie.core.service.LaneService;
 import lombok.extern.slf4j.Slf4j;
+import vio.barie.core.service.ParkingLotService;
 
 import java.util.List;
 
@@ -27,6 +28,7 @@ import java.util.List;
 public class LaneController {
 
     private final LaneService laneService;
+    private final ParkingLotService parkingLotService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -49,6 +51,14 @@ public class LaneController {
         return Result.ok(
                 "Lane fetched successfully",
                 laneService.findById(id)
+        );
+    }
+
+    @GetMapping("/parking-lot/{parkingLotId}")
+    public Result<List<LaneResponse>> findLanesByParkingLotId(@PathVariable Long parkingLotId) {
+        return Result.ok(
+                "Fetched lanes by parking lot successfully",
+                laneService.findLanesByParkingLotId(parkingLotId)
         );
     }
 
