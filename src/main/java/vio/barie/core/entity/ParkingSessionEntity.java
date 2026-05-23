@@ -41,4 +41,16 @@ public class ParkingSessionEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "exit_lane_id")
     private LaneEntity exitLane;
+
+    @Column(name = "entry_barrier")
+    private String entryBarrier;
+
+    @Column(name = "exit_barrier")
+    private String exitBarrier;
+
+    @Column(name = "ticket_id")
+    private Long ticketId;
+
+    @Column(name = "session_type", nullable = false)
+    private String sessionType; // 'MONTHLY', 'QUARTERLY', 'YEARLY', 'DAILY'
 }

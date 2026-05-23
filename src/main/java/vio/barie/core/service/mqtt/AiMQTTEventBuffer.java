@@ -2,6 +2,7 @@ package vio.barie.core.service.mqtt;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import vio.barie.core.dto.parking.PendingEventDetection;
 
 @Component
 @RequiredArgsConstructor
@@ -9,11 +10,11 @@ public class AiMQTTEventBuffer {
 
     private final DetectionMatchingService detectionMatchingService;
 
-    public void addFaceEvent(Long cameraId, Long laneId, Integer profileId) {
-        detectionMatchingService.addFaceEvent(cameraId, laneId, profileId);
+    public void addFaceEvent(PendingEventDetection pendingEvent) {
+        detectionMatchingService.ingest(pendingEvent);
     }
 
-    public void addPlateEvent(Long cameraId, Long laneId, String plateNumber, Integer aiPlateId) {
-        detectionMatchingService.addPlateEvent(cameraId, laneId, plateNumber, aiPlateId);
+    public void addPlateEvent(PendingEventDetection pendingEvent) {
+        detectionMatchingService.ingest(pendingEvent);
     }
 }

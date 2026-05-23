@@ -5,10 +5,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import vio.barie.core.common.TicketStatus;
 import vio.barie.core.config.exception.ServiceException;
 import vio.barie.core.dto.AiPlateResponse;
 import vio.barie.core.dto.AiProfileResponse;
 import vio.barie.core.dto.PlateCreateRequest;
+import vio.barie.core.dto.payment.CreatePaymentRequest;
+import vio.barie.core.dto.payment.CreatePaymentResponse;
 import vio.barie.core.dto.ticket.AdminMonthlyTicketRegistrationRequest;
 import vio.barie.core.dto.ticket.TicketRegistrationResponseDTO;
 import vio.barie.core.entity.ParkingCustomerEntity;
@@ -19,6 +22,7 @@ import vio.barie.core.repository.TicketRepository;
 import vio.barie.core.repository.VehicleRepository;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.Optional;
@@ -33,6 +37,8 @@ public class TicketRegistrationService {
     private final ParkingCustomerRepository parkingCustomerRepository;
     private final VehicleRepository vehicleRepository;
     private final TicketRepository ticketRepository;
+    private final PaymentService paymentService;
+    private final CalculatorService calculatorService;
 
     /**
      * Admin đăng ký vé tháng/quý cho khách hàng
@@ -110,7 +116,7 @@ public class TicketRegistrationService {
         ticket.setTicketType(req.getTicketType());
         ticket.setRegisterAt(now);
         ticket.setExpireAt(expireAt);
-        ticket.setStatus("ACTIVE"); // Ticket ngay lập tức active
+        ticket.setStatus("DEAD"); // Ticket dead cho đến khi người dùng thanh toán
 
         TicketEntity savedTicket = ticketRepository.save(ticket);
         log.info("Ticket created successfully: ticketId={}, expireAt={}",
@@ -138,6 +144,36 @@ public class TicketRegistrationService {
                 savedTicket.getId(), customer, savedVehicle.getId());
 
         return response;
+    }
+
+    public String getTicketPayment(Long ticketId) {
+        TicketEntity ticket = ticketRepository.findById(ticketId).orElseThrow(
+                () -> new ServiceException("Không tìm ticket tương ", 404)
+        );
+
+        // chỉ cho phép gọi mã này nếu
+        if (ticket.getStatus().equals(TicketStatus.ACTIVE.name())) {
+            return null;
+        }
+
+        BigDecimal amount = calculatorService.getTicketPrice(ticket);
+        // tao QR
+        CreatePaymentRequest payReq = new CreatePaymentRequest();
+        payReq.setAmount(amount);
+        payReq.setGoodsName("Phi gui xe");
+        payReq.setDescription("Phi dang ki ve gui xe");
+        CreatePaymentResponse qr = paymentService.createPaymentLink(payReq);
+
+        // tao payment
+        paymentService.createTicketPayment(
+                qr.getInvoiceNo(),
+                qr.getAmount(),
+                qr.getPayType(),
+                "Phi dang ki ve gui xe",
+                ticket.getId()
+//                ticket.getCustomerId()
+        );
+        return qr.getQrCode();
     }
 
     /**

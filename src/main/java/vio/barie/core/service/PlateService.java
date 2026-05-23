@@ -10,6 +10,7 @@ import vio.barie.core.entity.VehicleEntity;
 import vio.barie.core.config.exception.BusinessException;
 import vio.barie.core.mapper.PlateMapper;
 import vio.barie.core.repository.VehicleRepository;
+
 import java.util.List;
 
 @Service

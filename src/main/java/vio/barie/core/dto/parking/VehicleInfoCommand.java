@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -45,7 +46,7 @@ public class VehicleInfoCommand {
     private Integer durationMinutes;
 
     @JsonProperty("amount_due")
-    private Integer amountDue;
+    private BigDecimal amountDue;
 
     @JsonProperty("currency")
     private String currency;

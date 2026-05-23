@@ -9,4 +9,5 @@ import java.util.Optional;
 public interface TicketRepository extends JpaRepository<TicketEntity, Long>, JpaSpecificationExecutor<TicketEntity> {
     Optional<TicketEntity> findByVehicleIdAndStatus (Long vehicleId,String status);
     Optional<TicketEntity> findById(Long Id);
+    Optional<TicketEntity> findTicketByCustomerIdAndVehicleId(Long customerId, Long vehicleId);
 }
