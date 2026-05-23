@@ -1,195 +1,456 @@
 package vio.barie.core.service.mqtt;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import vio.barie.core.dto.parking.ParkingEvent;
-import vio.barie.core.entity.BarrierCameraEntity;
-import vio.barie.core.repository.BarrierCameraRepository;
-import vio.barie.core.service.ParkingService;
+import vio.barie.core.dto.parking.PendingEventDetection;
+import vio.barie.core.dto.payment.CreatePaymentRequest;
+import vio.barie.core.dto.payment.CreatePaymentResponse;
+import vio.barie.core.entity.*;
+import vio.barie.core.repository.*;
+import vio.barie.core.service.CalculatorService;
+import vio.barie.core.service.PaymentService;
+import vio.barie.core.utils.DirectionType;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayDeque;
-import java.util.Comparator;
 import java.util.Deque;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.ConcurrentMap;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DetectionMatchingService {
 
-    private static final long TIMEOUT_MS = 300_0000L;
-    private static final long MATCH_WINDOW_MS = 180_000L;
+    private static final long MATCH_WINDOW_MS = 10_000L; // 10 seconds
 
-    private final ParkingService parkingService;
+    private static final Logger logger = LoggerFactory.getLogger(DetectionMatchingService.class);
+
     private final BarrierCameraRepository barrierCameraRepository;
-    private final ConcurrentHashMap<String, BarrierBuffer> buffers = new ConcurrentHashMap<>();
+    private final BarrierRepository barrierRepository;
+    private final TicketRepository ticketRepository;
+    private final VehicleRepository vehicleRepository;
+    private final ParkingCustomerRepository parkingCustomerRepository;
+    private final ParkingSessionRepository parkingSessionRepository;
+    private final ParkingMessageService ioTService;
+    private final CalculatorService calculatorService;
+    private final PaymentService paymentService;
 
-    public Optional<String> resolveBarrierId(Long cameraId, String role) {
-        if (cameraId == null) {
+    private final ConcurrentMap<String, Deque<PendingEventDetection>> pendingEventsByKey = new ConcurrentHashMap<>();
+
+    public Optional<String> resolveBarrierId(Long cameraId, String role, Long laneId) {
+        try {
+            if (cameraId == null || laneId == null) {
+                return Optional.empty();
+            }
+
+            // Exact match: camera_id + role (each camera maps to one barrier with one role)
+            List<BarrierCameraEntity> mappings = barrierCameraRepository.findByCameraIdAndRoleIgnoreCase(cameraId,
+                    role);
+            if (mappings.isEmpty()) {
+                logger.debug("resolveBarrierId: no mapping found for cameraId={} role={}", cameraId, role);
+                return Optional.empty();
+            }
+
+            // Take first mapping (should be exactly 1)
+            String barrierId = mappings.get(0).getBarrierId();
+            if (barrierId == null || barrierId.isBlank()) {
+                return Optional.empty();
+            }
+
+            // Validate lane: fetch barrier with eager loading to avoid
+            // LazyInitializationException
+            BarrierEntity barrier = barrierRepository.findByBarrierIdWithDeviceAndLaneAndParkingLot(barrierId)
+                    .orElse(null);
+            if (barrier == null || barrier.getParkingDevice() == null || barrier.getParkingDevice().getLane() == null) {
+                logger.warn("resolveBarrierId: barrier {} has no lane configured", barrierId);
+                return Optional.empty();
+            }
+
+            Long barrierLaneId = barrier.getParkingDevice().getLane().getId();
+            if (!barrierLaneId.equals(laneId)) {
+                logger.warn(
+                        "resolveBarrierId: lane mismatch — barrier {} is in lane {}, but received event from lane {}",
+                        barrierId, barrierLaneId, laneId);
+                return Optional.empty();
+            }
+
+            return Optional.of(barrierId);
+        } catch (Exception ex) {
+            logger.error("resolveBarrierId: failed to resolve barrier for cameraId={} role={} laneId={}: {}",
+                    cameraId, role, laneId, ex.getMessage(), ex);
             return Optional.empty();
         }
-
-        List<BarrierCameraEntity> mappings = barrierCameraRepository.findByCameraIdAndRoleIgnoreCase(cameraId, role);
-        if (mappings.isEmpty()) {
-            mappings = barrierCameraRepository.findByCameraId(cameraId);
-        }
-
-        return mappings.stream()
-                .filter(m -> m.getBarrierId() != null && !m.getBarrierId().isBlank())
-                .sorted(Comparator.comparingInt((BarrierCameraEntity m) -> m.getPriority() != null ? m.getPriority() : 0).reversed())
-                .map(BarrierCameraEntity::getBarrierId)
-                .findFirst();
     }
 
-    public void addFaceEvent(Long cameraId, Long laneId, Integer profileId) {
-        String barrierId = resolveBarrierId(cameraId, "face").orElse(null);
-        if (barrierId == null) {
-            log.warn("DetectionMatchingService: no barrier mapping for face event — cameraId={}, laneId={}, profileId={}", cameraId, laneId, profileId);
+    /**
+     * Ingest a detection event and try to match it with its counterpart.
+     * Face and plate are produced independently, so we buffer unmatched
+     * events and emit only when both sides of the same barrier/direction pair
+     * arrive.
+     */
+    public void ingest(PendingEventDetection detection) {
+        if (detection == null) {
+            logger.warn("ingest: received null detection");
             return;
         }
 
-        ingest(new PendingDetection(barrierId, cameraId, laneId, DetectionType.FACE, profileId, null, null, System.currentTimeMillis()));
-    }
-
-    public void addPlateEvent(Long cameraId, Long laneId, String plateNumber, Integer aiPlateId) {
-        String barrierId = resolveBarrierId(cameraId, "plate").orElse(null);
-        if (barrierId == null) {
-            log.warn("DetectionMatchingService: no barrier mapping for plate event — cameraId={}, laneId={}, plate={}", cameraId, laneId, plateNumber);
-            return;
-        }
-
-        ingest(new PendingDetection(barrierId, cameraId, laneId, DetectionType.PLATE, null, plateNumber, aiPlateId, System.currentTimeMillis()));
-    }
-
-    private void ingest(PendingDetection detection) {
-        BarrierBuffer buffer = buffers.computeIfAbsent(detection.barrierId(), ignored -> new BarrierBuffer());
-
-        buffer.lock().lock();
         try {
-            if (detection.type() == DetectionType.FACE) {
-                PendingDetection matched = pollMatching(buffer.plates(), detection);
-                if (matched != null) {
-                    emitMatch(detection, matched);
-                    return;
-                }
-                buffer.faces().addLast(detection);
-            } else {
-                PendingDetection matched = pollMatching(buffer.faces(), detection);
-                if (matched != null) {
-                    emitMatch(matched, detection);
-                    return;
-                }
-                buffer.plates().addLast(detection);
-            }
-        } finally {
-            buffer.lock().unlock();
-        }
-    }
-
-    private PendingDetection pollMatching(Deque<PendingDetection> candidates, PendingDetection incoming) {
-        PendingDetection best = null;
-        long bestDelta = Long.MAX_VALUE;
-        Iterator<PendingDetection> iterator = candidates.iterator();
-        while (iterator.hasNext()) {
-            PendingDetection candidate = iterator.next();
-            if (isExpired(candidate)) {
-                iterator.remove();
-                continue;
-            }
-
-            long delta = Math.abs(incoming.timestampMs() - candidate.timestampMs());
-            if (delta <= MATCH_WINDOW_MS && delta < bestDelta) {
-                best = candidate;
-                bestDelta = delta;
-            }
-        }
-
-        if (best != null) {
-            candidates.remove(best);
-        }
-        return best;
-    }
-
-    private void emitMatch(PendingDetection face, PendingDetection plate) {
-        try {
-            ParkingEvent event = new ParkingEvent();
-            event.setPlateNumber(plate.plateNumber());
-            event.setAiIdentityPlateId(plate.aiPlateId());
-            event.setAiIdentityCustomerId(face.profileId());
-            event.setLaneId(face.laneId() != null ? face.laneId() : plate.laneId());
-            event.setBarrierId(face.barrierId());
-
-            parkingService.handle(event);
-            log.info("DetectionMatchingService: matched barrier={} laneId={} plate={} profileId={}",
-                    face.barrierId(), event.getLaneId(), plate.plateNumber(), face.profileId());
-        } catch (Exception ex) {
-            log.error("DetectionMatchingService: handle event failed for barrier={} laneId={}: {}",
-                    face.barrierId(), face.laneId(), ex.getMessage(), ex);
-        }
-    }
-
-    @Scheduled(fixedDelay = 3_000)
-    void cleanupExpired() {
-        long now = System.currentTimeMillis();
-        buffers.forEach((barrierId, buffer) -> {
-            if (!buffer.lock().tryLock()) {
+            if (detection.getDirectionType() == null) {
+                logger.warn("ingest: detection has no direction — type={}", detection.getType());
                 return;
             }
 
-            try {
-                buffer.faces().removeIf(d -> now - d.timestampMs() > TIMEOUT_MS);
-                buffer.plates().removeIf(d -> now - d.timestampMs() > TIMEOUT_MS);
-
-                if (buffer.faces().isEmpty() && buffer.plates().isEmpty()) {
-                    buffers.remove(barrierId, buffer);
-                }
-            } finally {
-                buffer.lock().unlock();
+            String matchKey = buildMatchKey(detection);
+            if (matchKey == null) {
+                logger.warn(
+                        "ingest: cannot resolve barrier for detection type={} direction={} cameraId={} plate={} profileId={}",
+                        detection.getType(), detection.getDirectionType(),
+                        detection.getDirectionType() == DirectionType.ENTRY ? detection.getEntryCameraId()
+                                : detection.getExitCameraId(),
+                        detection.getPlateNumber(), detection.getProfileId());
+                return;
             }
-        });
+
+            Deque<PendingEventDetection> buffer = pendingEventsByKey.computeIfAbsent(matchKey,
+                    key -> new ArrayDeque<>());
+
+            PendingEventDetection matched;
+            synchronized (buffer) {
+                purgeExpiredEvents(buffer, System.currentTimeMillis());
+                matched = findAndRemoveMatch(buffer, detection);
+                if (matched == null) {
+                    buffer.addLast(detection);
+                    logger.debug("ingest: buffered unmatched event type={} direction={} key={}",
+                            detection.getType(), detection.getDirectionType(), matchKey);
+                    return;
+                }
+            }
+
+            PendingEventDetection merged = mergeEvents(matched, detection);
+            logger.info("ingest: matched events type={} direction={} key={}",
+                    merged.getType(), merged.getDirectionType(), matchKey);
+            emitMatch(merged);
+
+            synchronized (buffer) {
+                if (buffer.isEmpty()) {
+                    pendingEventsByKey.remove(matchKey, buffer);
+                }
+            }
+        } catch (Exception ex) {
+            logger.error("ingest: failed to process detection — type={} direction={}: {}",
+                    detection.getType(), detection.getDirectionType(), ex.getMessage(), ex);
+        }
     }
 
-    private boolean isExpired(PendingDetection detection) {
-        return System.currentTimeMillis() - detection.timestampMs() > TIMEOUT_MS;
-    }
-
-    private record PendingDetection(
-            String barrierId,
-            Long cameraId,
-            Long laneId,
-            DetectionType type,
-            Integer profileId,
-            String plateNumber,
-            Integer aiPlateId,
-            long timestampMs) {
-    }
-
-    private enum DetectionType {
-        FACE,
-        PLATE
-    }
-
-    private static final class BarrierBuffer {
-        private final ReentrantLock lock = new ReentrantLock();
-        private final Deque<PendingDetection> faces = new ArrayDeque<>();
-        private final Deque<PendingDetection> plates = new ArrayDeque<>();
-
-        private ReentrantLock lock() {
-            return lock;
+    private void emitMatch(PendingEventDetection detection) {
+        if (detection.getDirectionType() == DirectionType.ENTRY) {
+            handleEntryEvent(detection);
+            return;
         }
 
-        private Deque<PendingDetection> faces() {
-            return faces;
+        if (detection.getDirectionType() == DirectionType.EXIT) {
+            handleExitEvent(detection);
+            return;
         }
 
-        private Deque<PendingDetection> plates() {
-            return plates;
+        logger.warn("emitMatch: unknown direction type={}", detection.getDirectionType());
+    }
+
+    private void handleEntryEvent(PendingEventDetection detection) {
+        try {
+            VehicleEntity vehicle = null;
+            if (detection.getPlateNumber() != null) {
+                vehicle = vehicleRepository.findPlateByPlateNumber(detection.getPlateNumber());
+            }
+
+            ParkingCustomerEntity customer = null;
+            if (detection.getProfileId() != null) {
+                customer = parkingCustomerRepository.findByAiProfileId(detection.getProfileId()).orElse(null);
+            }
+
+            if (vehicle == null || customer == null) {
+                logger.warn("handleEntryEvent: missing vehicle or customer — plate={} profileId={}",
+                        detection.getPlateNumber(), detection.getProfileId());
+                return;
+            }
+
+            String barrierId = detection.getEntryBarrierId();
+            Long laneId = detection.getEntryLaneId();
+            if (barrierId == null || laneId == null) {
+                logger.warn("handleEntryEvent: missing barrier or lane info");
+                return;
+            }
+
+            // Fetch barrier with eager loading
+            BarrierEntity barrier = barrierRepository.findByBarrierIdWithDeviceAndLaneAndParkingLot(barrierId)
+                    .orElse(null);
+            if (barrier == null || barrier.getParkingDevice() == null || barrier.getParkingDevice().getLane() == null) {
+                logger.warn("handleEntryEvent: barrier {} has no proper lane/device config", barrierId);
+                return;
+            }
+
+            LaneEntity lane = barrier.getParkingDevice().getLane();
+            if (lane.getParkingLot() == null) {
+                logger.warn("handleEntryEvent: lane {} has no parking lot", laneId);
+                return;
+            }
+
+            // Check for active monthly ticket
+            Optional<TicketEntity> ticket = ticketRepository
+                    .findTicketByCustomerIdAndVehicleId(customer.getId(), vehicle.getId())
+                    .filter(t -> "ACTIVE".equalsIgnoreCase(t.getStatus()))
+                    .filter(t -> t.getExpireAt() != null && t.getExpireAt().isAfter(LocalDateTime.now()));
+
+            // Create parking session
+            ParkingSessionEntity session = new ParkingSessionEntity();
+            session.setVehicle(vehicle);
+            session.setEntryCustomer(customer);
+            session.setEntryTime(LocalDateTime.now());
+            session.setEntryLane(lane);
+            session.setEntryBarrier(barrierId);
+            session.setParkingLot(lane.getParkingLot());
+
+            if (ticket.isPresent()) {
+                session.setTicketId(ticket.get().getId());
+                session.setSessionType("MONTHLY");
+            } else {
+                session.setSessionType("DAILY");
+            }
+
+            parkingSessionRepository.save(session);
+            logger.info("handleEntryEvent: session created id={} plate={} customer={} sessionType={} ticketId={}",
+                    session.getId(), vehicle.getPlateNumber(), customer.getId(),
+                    session.getSessionType(), session.getTicketId());
+            ioTService.publishOpenCommand(barrierId, session.getId(), "vehicle_entry");
+
+        } catch (Exception ex) {
+            logger.error("handleEntryEvent: failed — type={}: {}", detection.getType(), ex.getMessage(), ex);
         }
+    }
+
+    private void handleExitEvent(PendingEventDetection detection) {
+        try {
+            VehicleEntity vehicle = null;
+            if (detection.getPlateNumber() != null) {
+                vehicle = vehicleRepository.findPlateByPlateNumber(detection.getPlateNumber());
+            }
+
+            ParkingCustomerEntity customer = null;
+            if (detection.getProfileId() != null) {
+                customer = parkingCustomerRepository.findByAiProfileId(detection.getProfileId()).orElse(null);
+            }
+
+            if (vehicle == null || customer == null) {
+                logger.warn("handleExitEvent: missing vehicle or customer — plate={} profileId={}",
+                        detection.getPlateNumber(), detection.getProfileId());
+                return;
+            }
+
+            String barrierId = detection.getExitBarrierId();
+            Long laneId = detection.getExitLaneId();
+            if (barrierId == null || laneId == null) {
+                logger.warn("handleExitEvent: missing barrier or lane info");
+                return;
+            }
+
+            // Fetch open session for this vehicle+customer
+            ParkingSessionEntity openSession = parkingSessionRepository
+                    .findFirstByVehicleIdAndEntryCustomerIdAndExitTimeIsNullOrderByEntryTimeDesc(
+                            vehicle.getId(), customer.getId())
+                    .orElse(null);
+
+            if (openSession == null) {
+                logger.warn("handleExitEvent: no open parking session found for vehicle={} customer={}",
+                        vehicle.getId(), customer.getId());
+                return;
+            }
+
+            // Fetch barrier with eager loading
+            BarrierEntity barrier = barrierRepository.findByBarrierIdWithDeviceAndLaneAndParkingLot(barrierId)
+                    .orElse(null);
+            if (barrier == null || barrier.getParkingDevice() == null || barrier.getParkingDevice().getLane() == null) {
+                logger.warn("handleExitEvent: barrier {} has no proper lane/device config", barrierId);
+                return;
+            }
+
+            LaneEntity lane = barrier.getParkingDevice().getLane();
+
+            LocalDateTime exitTime = LocalDateTime.now();
+
+            // Close session
+            openSession.setExitCustomer(customer);
+            openSession.setExitTime(exitTime);
+            openSession.setExitLane(lane);
+            openSession.setExitBarrier(barrierId);
+            parkingSessionRepository.save(openSession);
+
+            logger.info("handleExitEvent: session closed id={} plate={} customer={} sessionType={} ticketId={}",
+                    openSession.getId(), vehicle.getPlateNumber(), customer.getId(),
+                    openSession.getSessionType(), openSession.getTicketId());
+
+            TicketEntity ticket = findValidMonthlyTicket(vehicle.getId());
+            BigDecimal amount = new BigDecimal(0);
+            if (ticket != null && (ticket.getExpireAt().isAfter(exitTime) || ticket.getExpireAt().isEqual(exitTime))) {
+                ioTService.publishOpenForMonthlyTicket(barrierId, openSession.getId(), vehicle.getPlateNumber(),
+                        "parking_customer_monthly", ticket.getExpireAt());
+                return;
+            } else if (ticket != null && ticket.getExpireAt().isBefore(exitTime)) {
+                // ve xe active nhung da het han
+                // todo: tao function de tinh tien cho truong hop nay
+            } else {
+                // ko co ve xe
+                amount = calculatorService.calculate(openSession.getEntryTime(), LocalDateTime.now());
+            }
+
+            // tao QR
+            CreatePaymentRequest payReq = new CreatePaymentRequest();
+            payReq.setAmount(amount);
+            payReq.setGoodsName("Phi gui xe");
+            payReq.setDescription("Phi gui xe bien so " + vehicle.getPlateNumber());
+            CreatePaymentResponse qr = paymentService.createPaymentLink(payReq);
+
+            // tao payment
+            paymentService.createSessionPayment(
+                    qr.getInvoiceNo(),
+                    qr.getAmount(),
+                    qr.getPayType(),
+                    "Phi gui xe bien so " + vehicle.getPlateNumber(),
+                    openSession.getId(),
+                    barrierId,
+                    vehicle.getPlateNumber(),
+                    customer.getAiProfileId(),
+                    lane.getId(),
+                    exitTime);
+
+            ioTService.publishVehicleInfo(barrierId, openSession.getId(), vehicle.getPlateNumber(),
+                    openSession.getEntryTime(), amount,
+                    // paymentService.decodePaymentLink(qr.getPaymentLink())
+                    qr.getQrCode());
+
+        } catch (Exception ex) {
+            logger.error("handleExitEvent: failed — type={}: {}", detection.getType(), ex.getMessage(), ex);
+        }
+    }
+
+    private String buildMatchKey(PendingEventDetection detection) {
+        String direction = detection.getDirectionType() != null ? detection.getDirectionType().name() : "UNKNOWN";
+        String barrierId = resolveBarrierId(detection);
+        if (barrierId == null || barrierId.isBlank()) {
+            return null;
+        }
+
+        return direction + ":" + barrierId;
+    }
+
+    private String resolveBarrierId(PendingEventDetection detection) {
+        if (detection == null || detection.getDirectionType() == null) {
+            return null;
+        }
+
+        if (detection.getDirectionType() == DirectionType.ENTRY) {
+            return detection.getEntryBarrierId();
+        }
+
+        if (detection.getDirectionType() == DirectionType.EXIT) {
+            return detection.getExitBarrierId();
+        }
+
+        return null;
+    }
+
+    private PendingEventDetection mergeEvents(PendingEventDetection first, PendingEventDetection second) {
+        PendingEventDetection merged = new PendingEventDetection();
+        merged.setType(first.getType() != null ? first.getType() : second.getType());
+        merged.setDirectionType(
+                first.getDirectionType() != null ? first.getDirectionType() : second.getDirectionType());
+        merged.setPlateNumber(first.getPlateNumber() != null ? first.getPlateNumber() : second.getPlateNumber());
+        merged.setProfileId(first.getProfileId() != null ? first.getProfileId() : second.getProfileId());
+        merged.setAiPlateId(first.getAiPlateId() != null ? first.getAiPlateId() : second.getAiPlateId());
+        merged.setEntryBarrierId(
+                first.getEntryBarrierId() != null ? first.getEntryBarrierId() : second.getEntryBarrierId());
+        merged.setEntryCameraId(
+                first.getEntryCameraId() != null ? first.getEntryCameraId() : second.getEntryCameraId());
+        merged.setEntryLaneId(first.getEntryLaneId() != null ? first.getEntryLaneId() : second.getEntryLaneId());
+        merged.setExitBarrierId(
+                first.getExitBarrierId() != null ? first.getExitBarrierId() : second.getExitBarrierId());
+        merged.setExitCameraId(first.getExitCameraId() != null ? first.getExitCameraId() : second.getExitCameraId());
+        merged.setExitLaneId(first.getExitLaneId() != null ? first.getExitLaneId() : second.getExitLaneId());
+        merged.setTimestampMs(Math.max(first.getTimestampMs(), second.getTimestampMs()));
+        return merged;
+    }
+
+    private void purgeExpiredEvents(Deque<PendingEventDetection> events, long now) {
+        while (!events.isEmpty()) {
+            PendingEventDetection head = events.peekFirst();
+            if (head == null) {
+                return;
+            }
+
+            if (now - head.getTimestampMs() <= MATCH_WINDOW_MS) {
+                return;
+            }
+
+            events.removeFirst();
+        }
+    }
+
+    private PendingEventDetection findAndRemoveMatch(Deque<PendingEventDetection> events,
+            PendingEventDetection incoming) {
+        PendingEventDetection match = null;
+        long bestDelta = Long.MAX_VALUE;
+
+        for (PendingEventDetection candidate : events) {
+            if (!isComplementary(candidate, incoming)) {
+                continue;
+            }
+
+            long delta = Math.abs(candidate.getTimestampMs() - incoming.getTimestampMs());
+            if (delta <= MATCH_WINDOW_MS && delta < bestDelta) {
+                bestDelta = delta;
+                match = candidate;
+            }
+        }
+
+        if (match != null) {
+            events.remove(match);
+        }
+
+        return match;
+    }
+
+    private boolean isComplementary(PendingEventDetection left, PendingEventDetection right) {
+        if (left == null || right == null) {
+            return false;
+        }
+
+        if (left.getDirectionType() == null || right.getDirectionType() == null) {
+            return false;
+        }
+
+        if (left.getDirectionType() != right.getDirectionType()) {
+            return false;
+        }
+
+        if (left.getType() == null || right.getType() == null) {
+            return false;
+        }
+
+        return (left.getType() == vio.barie.core.utils.DetectionType.FACE
+                && right.getType() == vio.barie.core.utils.DetectionType.PLATE)
+                || (left.getType() == vio.barie.core.utils.DetectionType.PLATE
+                        && right.getType() == vio.barie.core.utils.DetectionType.FACE);
+    }
+
+    private TicketEntity findValidMonthlyTicket(Long vehicleId) {
+        // chỉ lấy ra vé gửi xe
+        return ticketRepository.findByVehicleIdAndStatus(vehicleId, "ACTIVE")
+                // .filter(t -> t.getExpireAt() != null &&
+                // t.getExpireAt().isAfter(LocalDateTime.now()))
+                .orElse(null);
     }
 }

@@ -52,6 +52,6 @@ public class ProfileHandler {
             customerRepository.save(newCustomer);
         }
 
-        aiEventBuffer.addFaceEvent(camera.getId(), laneId, profileId);
+//        aiEventBuffer.addFaceEvent(camera.getId(), laneId, profileId);
     }
 }

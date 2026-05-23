@@ -6,7 +6,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import vio.barie.core.dto.Result;
-import vio.barie.core.dto.parking.ParkingEvent;
 import vio.barie.core.dto.parking.VehicleUserRegisterRequest;
 import vio.barie.core.entity.VehicleUserPermissionEntity;
 import vio.barie.core.service.ParkingCustomerService;

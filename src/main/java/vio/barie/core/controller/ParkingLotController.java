@@ -5,9 +5,9 @@ import lombok.RequiredArgsConstructor;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-import vio.barie.core.dto.ApiResponse;
 import vio.barie.core.dto.ParkingLotCreateRequest;
 import vio.barie.core.dto.ParkingLotResponse;
+import vio.barie.core.dto.Result;
 import vio.barie.core.service.ParkingLotService;
 
 import java.util.List;
@@ -22,29 +22,31 @@ public class ParkingLotController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<ParkingLotResponse> create(@Valid @RequestBody ParkingLotCreateRequest request) {
-        return new ApiResponse<>("SUCCESS", "Parking lot created", parkingLotService.create(request));
+    public Result<ParkingLotResponse> create(@Valid @RequestBody ParkingLotCreateRequest request) {
+        return Result.ok("Parking lot created", parkingLotService.create(request));
     }
 
     @GetMapping
-    public ApiResponse<List<ParkingLotResponse>> findAll() {
-        return new ApiResponse<>("SUCCESS", "Parking lots fetched", parkingLotService.findAll());
+    public Result<List<ParkingLotResponse>> findAll() {
+        return Result.ok("Parking lots fetched", parkingLotService.findAll());
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<ParkingLotResponse> findById(@PathVariable Long id) {
-        return new ApiResponse<>("SUCCESS", "Parking lot fetched", parkingLotService.findById(id));
+    public Result<ParkingLotResponse> findById(@PathVariable Long id) {
+        return Result.ok("Parking lot fetched", parkingLotService.findById(id));
     }
+    
 
     @PutMapping("/{id}")
-    public ApiResponse<ParkingLotResponse> update(@PathVariable Long id,
-            @Valid @RequestBody ParkingLotCreateRequest request) {
-        return new ApiResponse<>("SUCCESS", "Parking lot updated", parkingLotService.update(id, request));
+    public Result<ParkingLotResponse> update(@PathVariable Long id,
+                                             @Valid @RequestBody ParkingLotCreateRequest request) {
+        return Result.ok("Parking lot updated", parkingLotService.update(id, request));
     }
 
+
     @DeleteMapping("/{id}")
-    public ApiResponse<String> delete(@PathVariable Long id) {
+    public Result<String> delete(@PathVariable Long id) {
         parkingLotService.delete(id);
-        return new ApiResponse<>("SUCCESS", "Parking lot deleted", null);
+        return Result.ok("Parking lot deleted", null);
     }
 }

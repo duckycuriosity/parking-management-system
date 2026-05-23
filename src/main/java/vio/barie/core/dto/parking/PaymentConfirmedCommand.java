@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -21,7 +22,7 @@ public class PaymentConfirmedCommand {
     private String barrierId;
 
     @JsonProperty("amount_paid")
-    private int amountPaid;
+    private BigDecimal amountPaid;
 
     @JsonProperty("payment_app")
     @Builder.Default

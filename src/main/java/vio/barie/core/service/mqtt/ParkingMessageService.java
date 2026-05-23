@@ -12,17 +12,17 @@ import vio.barie.core.dto.parking.PaymentSuccessCommand;
 import vio.barie.core.dto.parking.VehicleInfoCommand;
 import vio.barie.core.entity.BarrierEntity;
 import vio.barie.core.entity.ParkingDeviceEntity;
-import org.springframework.transaction.annotation.Transactional;
 import vio.barie.core.entity.ParkingMessageEntity;
 import vio.barie.core.repository.BarrierRepository;
 import vio.barie.core.repository.ParkingDeviceRepository;
 import vio.barie.core.repository.ParkingMessageRepository;
+import vio.barie.core.utils.DetectionType;
+import vio.barie.core.utils.MqttErrorCommand;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Optional;
 
 @Slf4j
 @Service
@@ -37,89 +37,91 @@ public class ParkingMessageService {
     private String prefix;
     @Value("${mqtt.publish-cmd-topic-suffix}")
     private String suffix;
+    @Value("${mqtt.publish-error-topic-suffix}")
+    private String error;
 
-    @Transactional
     public void handleConnect(String topic, JsonNode json) {
-        String deviceId = json.path("device_id").asText();
-        saveHistory(topic, json, "connect");
+        try {
+            String deviceId = json.path("device_id").asText();
+            saveHistory(topic, json, "connect");
 
-        ParkingDeviceEntity device = deviceRepository.findByDeviceId(deviceId)
-                .orElse(ParkingDeviceEntity.builder()
-                        .deviceId(deviceId)
-                        .createdAt(LocalDateTime.now())
-                        .build());
-        device.setStatus("Online");
-        device.setFirmwareVersion(json.path("firmware_version").asText(null));
-        device.setHasCashReader(json.path("has_cash_reader").asBoolean());
-        device.setHasDisplay(json.path("has_display").asBoolean());
-        device.setLastSeen(LocalDateTime.now());
+            ParkingDeviceEntity device = deviceRepository.findByDeviceId(deviceId)
+                    .orElse(ParkingDeviceEntity.builder()
+                            .deviceId(deviceId)
+                            .createdAt(LocalDateTime.now())
+                            .build());
+            device.setStatus("Online");
+            device.setFirmwareVersion(json.path("firmware_version").asText(null));
+            device.setHasCashReader(json.path("has_cash_reader").asBoolean());
+            device.setHasDisplay(json.path("has_display").asBoolean());
+            device.setLastSeen(LocalDateTime.now());
 
-        json.path("barriers").forEach(barrier -> {
-            BarrierEntity saveBarrier = new BarrierEntity();
-            saveBarrier.setBarrierId(barrier.path("barrier_id").asText());
-            saveBarrier.setDirection(barrier.path("direction").asText());
-            saveBarrier.setDescription(barrier.path("description").asText());
-            saveBarrier.setModbusAddr(barrier.path("modbus_addr").asInt());
-            saveBarrier.setParkingDevice(device);
+            json.path("barriers").forEach(barrier -> {
+                BarrierEntity saveBarrier = new BarrierEntity();
+                saveBarrier.setBarrierId(barrier.path("barrier_id").asText());
+                saveBarrier.setDirection(barrier.path("direction").asText());
+                saveBarrier.setDescription(barrier.path("description").asText());
+                saveBarrier.setModbusAddr(barrier.path("modbus_addr").asInt());
+                saveBarrier.setParkingDevice(device);
 
-            BarrierEntity existing = barrierRepository.findByBarrierId(saveBarrier.getBarrierId()).orElse(null);
-            if (existing != null) {
-                existing.setDirection(saveBarrier.getDirection());
-                existing.setDescription(saveBarrier.getDescription());
-                existing.setModbusAddr(saveBarrier.getModbusAddr());
-                existing.setParkingDevice(device);
-                barrierRepository.save(existing);
-            } else {
-                barrierRepository.save(saveBarrier);
-            }
-        });
+                BarrierEntity existing = barrierRepository.findByBarrierId(saveBarrier.getBarrierId()).orElse(null);
+                if (existing != null) {
+                    existing.setDirection(saveBarrier.getDirection());
+                    existing.setDescription(saveBarrier.getDescription());
+                    existing.setModbusAddr(saveBarrier.getModbusAddr());
+                    existing.setParkingDevice(device);
+                    barrierRepository.save(existing);
+                } else {
+                    barrierRepository.save(saveBarrier);
+                }
+            });
 
-        deviceRepository.save(device);
-        log.info("Device connected: {}", deviceId);
-    }
-
-    @Transactional
-    public void handleDisconnect(String topic, JsonNode json) {
-        String deviceId = json.path("device_id").asText();
-        String reason = json.path("reason").asText();
-        saveHistory(topic, json, "disconnect");
-        deviceRepository.findByDeviceId(deviceId)
-                .ifPresent(device -> {
-                    device.setStatus("OFFLINE");
-                    device.setDisconnectReason(reason);
-                    device.setUpdatedAt(LocalDateTime.now());
-                    deviceRepository.save(device);
-                });
-
-        log.info("Device disconnected: {} reason={}", deviceId, reason);
-    }
-
-    @Transactional
-    public void handlePing(String topic, JsonNode json) {
-
-        String deviceId = json.path("device_id").asText();
-
-        saveHistory(topic, json, "ping");
-
-        ParkingDeviceEntity device = deviceRepository.findByDeviceId(deviceId)
-                .orElse(ParkingDeviceEntity.builder()
-                        .deviceId(deviceId)
-                        .createdAt(LocalDateTime.now())
-                        .build());
-
-        device.setStatus("Online");
-        device.setLastSeen(LocalDateTime.now());
-        device.setUptimeSeconds(json.path("uptime_seconds").asLong());
-        device.setFreeMemMb(json.path("free_mem_mb").asInt());
-
-        if (json.has("cpu_temp_c")) {
-            device.setCpuTempC(
-                    BigDecimal.valueOf(json.path("cpu_temp_c").asDouble()));
+            deviceRepository.save(device);
+            log.info("Device connected: {}", deviceId);
+        } catch (Exception ex) {
+            log.error("ParkingMessageService.handleConnect failed topic={}: {}", topic, ex.getMessage(), ex);
         }
+    }
 
-        deviceRepository.save(device);
+    public void handleDisconnect(String topic, JsonNode json) {
+        try {
+            String deviceId = json.path("device_id").asText();
+            String reason = json.path("reason").asText();
+            saveHistory(topic, json, "disconnect");
+            deviceRepository.findByDeviceId(deviceId)
+                    .ifPresent(device -> {
+                        device.setStatus("OFFLINE");
+                        device.setDisconnectReason(reason);
+                        device.setUpdatedAt(LocalDateTime.now());
+                        deviceRepository.save(device);
+                    });
+            log.info("Device disconnected: {} reason={}", deviceId, reason);
+        } catch (Exception ex) {
+            log.error("ParkingMessageService.handleDisconnect failed topic={}: {}", topic, ex.getMessage(), ex);
+        }
+    }
 
-        log.info("Ping updated: {}", deviceId);
+    public void handlePing(String topic, JsonNode json) {
+        try {
+            String deviceId = json.path("device_id").asText();
+            saveHistory(topic, json, "ping");
+            ParkingDeviceEntity device = deviceRepository.findByDeviceId(deviceId)
+                    .orElse(ParkingDeviceEntity.builder()
+                            .deviceId(deviceId)
+                            .createdAt(LocalDateTime.now())
+                            .build());
+            device.setStatus("Online");
+            device.setLastSeen(LocalDateTime.now());
+            device.setUptimeSeconds(json.path("uptime_seconds").asLong());
+            device.setFreeMemMb(json.path("free_mem_mb").asInt());
+            if (json.has("cpu_temp_c")) {
+                device.setCpuTempC(BigDecimal.valueOf(json.path("cpu_temp_c").asDouble()));
+            }
+            deviceRepository.save(device);
+            log.info("Ping updated: {}", deviceId);
+        } catch (Exception ex) {
+            log.error("ParkingMessageService.handlePing failed topic={}: {}", topic, ex.getMessage(), ex);
+        }
     }
 
     private void saveHistory(String topic, JsonNode json, String type) {
@@ -150,36 +152,46 @@ public class ParkingMessageService {
         messageRepository.save(entity);
     }
 
-    @Transactional
     public void handlePayment(String topic, JsonNode json) {
-        String deviceId = json.path("device_id").asText();
-        String sessionId = json.path("session_id").asText();
-        saveHistory(topic, json, "payment");
-        log.info("Payment received: deviceId={} sessionId={}", deviceId, sessionId);
-        // TODO: xác nhận tiền mặt, gửi payment_success xuống thiết bị
+        try {
+            String deviceId = json.path("device_id").asText();
+            String sessionId = json.path("session_id").asText();
+            saveHistory(topic, json, "payment");
+            log.info("Payment received: deviceId={} sessionId={}", deviceId, sessionId);
+        } catch (Exception ex) {
+            log.error("ParkingMessageService.handlePayment failed topic={}: {}", topic, ex.getMessage(), ex);
+        }
     }
 
-    @Transactional
     public void handleEvent(String topic, JsonNode json) {
+        try {
+            // placeholder for event handling
+        } catch (Exception ex) {
+            log.error("ParkingMessageService.handleEvent failed topic={}: {}", topic, ex.getMessage(), ex);
+        }
     }
 
-    @Transactional
     public void handleSessionAbandoned(String topic, JsonNode json) {
-        String deviceId = json.path("device_id").asText();
-        String sessionId = json.path("session_id").asText();
-        saveHistory(topic, json, "session_abandoned");
-        log.info("Session abandoned: deviceId={} sessionId={}", deviceId, sessionId);
-        // TODO: giải phóng session, release trạng thái chờ thanh toán
+        try {
+            String deviceId = json.path("device_id").asText();
+            String sessionId = json.path("session_id").asText();
+            saveHistory(topic, json, "session_abandoned");
+            log.info("Session abandoned: deviceId={} sessionId={}", deviceId, sessionId);
+        } catch (Exception ex) {
+            log.error("ParkingMessageService.handleSessionAbandoned failed topic={}: {}", topic, ex.getMessage(), ex);
+        }
     }
 
-    @Transactional
     public void handleSupportRequest(String topic, JsonNode json) {
-        String deviceId = json.path("device_id").asText();
-        String sessionId = json.path("session_id").asText();
-        String reason = json.path("reason").asText();
-        saveHistory(topic, json, "support_request");
-        log.info("Support request: deviceId={} sessionId={} reason={}", deviceId, sessionId, reason);
-        // TODO: alert ops dashboard, chờ manual override
+        try {
+            String deviceId = json.path("device_id").asText();
+            String sessionId = json.path("session_id").asText();
+            String reason = json.path("reason").asText();
+            saveHistory(topic, json, "support_request");
+            log.info("Support request: deviceId={} sessionId={} reason={}", deviceId, sessionId, reason);
+        } catch (Exception ex) {
+            log.error("ParkingMessageService.handleSupportRequest failed topic={}: {}", topic, ex.getMessage(), ex);
+        }
     }
 
     public void publishEntryVehicleInfo(String barrierId, String plate,
@@ -198,7 +210,7 @@ public class ParkingMessageService {
                 .plate(plate)
                 .ticketType("free")
                 .entryTime(entryTime != null ? entryTime.format(DT_FMT) : null)
-                .amountDue(0)
+                .amountDue(BigDecimal.valueOf(0))
                 .currency("VND")
                 .open(false)
                 .build();
@@ -207,7 +219,7 @@ public class ParkingMessageService {
     }
 
     public void publishVehicleInfo(String barrierId, Long sessionId, String plate,
-            LocalDateTime entryTime, Integer amountDue, String qrUrl) {
+            LocalDateTime entryTime, BigDecimal amountDue, String qrUrl) {
         String deviceId = resolveDeviceId(barrierId);
         if (deviceId == null) {
             log.warn("publishVehicleInfo: barrierId is null or not found, skipping — sessionId={}", sessionId);
@@ -278,7 +290,7 @@ public class ParkingMessageService {
         publish(deviceId, successCmd);
     }
 
-    public void publishPaymentConfirmed(String barrierId, Long sessionId, int amountPaid, String invoiceNo) {
+    public void publishPaymentConfirmed(String barrierId, Long sessionId, BigDecimal amountPaid, String invoiceNo) {
         String deviceId = resolveDeviceId(barrierId);
         if (deviceId == null) {
             log.warn("publishPaymentSuccess: barrierId is null or not found, skipping — sessionId={}", sessionId);
@@ -329,6 +341,20 @@ public class ParkingMessageService {
             log.info("Published cmd to topic={}", topic);
         } catch (Exception e) {
             log.error("Failed to publish to deviceId={}: {}", deviceId, e.getMessage(), e);
+        }
+    }
+
+    public void publishErrorWhenHandlingEvent (String message, String cameraUUID, DetectionType type) {
+        try {
+            String topic = prefix + "/" + error;
+            MqttErrorCommand payload = new MqttErrorCommand();
+            payload.setMessage(message);
+            payload.setCameraUUID(cameraUUID);
+            payload.setType(type);
+            String json = JSONUtil.toJsonStr(payload);
+            mqttPublisher.publish(topic, json);
+        } catch (Exception e) {
+            log.error("Failed to publish to cameraUUID={}: {}", cameraUUID, e.getMessage(), e);
         }
     }
 

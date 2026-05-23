@@ -2,6 +2,8 @@ package vio.barie.core.dto.payment;
 
 import lombok.Data;
 
+import java.math.BigDecimal;
+
 @Data
 public class CreatePaymentResponse {
     private String resultCd;
@@ -9,7 +11,7 @@ public class CreatePaymentResponse {
     private String merId;
     private String invoiceNo;
     private String timeStamp;
-    private String amount;
+    private BigDecimal amount;
     private String payType;
     private String payOption;
     private String linkExptime;
