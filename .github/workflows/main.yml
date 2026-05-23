@@ -35,6 +35,9 @@ jobs:
           docker push ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.TAG }}
           docker push ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
+      - name: Cleanup Docker
+        run: docker image prune -a -f
+
       - name: Show result
         run: |
           echo "Build & Push thành công"
