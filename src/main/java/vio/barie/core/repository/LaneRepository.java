@@ -7,10 +7,14 @@ import vio.barie.core.entity.LaneEntity;
 import vio.barie.core.entity.ParkingDeviceEntity;
 import vio.barie.core.entity.SysUserEntity;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface LaneRepository extends JpaRepository<LaneEntity, Long> {
     @Query("SELECT l FROM LaneEntity l JOIN FETCH l.parkingLot WHERE l.id = :id")
     Optional<LaneEntity> findByIdWithParkingLot(@Param("id") Long id);
+
+    @Query("SELECT l FROM LaneEntity l JOIN FETCH l.parkingLot p WHERE p.id = :parkingLotId")
+    List<LaneEntity> findAllByParkingLotId(@Param("parkingLotId") Long parkingLotId);
 
 }

@@ -11,21 +11,6 @@ spring:
     hibernate:
       ddl-auto: none
 
-ai:
-  core:
-    base-url: http://192.168.168.30:8088/api
-    user-agent: Mozilla/5.0
-    accept: "*/*"
-    cookie: key=uO50EwSqoolz1OzU
-    connection: close
-  face:
-    base-url: http://192.168.168.30:8088
-    cookie-key: uO50EwSqoolz1OzU
-logging:
-  level:
-    org.flywaydb: DEBUG
-    org.springframework.boot.flyway.autoconfigure: DEBUG
-
 # Swagger/OpenAPI Configuration
 springdoc:
   api-docs:

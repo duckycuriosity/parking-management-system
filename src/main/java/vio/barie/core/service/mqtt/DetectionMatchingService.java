@@ -1,8 +1,6 @@
 package vio.barie.core.service.mqtt;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -13,16 +11,22 @@ import vio.barie.core.entity.*;
 import vio.barie.core.repository.*;
 import vio.barie.core.service.CalculatorService;
 import vio.barie.core.service.PaymentService;
+import vio.barie.core.utils.DirectionType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DetectionMatchingService {
+
+    private static final long MATCH_WINDOW_MS = 10_000L; // 10 seconds
 
     private static final Logger logger = LoggerFactory.getLogger(DetectionMatchingService.class);
 
@@ -36,6 +40,8 @@ public class DetectionMatchingService {
     private final CalculatorService calculatorService;
     private final PaymentService paymentService;
 
+    private final ConcurrentMap<String, Deque<PendingEventDetection>> pendingEventsByKey = new ConcurrentHashMap<>();
+
     public Optional<String> resolveBarrierId(Long cameraId, String role, Long laneId) {
         try {
             if (cameraId == null || laneId == null) {
@@ -46,7 +52,7 @@ public class DetectionMatchingService {
             List<BarrierCameraEntity> mappings = barrierCameraRepository.findByCameraIdAndRoleIgnoreCase(cameraId,
                     role);
             if (mappings.isEmpty()) {
-                log.debug("resolveBarrierId: no mapping found for cameraId={} role={}", cameraId, role);
+                logger.debug("resolveBarrierId: no mapping found for cameraId={} role={}", cameraId, role);
                 return Optional.empty();
             }
 
@@ -61,56 +67,98 @@ public class DetectionMatchingService {
             BarrierEntity barrier = barrierRepository.findByBarrierIdWithDeviceAndLaneAndParkingLot(barrierId)
                     .orElse(null);
             if (barrier == null || barrier.getParkingDevice() == null || barrier.getParkingDevice().getLane() == null) {
-                log.warn("resolveBarrierId: barrier {} has no lane configured", barrierId);
+                logger.warn("resolveBarrierId: barrier {} has no lane configured", barrierId);
                 return Optional.empty();
             }
 
             Long barrierLaneId = barrier.getParkingDevice().getLane().getId();
             if (!barrierLaneId.equals(laneId)) {
-                log.warn("resolveBarrierId: lane mismatch — barrier {} is in lane {}, but received event from lane {}",
+                logger.warn(
+                        "resolveBarrierId: lane mismatch — barrier {} is in lane {}, but received event from lane {}",
                         barrierId, barrierLaneId, laneId);
                 return Optional.empty();
             }
 
             return Optional.of(barrierId);
         } catch (Exception ex) {
-            log.error("resolveBarrierId: failed to resolve barrier for cameraId={} role={} laneId={}: {}",
+            logger.error("resolveBarrierId: failed to resolve barrier for cameraId={} role={} laneId={}: {}",
                     cameraId, role, laneId, ex.getMessage(), ex);
             return Optional.empty();
         }
     }
 
     /**
-     * Ingest a detection event with direction already determined.
-     * No need for buffer matching since direction (entry/exit) is known upfront.
-     * Simply emit the event immediately based on direction.
+     * Ingest a detection event and try to match it with its counterpart.
+     * Face and plate are produced independently, so we buffer unmatched
+     * events and emit only when both sides of the same barrier/direction pair
+     * arrive.
      */
     public void ingest(PendingEventDetection detection) {
         if (detection == null) {
-            log.warn("ingest: received null detection");
+            logger.warn("ingest: received null detection");
             return;
         }
 
         try {
             if (detection.getDirectionType() == null) {
-                log.warn("ingest: detection has no direction — type={}", detection.getType());
+                logger.warn("ingest: detection has no direction — type={}", detection.getType());
                 return;
             }
 
-            switch (detection.getDirectionType()) {
-                case ENTRY:
-                    handleEntryEvent(detection);
-                    break;
-                case EXIT:
-                    handleExitEvent(detection);
-                    break;
-                default:
-                    log.warn("ingest: unknown direction type={}", detection.getDirectionType());
+            String matchKey = buildMatchKey(detection);
+            if (matchKey == null) {
+                logger.warn(
+                        "ingest: cannot resolve barrier for detection type={} direction={} cameraId={} plate={} profileId={}",
+                        detection.getType(), detection.getDirectionType(),
+                        detection.getDirectionType() == DirectionType.ENTRY ? detection.getEntryCameraId()
+                                : detection.getExitCameraId(),
+                        detection.getPlateNumber(), detection.getProfileId());
+                return;
+            }
+
+            Deque<PendingEventDetection> buffer = pendingEventsByKey.computeIfAbsent(matchKey,
+                    key -> new ArrayDeque<>());
+
+            PendingEventDetection matched;
+            synchronized (buffer) {
+                purgeExpiredEvents(buffer, System.currentTimeMillis());
+                matched = findAndRemoveMatch(buffer, detection);
+                if (matched == null) {
+                    buffer.addLast(detection);
+                    logger.debug("ingest: buffered unmatched event type={} direction={} key={}",
+                            detection.getType(), detection.getDirectionType(), matchKey);
+                    return;
+                }
+            }
+
+            PendingEventDetection merged = mergeEvents(matched, detection);
+            logger.info("ingest: matched events type={} direction={} key={}",
+                    merged.getType(), merged.getDirectionType(), matchKey);
+            emitMatch(merged);
+
+            synchronized (buffer) {
+                if (buffer.isEmpty()) {
+                    pendingEventsByKey.remove(matchKey, buffer);
+                }
             }
         } catch (Exception ex) {
-            log.error("ingest: failed to process detection — type={} direction={}: {}",
+            logger.error("ingest: failed to process detection — type={} direction={}: {}",
                     detection.getType(), detection.getDirectionType(), ex.getMessage(), ex);
         }
+    }
+
+    private void emitMatch(PendingEventDetection detection) {
+        if (detection.getDirectionType() == DirectionType.ENTRY) {
+            handleEntryEvent(detection);
+            return;
+        }
+
+        if (detection.getDirectionType() == DirectionType.EXIT) {
+            handleExitEvent(detection);
+            return;
+        }
+
+        logger.warn("emitMatch: unknown direction type={}", detection.getDirectionType());
     }
 
     private void handleEntryEvent(PendingEventDetection detection) {
@@ -126,7 +174,7 @@ public class DetectionMatchingService {
             }
 
             if (vehicle == null || customer == null) {
-                log.warn("handleEntryEvent: missing vehicle or customer — plate={} profileId={}",
+                logger.warn("handleEntryEvent: missing vehicle or customer — plate={} profileId={}",
                         detection.getPlateNumber(), detection.getProfileId());
                 return;
             }
@@ -134,7 +182,7 @@ public class DetectionMatchingService {
             String barrierId = detection.getEntryBarrierId();
             Long laneId = detection.getEntryLaneId();
             if (barrierId == null || laneId == null) {
-                log.warn("handleEntryEvent: missing barrier or lane info");
+                logger.warn("handleEntryEvent: missing barrier or lane info");
                 return;
             }
 
@@ -142,13 +190,13 @@ public class DetectionMatchingService {
             BarrierEntity barrier = barrierRepository.findByBarrierIdWithDeviceAndLaneAndParkingLot(barrierId)
                     .orElse(null);
             if (barrier == null || barrier.getParkingDevice() == null || barrier.getParkingDevice().getLane() == null) {
-                log.warn("handleEntryEvent: barrier {} has no proper lane/device config", barrierId);
+                logger.warn("handleEntryEvent: barrier {} has no proper lane/device config", barrierId);
                 return;
             }
 
             LaneEntity lane = barrier.getParkingDevice().getLane();
             if (lane.getParkingLot() == null) {
-                log.warn("handleEntryEvent: lane {} has no parking lot", laneId);
+                logger.warn("handleEntryEvent: lane {} has no parking lot", laneId);
                 return;
             }
 
@@ -175,17 +223,16 @@ public class DetectionMatchingService {
             }
 
             parkingSessionRepository.save(session);
-            log.info("handleEntryEvent: session created id={} plate={} customer={} sessionType={} ticketId={}",
+            logger.info("handleEntryEvent: session created id={} plate={} customer={} sessionType={} ticketId={}",
                     session.getId(), vehicle.getPlateNumber(), customer.getId(),
                     session.getSessionType(), session.getTicketId());
             ioTService.publishOpenCommand(barrierId, session.getId(), "vehicle_entry");
 
         } catch (Exception ex) {
-            log.error("handleEntryEvent: failed — type={}: {}", detection.getType(), ex.getMessage(), ex);
+            logger.error("handleEntryEvent: failed — type={}: {}", detection.getType(), ex.getMessage(), ex);
         }
     }
 
-    @Transactional
     private void handleExitEvent(PendingEventDetection detection) {
         try {
             VehicleEntity vehicle = null;
@@ -199,7 +246,7 @@ public class DetectionMatchingService {
             }
 
             if (vehicle == null || customer == null) {
-                log.warn("handleExitEvent: missing vehicle or customer — plate={} profileId={}",
+                logger.warn("handleExitEvent: missing vehicle or customer — plate={} profileId={}",
                         detection.getPlateNumber(), detection.getProfileId());
                 return;
             }
@@ -207,7 +254,7 @@ public class DetectionMatchingService {
             String barrierId = detection.getExitBarrierId();
             Long laneId = detection.getExitLaneId();
             if (barrierId == null || laneId == null) {
-                log.warn("handleExitEvent: missing barrier or lane info");
+                logger.warn("handleExitEvent: missing barrier or lane info");
                 return;
             }
 
@@ -218,7 +265,7 @@ public class DetectionMatchingService {
                     .orElse(null);
 
             if (openSession == null) {
-                log.warn("handleExitEvent: no open parking session found for vehicle={} customer={}",
+                logger.warn("handleExitEvent: no open parking session found for vehicle={} customer={}",
                         vehicle.getId(), customer.getId());
                 return;
             }
@@ -227,7 +274,7 @@ public class DetectionMatchingService {
             BarrierEntity barrier = barrierRepository.findByBarrierIdWithDeviceAndLaneAndParkingLot(barrierId)
                     .orElse(null);
             if (barrier == null || barrier.getParkingDevice() == null || barrier.getParkingDevice().getLane() == null) {
-                log.warn("handleExitEvent: barrier {} has no proper lane/device config", barrierId);
+                logger.warn("handleExitEvent: barrier {} has no proper lane/device config", barrierId);
                 return;
             }
 
@@ -242,7 +289,7 @@ public class DetectionMatchingService {
             openSession.setExitBarrier(barrierId);
             parkingSessionRepository.save(openSession);
 
-            log.info("handleExitEvent: session closed id={} plate={} customer={} sessionType={} ticketId={}",
+            logger.info("handleExitEvent: session closed id={} plate={} customer={} sessionType={} ticketId={}",
                     openSession.getId(), vehicle.getPlateNumber(), customer.getId(),
                     openSession.getSessionType(), openSession.getTicketId());
 
@@ -282,19 +329,128 @@ public class DetectionMatchingService {
 
             ioTService.publishVehicleInfo(barrierId, openSession.getId(), vehicle.getPlateNumber(),
                     openSession.getEntryTime(), amount,
-//                paymentService.decodePaymentLink(qr.getPaymentLink())
-                    qr.getQrCode()
-            );
+                    // paymentService.decodePaymentLink(qr.getPaymentLink())
+                    qr.getQrCode());
 
         } catch (Exception ex) {
-            log.error("handleExitEvent: failed — type={}: {}", detection.getType(), ex.getMessage(), ex);
+            logger.error("handleExitEvent: failed — type={}: {}", detection.getType(), ex.getMessage(), ex);
         }
+    }
+
+    private String buildMatchKey(PendingEventDetection detection) {
+        String direction = detection.getDirectionType() != null ? detection.getDirectionType().name() : "UNKNOWN";
+        String barrierId = resolveBarrierId(detection);
+        if (barrierId == null || barrierId.isBlank()) {
+            return null;
+        }
+
+        return direction + ":" + barrierId;
+    }
+
+    private String resolveBarrierId(PendingEventDetection detection) {
+        if (detection == null || detection.getDirectionType() == null) {
+            return null;
+        }
+
+        if (detection.getDirectionType() == DirectionType.ENTRY) {
+            return detection.getEntryBarrierId();
+        }
+
+        if (detection.getDirectionType() == DirectionType.EXIT) {
+            return detection.getExitBarrierId();
+        }
+
+        return null;
+    }
+
+    private PendingEventDetection mergeEvents(PendingEventDetection first, PendingEventDetection second) {
+        PendingEventDetection merged = new PendingEventDetection();
+        merged.setType(first.getType() != null ? first.getType() : second.getType());
+        merged.setDirectionType(
+                first.getDirectionType() != null ? first.getDirectionType() : second.getDirectionType());
+        merged.setPlateNumber(first.getPlateNumber() != null ? first.getPlateNumber() : second.getPlateNumber());
+        merged.setProfileId(first.getProfileId() != null ? first.getProfileId() : second.getProfileId());
+        merged.setAiPlateId(first.getAiPlateId() != null ? first.getAiPlateId() : second.getAiPlateId());
+        merged.setEntryBarrierId(
+                first.getEntryBarrierId() != null ? first.getEntryBarrierId() : second.getEntryBarrierId());
+        merged.setEntryCameraId(
+                first.getEntryCameraId() != null ? first.getEntryCameraId() : second.getEntryCameraId());
+        merged.setEntryLaneId(first.getEntryLaneId() != null ? first.getEntryLaneId() : second.getEntryLaneId());
+        merged.setExitBarrierId(
+                first.getExitBarrierId() != null ? first.getExitBarrierId() : second.getExitBarrierId());
+        merged.setExitCameraId(first.getExitCameraId() != null ? first.getExitCameraId() : second.getExitCameraId());
+        merged.setExitLaneId(first.getExitLaneId() != null ? first.getExitLaneId() : second.getExitLaneId());
+        merged.setTimestampMs(Math.max(first.getTimestampMs(), second.getTimestampMs()));
+        return merged;
+    }
+
+    private void purgeExpiredEvents(Deque<PendingEventDetection> events, long now) {
+        while (!events.isEmpty()) {
+            PendingEventDetection head = events.peekFirst();
+            if (head == null) {
+                return;
+            }
+
+            if (now - head.getTimestampMs() <= MATCH_WINDOW_MS) {
+                return;
+            }
+
+            events.removeFirst();
+        }
+    }
+
+    private PendingEventDetection findAndRemoveMatch(Deque<PendingEventDetection> events,
+            PendingEventDetection incoming) {
+        PendingEventDetection match = null;
+        long bestDelta = Long.MAX_VALUE;
+
+        for (PendingEventDetection candidate : events) {
+            if (!isComplementary(candidate, incoming)) {
+                continue;
+            }
+
+            long delta = Math.abs(candidate.getTimestampMs() - incoming.getTimestampMs());
+            if (delta <= MATCH_WINDOW_MS && delta < bestDelta) {
+                bestDelta = delta;
+                match = candidate;
+            }
+        }
+
+        if (match != null) {
+            events.remove(match);
+        }
+
+        return match;
+    }
+
+    private boolean isComplementary(PendingEventDetection left, PendingEventDetection right) {
+        if (left == null || right == null) {
+            return false;
+        }
+
+        if (left.getDirectionType() == null || right.getDirectionType() == null) {
+            return false;
+        }
+
+        if (left.getDirectionType() != right.getDirectionType()) {
+            return false;
+        }
+
+        if (left.getType() == null || right.getType() == null) {
+            return false;
+        }
+
+        return (left.getType() == vio.barie.core.utils.DetectionType.FACE
+                && right.getType() == vio.barie.core.utils.DetectionType.PLATE)
+                || (left.getType() == vio.barie.core.utils.DetectionType.PLATE
+                        && right.getType() == vio.barie.core.utils.DetectionType.FACE);
     }
 
     private TicketEntity findValidMonthlyTicket(Long vehicleId) {
         // chỉ lấy ra vé gửi xe
         return ticketRepository.findByVehicleIdAndStatus(vehicleId, "ACTIVE")
-//                .filter(t -> t.getExpireAt() != null && t.getExpireAt().isAfter(LocalDateTime.now()))
+                // .filter(t -> t.getExpireAt() != null &&
+                // t.getExpireAt().isAfter(LocalDateTime.now()))
                 .orElse(null);
     }
 }

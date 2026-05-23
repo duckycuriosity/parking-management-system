@@ -5,7 +5,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.web.bind.annotation.*;
 import vio.barie.core.dto.ActivitySessionResponse;
-import vio.barie.core.dto.BuildingResponse;
 import vio.barie.core.dto.Result;
 import vio.barie.core.service.ParkingSessionService;
 
@@ -16,6 +15,15 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ActivitySessionController {
     private final ParkingSessionService parkingSessionService;
+
+    @GetMapping
+    public Result<Page<ActivitySessionResponse>> getAllActivities(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Page<ActivitySessionResponse> data = parkingSessionService.getAllActivities(PageRequest.of(page, size));
+        return Result.ok("Fetched all activities successfully", data);
+    }
 
     @GetMapping("/lane/{laneId}/latest")
     public Result<List<ActivitySessionResponse>> getTop10LaneActivities(@PathVariable Long laneId) {

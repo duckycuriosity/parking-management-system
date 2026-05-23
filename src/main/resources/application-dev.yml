@@ -69,13 +69,16 @@ megapay:
 ai:
   core:
     base-url: http://192.168.168.30:8088/api
-    user-agent: "Mozilla/5.0"
+    user-agent: Mozilla/5.0
     accept: "*/*"
     cookie: key=uO50EwSqoolz1OzU
     connection: close
+  face:
+    base-url: http://192.168.168.30:8088
+    cookie-key: uO50EwSqoolz1OzU
   ws:
     enabled: true
-#    url: "ws://192.168.168.30:8012/ws/Notify"
+    #    url: "ws://192.168.168.30:8012/ws/Notify"
     url: "wss://echo.websocket.org"
     reconnect-delay-ms: 3000
 
