@@ -5,7 +5,7 @@ spring:
         jwt:
           issuer-uri: ${KEYCLOAK_ISSUER_URI:https://sso.safelinksystem.app/realms/barie}
   datasource:
-    url: jdbc:postgresql://localhost:5434/barie
+    url: jdbc:postgresql://192.168.168.30:5434/barie
     username: barie_dev
     password: n7FuKNTV@@
     driver-class-name: org.postgresql.Driver
@@ -29,7 +29,7 @@ bootstrap:
     token: dev-bootstrap-token
 
 mqtt:
-  host: tcp://localhost:1883
+  host: tcp://192.168.168.30:1883
   username:
   password:
   client-id: barie-core-service-dev-1234123123
@@ -65,26 +65,26 @@ megapay:
 
 ai:
   core:
-    base-url: http://localhost:8088/api
+    base-url: http://192.168.168.30:8088/api
     user-agent: Mozilla/5.0
     accept: "*/*"
     cookie: key=uO50EwSqoolz1OzU
     connection: close
   face:
-    base-url: http://localhost:8088
+    base-url: http://192.168.168.30:8088
     cookie-key: uO50EwSqoolz1OzU
 
 vms:
   core:
-    base-url: http://localhost:8012/api
+    base-url: http://192.168.168.30:8012/api
     login-path: /LogIn
     data-path: /Data
     username: admin
     password: NAaW24Yc1mJyeiNH
     cookie: key=uO50EwSqoolz1OzU
-    origin: http://localhost:8012
-    login-referer: http://localhost:8012/auth
-    data-referer: http://localhost:8012/face-unknown
+    origin: http://192.168.168.30:8012
+    login-referer: http://192.168.168.30:8012/auth
+    data-referer: http://192.168.168.30:8012/face-unknown
     user-agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"
     accept: "*/*"
     accept-language: "vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5"
@@ -99,7 +99,7 @@ vms:
     url: "ws://192.168.168.30:8012/ws/Notify"
     reconnect-delay-ms: 3000
     cookie: key=uO50EwSqoolz1OzU
-    origin: http://localhost:8083
+    origin: http://192.168.168.30:8083
     user-agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"
     accept: "*/*"
     connection: keep-alive
