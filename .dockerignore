@@ -1,0 +1,47 @@
+# Build output
+build/
+.gradle/
+out/
+target/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+
+# Git
+.git/
+.github/
+.gitignore
+.gitattributes
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Docs (không cần trong image)
+*.md
+docs/
+
+# Docker files (tránh recursive copy)
+Dockerfile
+.dockerignore
+docker-compose*.yaml
+docker-compose*.yml
+
+# Env files (KHÔNG đưa vào image — sẽ inject runtime qua --env-file)
+.env
+.env.*
+
+# Claude / worktree metadata
+.claude/
+
+# Test reports
+**/test-results/
+**/reports/
