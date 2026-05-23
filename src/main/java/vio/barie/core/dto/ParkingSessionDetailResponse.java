@@ -16,10 +16,12 @@ public class ParkingSessionDetailResponse {
     private String plateNumber;
     private String userName;
     private String entryLaneName;
+    private String exitLaneName;
     private LocalDateTime entryTime;
     private LocalDateTime exitTime;
     private String sessionType;
     private String typeVehicle;
     private String fee;
     private String land;
+    private String status;
 }

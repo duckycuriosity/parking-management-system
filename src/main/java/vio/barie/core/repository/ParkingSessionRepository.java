@@ -47,26 +47,27 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
     Page<ActivitySessionResponse> getAllActivityHistory(Pageable pageable);
 
 
-    @Query("SELECT s FROM ParkingSessionEntity s " +
-            "LEFT JOIN FETCH s.vehicle v " +
-            "LEFT JOIN FETCH s.entryLane el " +
-            "LEFT JOIN FETCH s.exitLane xl " +
+    @Query("SELECT s, t.status FROM ParkingSessionEntity s " +
+            "LEFT JOIN s.vehicle v " +
+            "LEFT JOIN s.entryLane el " +
+            "LEFT JOIN s.exitLane xl " +
             "LEFT JOIN TicketEntity t ON s.ticketId = t.id " +
             "LEFT JOIN ParkingCustomerEntity c ON t.customerId = c.id " +
-            "WHERE (:activeOnly IS NULL " +
-            "   OR (:activeOnly = true AND s.exitTime IS NULL) " +
-            "   OR (:activeOnly = false AND s.exitTime IS NOT NULL)) " +
+            "WHERE s.parkingLot.id = :parkingLotId " +
             "AND (:username = '' OR LOWER(c.username) LIKE LOWER(CONCAT('%', :username, '%'))) " +
             "AND (:sessionType = '' OR s.sessionType = :sessionType) " +
             "AND (:typeVehicle = '' OR UPPER(v.vehicleType) = UPPER(:typeVehicle)) " +
             "AND (:entryLaneId IS NULL OR el.id = :entryLaneId) " +
-            "AND (:exitLaneId IS NULL OR xl.id = :exitLaneId)")
-    Page<ParkingSessionEntity> findAllWithFilters(
-            @Param("activeOnly") Boolean activeOnly,
+            "AND (:exitLaneId IS NULL OR xl.id = :exitLaneId) " +
+            "AND (:status = '' OR UPPER(t.status) = :status) " +
+            "ORDER BY s.entryTime DESC")
+    Page<Object[]> findAllByParkingLotWithFilters(
+            @Param("parkingLotId") Long parkingLotId,
             @Param("username") String userName,
             @Param("sessionType") String sessionType,
             @Param("typeVehicle") String typeVehicle,
             @Param("entryLaneId") Long entryLaneId,
             @Param("exitLaneId") Long exitLaneId,
+            @Param("status") String status,
             Pageable pageable);
 }
