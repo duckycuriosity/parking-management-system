@@ -1,0 +1,44 @@
+name: CI - Build & Push Image
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  DOCKER_REGISTRY: registry.viotech.local:5000
+  IMAGE_NAME: barie-core
+
+jobs:
+  build-and-push:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set tag
+        id: tag
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          echo "TAG=${TAG}" >> $GITHUB_OUTPUT
+          
+      - name: Build image
+        run: |
+          docker build \
+            -t ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.TAG }} \
+            -t ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            .
+
+      - name: Push to registry
+        run: |
+          docker push ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.TAG }}
+          docker push ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Show result
+        run: |
+          echo "Build & Push thành công"
+          echo "Tag   : ${{ steps.tag.outputs.TAG }}"
+          echo "Image : ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.TAG }}"
+          echo "Time  : $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "Bước pull image mới nhất được xử lý bởi Watchtower"
