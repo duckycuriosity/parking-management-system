@@ -45,3 +45,7 @@ docker-compose*.yml
 # Test reports
 **/test-results/
 **/reports/
+
+!gradle/
+!gradlew
+!gradlew.bat
