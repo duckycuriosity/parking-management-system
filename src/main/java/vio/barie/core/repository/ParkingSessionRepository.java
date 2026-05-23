@@ -51,10 +51,13 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "LEFT JOIN s.vehicle v " +
             "LEFT JOIN s.entryLane el " +
             "LEFT JOIN s.exitLane xl " +
+            "LEFT JOIN FETCH s.entryCustomer ec " +
             "LEFT JOIN TicketEntity t ON s.ticketId = t.id " +
             "LEFT JOIN ParkingCustomerEntity c ON t.customerId = c.id " +
             "WHERE s.parkingLot.id = :parkingLotId " +
-            "AND (:username = '' OR LOWER(c.username) LIKE LOWER(CONCAT('%', :username, '%'))) " +
+            "AND (:searchKey = '' " +
+            "     OR LOWER(ec.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) " +
+            "     OR LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%'))) " +
             "AND (:sessionType = '' OR s.sessionType = :sessionType) " +
             "AND (:typeVehicle = '' OR UPPER(v.vehicleType) = UPPER(:typeVehicle)) " +
             "AND (:entryLaneId IS NULL OR el.id = :entryLaneId) " +
@@ -63,7 +66,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "ORDER BY s.entryTime DESC")
     Page<Object[]> findAllByParkingLotWithFilters(
             @Param("parkingLotId") Long parkingLotId,
-            @Param("username") String userName,
+            @Param("searchKey") String searchKey,
             @Param("sessionType") String sessionType,
             @Param("typeVehicle") String typeVehicle,
             @Param("entryLaneId") Long entryLaneId,

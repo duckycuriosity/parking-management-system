@@ -37,21 +37,21 @@ public class ParkingSessionService {
     public Page<ActivitySessionResponse> getAllActivities(Pageable pageable) {
         return parkingSessionRepository.getAllActivityHistory(pageable);
     }
-    
+
     @Transactional(readOnly = true)
     public Page<ParkingSessionDetailResponse> getAllParkingSessionByParkingLot(
-            Long parkingLotId, String username, String sessionType, String typeVehicle,
+            Long parkingLotId, String searchKey, String sessionType, String typeVehicle,
             Long entryLaneId, Long exitLaneId, String status, Pageable pageable) {
 
 
-        String filterUsername = (username != null) ? username.trim() : "";
+        String filterSearch = (searchKey != null) ? searchKey.trim() : "";
         String filterSessionType = (sessionType != null && !sessionType.trim().isEmpty()) ? sessionType.trim().toUpperCase() : "";
         String filterTypeVehicle = (typeVehicle != null) ? typeVehicle.trim().toUpperCase() : "";
         String filterStatus = (status != null) ? status.trim().toUpperCase() : "";
 
 
         Page<Object[]> rawPage = parkingSessionRepository.findAllByParkingLotWithFilters(
-                parkingLotId, filterUsername, filterSessionType, filterTypeVehicle, entryLaneId, exitLaneId, filterStatus, pageable);
+                parkingLotId, filterSearch, filterSessionType, filterTypeVehicle, entryLaneId, exitLaneId, filterStatus, pageable);
 
 
         return rawPage.map(row -> {

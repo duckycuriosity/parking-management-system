@@ -20,7 +20,7 @@ public class ParkingSessionController {
     @GetMapping("/parking-lot/{parkingLotId}")
     public ResponseEntity<Page<ParkingSessionDetailResponse>> getParkingSessionsByParkingLot(
             @PathVariable Long parkingLotId,
-            @RequestParam(value = "search", required = false) String search,
+            @RequestParam(value = "searchKey", required = false) String searchKey,
             @RequestParam(value = "sessionType", required = false) String sessionType,
             @RequestParam(value = "typeVehicle", required = false) String typeVehicle,
             @RequestParam(value = "entryLaneId", required = false) Long entryLaneId,
@@ -43,7 +43,7 @@ public class ParkingSessionController {
 
 
         Page<ParkingSessionDetailResponse> response = parkingSessionService.getAllParkingSessionByParkingLot(
-                parkingLotId, search, sessionType, typeVehicle, entryLaneId, exitLaneId, status, pageable);
+                parkingLotId, searchKey, sessionType, typeVehicle, entryLaneId, exitLaneId, status, pageable);
 
         return ResponseEntity.ok(response);
     }
