@@ -3,10 +3,10 @@ package vio.barie.core.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import vio.barie.core.dto.ticket.TicketDTO;
 import vio.barie.core.entity.base.BaseEntity;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Entity
 @Table(name = "ticket")
@@ -14,9 +14,15 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 public class TicketEntity extends BaseEntity {
 
+    @Column(name = "ticket_type")
+    private String ticketType;
+
+    @Column(name = "customer_id")
+    private Long customerId;
+
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "device_id")
-    private DeviceEntity device;
+    @JoinColumn(name = "vehicle_id")
+    private VehicleEntity vehicle;
 
     @Column(name = "register_at", nullable = false)
     private LocalDateTime registerAt;
@@ -24,19 +30,19 @@ public class TicketEntity extends BaseEntity {
     @Column(name = "expire_at", nullable = false)
     private LocalDateTime expireAt;
 
-    @Column(name = "duration")
-    private String duration;
-
-    @Column(name = "type")
-    private String type; // 'DAY', 'MONTH', 'YEAR'
-
     @Column(name = "status")
-    private String status; // 'ACTIVE', 'DEAD'
+    private String status; // 'ACTIVE','DEAD'
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "payment_id")
-    private PaymentEntity payment;
-
-    @Column(name = "payment_method")
-    private String paymentMethod; // 'CASH', 'QR'
+    public static TicketDTO convertToDTO(TicketEntity entity) {
+        TicketDTO dto = new TicketDTO();
+        dto.setId(entity.getId());
+        dto.setVehicle(entity.getVehicle());
+        dto.setRegisterAt(entity.getRegisterAt());
+        dto.setExpireAt(entity.getExpireAt());
+        dto.setStatus(entity.getStatus());
+        dto.setCreatedAt(entity.getCreatedAt());
+        dto.setTicketType(entity.getTicketType());
+        dto.setCustomerId(entity.getCustomerId());
+        return dto;
+    }
 }

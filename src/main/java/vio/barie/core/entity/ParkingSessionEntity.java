@@ -17,8 +17,8 @@ public class ParkingSessionEntity extends BaseEntity {
     private ParkingLotEntity parkingLot;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "device_id", nullable = false)
-    private DeviceEntity device;
+    @JoinColumn(name = "vehicle_id", nullable = false)
+    private VehicleEntity vehicle;
 
     @Column(name = "entry_time", nullable = false)
     private LocalDateTime entryTime;
@@ -27,10 +27,30 @@ public class ParkingSessionEntity extends BaseEntity {
     private LocalDateTime exitTime;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "entry_lane_id") // Giả sử FK tới lane
+    @JoinColumn(name = "entry_customer_id")
+    private ParkingCustomerEntity entryCustomer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "exit_customer_id")
+    private ParkingCustomerEntity exitCustomer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "entry_lane_id")
     private LaneEntity entryLane;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "exit_lane_id") // Giả sử FK tới lane
+    @JoinColumn(name = "exit_lane_id")
     private LaneEntity exitLane;
+
+    @Column(name = "entry_barrier")
+    private String entryBarrier;
+
+    @Column(name = "exit_barrier")
+    private String exitBarrier;
+
+    @Column(name = "ticket_id")
+    private Long ticketId;
+
+    @Column(name = "session_type", nullable = false)
+    private String sessionType; // 'MONTHLY', 'QUARTERLY', 'YEARLY', 'DAILY'
 }

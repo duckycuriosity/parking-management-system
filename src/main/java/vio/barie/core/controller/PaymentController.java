@@ -1,16 +1,45 @@
 package vio.barie.core.controller;
 
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.bind.annotation.RestController;
-import tools.jackson.databind.util.JSONPObject;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import vio.barie.core.dto.payment.MegaPayResponse;
+import vio.barie.core.dto.payment.RefundRequest;
+import vio.barie.core.service.PaymentService;
 
-@RestController("/payment")
+import java.util.Map;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/payment")
+@RequiredArgsConstructor
 public class PaymentController {
 
-    @PostMapping("/callBackUrl")
-    public void callBack(@RequestBody String txt){
-        System.out.println(txt);
+    private final PaymentService paymentService;
+
+    // redirect ve UI
+    @GetMapping("/callback")
+    public ResponseEntity<Void> callback(@RequestParam Map<String, String> params) {
+        log.info("MegaPay callback: invoiceNo={}, resultCd={}",
+                params.get("invoiceNo"), params.get("resultCd"));
+        paymentService.handleCallback(params);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/ipn")
+    public ResponseEntity<String> ipn(@RequestBody MegaPayResponse params) {
+        log.info("MegaPay IPN: invoiceNo, resultCd={}",
+                params.getInvoiceNo(), params.getResultCd());
+        paymentService.handleIPN(params);
+        return ResponseEntity.ok("OK");
+    }
+
+    @GetMapping("/inquiry/{invoiceNo}")
+    public ResponseEntity<MegaPayResponse> inquiry(@PathVariable String invoiceNo) {
+        MegaPayResponse resp = paymentService.inquiryByInvoiceNo(invoiceNo);
+        if (resp == null) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(resp);
     }
 }

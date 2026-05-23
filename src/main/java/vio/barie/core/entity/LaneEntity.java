@@ -25,7 +25,9 @@ public class LaneEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parking_lot_id", nullable = false)
     private ParkingLotEntity parkingLot;
-//
-//    @OneToMany(mappedBy = "lane", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-//    private List<CameraEntity> cameras;
+    @OneToMany(mappedBy = "lane", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<CameraEntity> cameras;
+
+    @OneToMany(mappedBy = "lane", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<ParkingDeviceEntity> parkingDevices;
 }

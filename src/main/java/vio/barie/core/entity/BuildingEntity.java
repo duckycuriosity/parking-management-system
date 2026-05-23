@@ -18,8 +18,7 @@ public class BuildingEntity extends BaseEntity {
 
     @Column(name = "address", columnDefinition = "TEXT")
     private String address;
-
-//    // Quan hệ 1-n với ParkingLot
-//    @OneToMany(mappedBy = "building", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-//    private List<ParkingLotEntity> parkingLots;
+    // Quan hệ 1-n với ParkingLot
+    @OneToMany(mappedBy = "building", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<ParkingLotEntity> parkingLots;
 }

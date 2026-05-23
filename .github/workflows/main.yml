@@ -1,4 +1,4 @@
-name: CI - Build & Push Image
+name: CI - Build & Deploy
 
 on:
   push:
@@ -6,42 +6,72 @@ on:
       - 'v*'
 
 env:
-  DOCKER_REGISTRY: registry.viotech.local:5000
   IMAGE_NAME: barie-core
+  CONTAINER_NAME: barie-core
+  APP_PORT: 8080
 
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: self-hosted
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4  # nên dùng v4
 
       - name: Set tag
         id: tag
         run: |
           TAG=${GITHUB_REF#refs/tags/}
           echo "TAG=${TAG}" >> $GITHUB_OUTPUT
-          
+
       - name: Build image
         run: |
           docker build \
-            -t ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.TAG }} \
-            -t ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            -t ${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.TAG }} \
+            -t ${{ env.IMAGE_NAME }}:latest \
             .
 
-      - name: Push to registry
+      - name: Stop old container
         run: |
-          docker push ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.TAG }}
-          docker push ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker stop ${{ env.CONTAINER_NAME }} 2>/dev/null || true
+          docker rm   ${{ env.CONTAINER_NAME }} 2>/dev/null || true
 
-      - name: Cleanup Docker
-        run: docker image prune -a -f
+      - name: Run new container
+        run: |
+          docker run -d \
+            --name ${{ env.CONTAINER_NAME }} \
+            --restart unless-stopped \
+            -p ${{ env.APP_PORT }}:8080 \
+            ${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.TAG }}
+
+      - name: Health check
+        run: |
+          sleep 5
+          STATUS=$(docker inspect --format='{{.State.Status}}' ${{ env.CONTAINER_NAME }})
+          echo "Container status: $STATUS"
+          if [ "$STATUS" != "running" ]; then
+            echo "❌ Deploy FAILED — logs:"
+            docker logs ${{ env.CONTAINER_NAME }}
+            exit 1
+          fi
+          echo "✅ Container is running"
+
+      - name: Cleanup old images (giữ 3 bản gần nhất)
+        run: |
+          docker image prune -f
+          docker images ${{ env.IMAGE_NAME }} --format "{{.Tag}}" | \
+            grep -v latest | sort -rV | tail -n +4 | \
+            xargs -I {} docker rmi ${{ env.IMAGE_NAME }}:{} 2>/dev/null || true
 
       - name: Show result
         run: |
-          echo "Build & Push thành công"
-          echo "Tag   : ${{ steps.tag.outputs.TAG }}"
-          echo "Image : ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.TAG }}"
-          echo "Time  : $(date '+%Y-%m-%d %H:%M:%S')"
-          echo "Bước pull image mới nhất được xử lý bởi Watchtower"
+          echo "================================"
+          echo "✅ Build & Deploy thành công"
+          echo "Tag       : ${{ steps.tag.outputs.TAG }}"
+          echo "Image     : ${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.TAG }}"
+          echo "Container : ${{ env.CONTAINER_NAME }}"
+          echo "Port      : ${{ env.APP_PORT }}"
+          echo "Time      : $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "================================"
+          docker ps --filter "name=${{ env.CONTAINER_NAME }}" \
+            --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"

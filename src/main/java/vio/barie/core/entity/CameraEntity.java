@@ -3,6 +3,7 @@ package vio.barie.core.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import vio.barie.core.entity.base.BaseEntity;
 
 @Entity
@@ -10,6 +11,21 @@ import vio.barie.core.entity.base.BaseEntity;
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class CameraEntity extends BaseEntity {
+
+    @Column(name = "ai_camera_id", unique = true)
+    private Long aiCameraId;
+
+    @Column(name = "name")
+    private String name;
+
+    @Column(name = "uuid", unique = true)
+    private String uuid;
+
+    @Column(name = "url")
+    private String url;
+
+    @Column(name = "type")
+    private String type;
 
     @Column(name = "code")
     private String code;
@@ -20,7 +36,15 @@ public class CameraEntity extends BaseEntity {
     @Column(name = "status")
     private String status;
 
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "lane_id", nullable = false)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    @JoinColumn(name = "lane_id", nullable = true)
     private LaneEntity lane;
 }
