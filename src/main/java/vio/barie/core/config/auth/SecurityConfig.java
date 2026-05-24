@@ -83,13 +83,13 @@ public class SecurityConfig {
                             .permitAll()
                             .requestMatchers("/api/payment/callback", "/api/payment/ipn").permitAll();
 
-                    auth.anyRequest().authenticated();
+//                    auth.anyRequest().authenticated();
                 })
 
-                .oauth2ResourceServer(oauth2 -> oauth2
-                        .authenticationEntryPoint(customAuthEntryPoint())
-                        .jwt(jwt -> jwt
-                                .jwtAuthenticationConverter(jwtAuthConverter)))
+//                .oauth2ResourceServer(oauth2 -> oauth2
+//                        .authenticationEntryPoint(customAuthEntryPoint())
+//                        .jwt(jwt -> jwt
+//                                .jwtAuthenticationConverter(jwtAuthConverter)))
 
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(customAuthEntryPoint())
