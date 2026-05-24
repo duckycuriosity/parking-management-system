@@ -14,13 +14,12 @@ import vio.barie.core.service.PaymentService;
 import vio.barie.core.utils.DirectionType;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.ArrayDeque;
-import java.util.Deque;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
+import org.springframework.data.redis.core.RedisTemplate;
 
 @Service
 @RequiredArgsConstructor
@@ -39,53 +38,7 @@ public class DetectionMatchingService {
     private final ParkingMessageService ioTService;
     private final CalculatorService calculatorService;
     private final PaymentService paymentService;
-
-    private final ConcurrentMap<String, Deque<PendingEventDetection>> pendingEventsByKey = new ConcurrentHashMap<>();
-
-    public Optional<String> resolveBarrierId(Long cameraId, String role, Long laneId) {
-        try {
-            if (cameraId == null || laneId == null) {
-                return Optional.empty();
-            }
-
-            // Exact match: camera_id + role (each camera maps to one barrier with one role)
-            List<BarrierCameraEntity> mappings = barrierCameraRepository.findByCameraIdAndRoleIgnoreCase(cameraId,
-                    role);
-            if (mappings.isEmpty()) {
-                logger.debug("resolveBarrierId: no mapping found for cameraId={} role={}", cameraId, role);
-                return Optional.empty();
-            }
-
-            // Take first mapping (should be exactly 1)
-            String barrierId = mappings.get(0).getBarrierId();
-            if (barrierId == null || barrierId.isBlank()) {
-                return Optional.empty();
-            }
-
-            // Validate lane: fetch barrier with eager loading to avoid
-            // LazyInitializationException
-            BarrierEntity barrier = barrierRepository.findByBarrierIdWithDeviceAndLaneAndParkingLot(barrierId)
-                    .orElse(null);
-            if (barrier == null || barrier.getParkingDevice() == null || barrier.getParkingDevice().getLane() == null) {
-                logger.warn("resolveBarrierId: barrier {} has no lane configured", barrierId);
-                return Optional.empty();
-            }
-
-            Long barrierLaneId = barrier.getParkingDevice().getLane().getId();
-            if (!barrierLaneId.equals(laneId)) {
-                logger.warn(
-                        "resolveBarrierId: lane mismatch — barrier {} is in lane {}, but received event from lane {}",
-                        barrierId, barrierLaneId, laneId);
-                return Optional.empty();
-            }
-
-            return Optional.of(barrierId);
-        } catch (Exception ex) {
-            logger.error("resolveBarrierId: failed to resolve barrier for cameraId={} role={} laneId={}: {}",
-                    cameraId, role, laneId, ex.getMessage(), ex);
-            return Optional.empty();
-        }
-    }
+    private final RedisTemplate<String, PendingEventDetection> redisTemplate;
 
     /**
      * Ingest a detection event and try to match it with its counterpart.
@@ -116,31 +69,26 @@ public class DetectionMatchingService {
                 return;
             }
 
-            Deque<PendingEventDetection> buffer = pendingEventsByKey.computeIfAbsent(matchKey,
-                    key -> new ArrayDeque<>());
-
-            PendingEventDetection matched;
-            synchronized (buffer) {
-                purgeExpiredEvents(buffer, System.currentTimeMillis());
-                matched = findAndRemoveMatch(buffer, detection);
-                if (matched == null) {
-                    buffer.addLast(detection);
-                    logger.debug("ingest: buffered unmatched event type={} direction={} key={}",
-                            detection.getType(), detection.getDirectionType(), matchKey);
-                    return;
-                }
+            purgeExpiredEvents(matchKey, System.currentTimeMillis());
+            List<PendingEventDetection> buffer = redisTemplate.opsForList().range(matchKey, 0, -1);
+            if (buffer == null) {
+                buffer = Collections.emptyList();
             }
 
+            PendingEventDetection matched = findAndRemoveMatch(buffer, detection);
+            if (matched == null) {
+                redisTemplate.opsForList().rightPush(matchKey, detection);
+                redisTemplate.expire(matchKey, Duration.ofSeconds(MATCH_WINDOW_MS / 1000 + 30));
+                logger.debug("ingest: buffered unmatched event type={} direction={} key={}",
+                        detection.getType(), detection.getDirectionType(), matchKey);
+                return;
+            }
+
+            redisTemplate.opsForList().remove(matchKey, 1, matched);
             PendingEventDetection merged = mergeEvents(matched, detection);
             logger.info("ingest: matched events type={} direction={} key={}",
                     merged.getType(), merged.getDirectionType(), matchKey);
             emitMatch(merged);
-
-            synchronized (buffer) {
-                if (buffer.isEmpty()) {
-                    pendingEventsByKey.remove(matchKey, buffer);
-                }
-            }
         } catch (Exception ex) {
             logger.error("ingest: failed to process detection — type={} direction={}: {}",
                     detection.getType(), detection.getDirectionType(), ex.getMessage(), ex);
@@ -340,11 +288,28 @@ public class DetectionMatchingService {
     private String buildMatchKey(PendingEventDetection detection) {
         String direction = detection.getDirectionType() != null ? detection.getDirectionType().name() : "UNKNOWN";
         String barrierId = resolveBarrierId(detection);
-        if (barrierId == null || barrierId.isBlank()) {
+        Long laneId = resolveLaneId(detection);
+        if (barrierId == null || barrierId.isBlank() || laneId == null) {
             return null;
         }
 
-        return direction + ":" + barrierId;
+        return "detection:pending:" + direction + ":" + barrierId + ":" + laneId;
+    }
+
+    private Long resolveLaneId(PendingEventDetection detection) {
+        if (detection == null || detection.getDirectionType() == null) {
+            return null;
+        }
+
+        if (detection.getDirectionType() == DirectionType.ENTRY) {
+            return detection.getEntryLaneId();
+        }
+
+        if (detection.getDirectionType() == DirectionType.EXIT) {
+            return detection.getExitLaneId();
+        }
+
+        return null;
     }
 
     private String resolveBarrierId(PendingEventDetection detection) {
@@ -384,22 +349,23 @@ public class DetectionMatchingService {
         return merged;
     }
 
-    private void purgeExpiredEvents(Deque<PendingEventDetection> events, long now) {
-        while (!events.isEmpty()) {
-            PendingEventDetection head = events.peekFirst();
-            if (head == null) {
-                return;
-            }
+    private void purgeExpiredEvents(String matchKey, long now) {
+        List<PendingEventDetection> events = redisTemplate.opsForList().range(matchKey, 0, -1);
+        if (events == null || events.isEmpty()) {
+            return;
+        }
 
-            if (now - head.getTimestampMs() <= MATCH_WINDOW_MS) {
-                return;
+        for (PendingEventDetection event : events) {
+            if (event == null) {
+                continue;
             }
-
-            events.removeFirst();
+            if (now - event.getTimestampMs() > MATCH_WINDOW_MS) {
+                redisTemplate.opsForList().remove(matchKey, 1, event);
+            }
         }
     }
 
-    private PendingEventDetection findAndRemoveMatch(Deque<PendingEventDetection> events,
+    private PendingEventDetection findAndRemoveMatch(List<PendingEventDetection> events,
             PendingEventDetection incoming) {
         PendingEventDetection match = null;
         long bestDelta = Long.MAX_VALUE;
