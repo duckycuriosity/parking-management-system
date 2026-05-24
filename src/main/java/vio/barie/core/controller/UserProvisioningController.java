@@ -21,21 +21,21 @@ public class UserProvisioningController {
     private final UserProvisioningService userProvisioningService;
 
     @GetMapping("/me")
-    @PreAuthorize("isAuthenticated()")
+//    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> me() {
         UserResponseDTO dto = userProvisioningService.getProfile();
         return Result.success(dto);
     }
 
     @PutMapping("/updateProfile")
-    @PreAuthorize("isAuthenticated()")
+//    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> updateMe(@Valid @RequestBody UpdateProfileRequest request) {
         UserResponseDTO dto = userProvisioningService.updateProfile(request);
         return Result.success(dto);
     }
 
     @DeleteMapping
-    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_EDIT())")
+//    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_EDIT())")
     public ResponseEntity<?> deleteUser( @RequestBody List<Long> ids) {
         if (ids.size() > 15) throw new ServiceException("Cannot delete more record at once", 400);
         for (Long id : ids) {
@@ -45,13 +45,13 @@ public class UserProvisioningController {
     }
 
     @PostMapping("/create")
-    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_EDIT())")
+//    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_EDIT())")
     public ResponseEntity<?> createWithKeycloak(@Valid @RequestBody CreateKeycloakUserRequest request) {
         return Result.success(userProvisioningService.provision(request));
     }
 
     @PutMapping("/{userId}")
-    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_EDIT())")
+//    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_EDIT())")
     public ResponseEntity<UpdateUserResponse> updateUser(
             @PathVariable Long userId,
             @Valid @RequestBody UpdateUserRequest request) {
@@ -59,7 +59,7 @@ public class UserProvisioningController {
     }
 
     @PostMapping("/list")
-    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")
+//    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")
     public ResponseEntity<?> list(@Valid @RequestBody(required = false) UserPaginationRequest request) {
         if (request == null) {
             request = UserPaginationRequest.builder().build();
