@@ -62,27 +62,27 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> {
                     auth
                             // keep public endpoints
-                            .requestMatchers("/core/public/**").permitAll()
-                            .requestMatchers("/api/ingest/**",
-                                    "/webhook/stringee/**")
-                            .permitAll()
-                            // allow OpenAPI/Swagger UI and JSON (both with and without context-path)
-                            .requestMatchers("/admin/bootstrap/**",
-                                    "/api-docs/**",
-                                    "/v3/api-docs/**",
-                                    "/swagger-ui/**",
-                                    "/swagger-ui.html",
-                                    "/swagger-ui/index.html",
-                                    "/core/api-docs/**",
-                                    "/core/v3/api-docs/**",
-                                    "/core/swagger-ui/**",
-                                    "/core/swagger-ui.html",
-                                    "/core/swagger-ui/index.html",
-                                    "/profile-controller/findAll")
-
-                            .permitAll()
-                            .requestMatchers("/api/payment/callback", "/api/payment/ipn").permitAll();
-
+//                            .requestMatchers("/core/public/**").permitAll()
+//                            .requestMatchers("/api/ingest/**",
+//                                    "/webhook/stringee/**")
+//                            .permitAll()
+//                            // allow OpenAPI/Swagger UI and JSON (both with and without context-path)
+//                            .requestMatchers("/admin/bootstrap/**",
+//                                    "/api-docs/**",
+//                                    "/v3/api-docs/**",
+//                                    "/swagger-ui/**",
+//                                    "/swagger-ui.html",
+//                                    "/swagger-ui/index.html",
+//                                    "/core/api-docs/**",
+//                                    "/core/v3/api-docs/**",
+//                                    "/core/swagger-ui/**",
+//                                    "/core/swagger-ui.html",
+//                                    "/core/swagger-ui/index.html",
+//                                    "/profile-controller/findAll")
+//
+//                            .permitAll()
+//                            .requestMatchers("/api/payment/callback", "/api/payment/ipn").permitAll();
+                            .anyRequest().permitAll();
 //                    auth.anyRequest().authenticated();
                 })
 
