@@ -28,11 +28,13 @@ public class SysUserEntity extends BaseEntity {
     @Column(nullable = false, unique = true, length = 255)
     private String username;
 
-    //    @Column(name = "password_hash", nullable = false, length = 255)
+    @Column(name = "password_hash", length = 255)
     private String passwordHash;
+
+    @Column(length = 255)
     private String fullname;
 
-    @Column(name = "keycloak_user_id", nullable = false, unique = true, length = 100)
+    @Column(name = "keycloak_user_id", unique = true, length = 255)
     private String keycloakUserId;
 
     @Column(nullable = false, unique = true, length = 255)
@@ -41,15 +43,21 @@ public class SysUserEntity extends BaseEntity {
     @Column(nullable = false, length = 20)
     private String status;
 
-    @Column(nullable = false, length = 20)
+    @Column(length = 20)
     private String phone;
+
+    @Column(name = "created_by", length = 100)
+    private String createdBy;
+
+    @Column(name = "updated_by", length = 100)
+    private String updatedBy;
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     @ManyToMany
     @JoinTable(
-            name = "user_role",
+            name = "sys_user_role",
             joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "role_id")
     )
