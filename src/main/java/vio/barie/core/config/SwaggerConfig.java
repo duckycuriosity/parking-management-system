@@ -30,10 +30,10 @@ public class SwaggerConfig {
                         .license(new License()
                                 .name("Apache 2.0")
                                 .url("http://springdoc.org")))
-                .servers(List.of(
-                        new Server().url("http://localhost:8080").description("Local Server"),
-                        new Server().url("https://api.barie.com").description("Production Server")
-                ))
+//                .servers(List.of(
+//                        new Server().url("http://localhost:8080").description("Local Server"),
+//                        new Server().url("https://api.barie.com").description("Production Server")
+//                ))
                 .components(new Components());
     }
 }
