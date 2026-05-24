@@ -109,7 +109,7 @@ public class DetectionMatchingService {
         logger.warn("emitMatch: unknown direction type={}", detection.getDirectionType());
     }
 
-    private void handleEntryEvent(PendingEventDetection detection) {
+    public void handleEntryEvent(PendingEventDetection detection) {
         try {
             VehicleEntity vehicle = null;
             if (detection.getPlateNumber() != null) {
@@ -165,7 +165,7 @@ public class DetectionMatchingService {
 
             if (ticket.isPresent()) {
                 session.setTicketId(ticket.get().getId());
-                session.setSessionType("MONTHLY");
+                session.setSessionType(ticket.map(TicketEntity::getTicketType).orElse(""));
             } else {
                 session.setSessionType("DAILY");
             }
@@ -181,7 +181,7 @@ public class DetectionMatchingService {
         }
     }
 
-    private void handleExitEvent(PendingEventDetection detection) {
+    public void handleExitEvent(PendingEventDetection detection) {
         try {
             VehicleEntity vehicle = null;
             if (detection.getPlateNumber() != null) {
