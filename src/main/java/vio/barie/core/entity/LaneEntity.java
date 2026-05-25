@@ -4,8 +4,8 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import vio.barie.core.common.BaseStatus;
-import vio.barie.core.common.FlowType;
 import vio.barie.core.entity.base.BaseEntity;
+import vio.barie.core.utils.DirectionType;
 
 import java.util.List;
 
@@ -19,7 +19,7 @@ public class LaneEntity extends BaseEntity {
     private String name;
 
     @Enumerated(EnumType.STRING)
-    private FlowType type;
+    private DirectionType type;
 
     @Enumerated(EnumType.STRING)
     private BaseStatus status;

@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import vio.barie.core.common.BaseStatus;
-import vio.barie.core.common.FlowType;
+import vio.barie.core.utils.DirectionType;
 
 @Data
 public class LaneCreateRequest {
@@ -16,7 +16,7 @@ public class LaneCreateRequest {
 
 
     @NotNull(message = "Lane type is required")
-    private FlowType type;
+    private DirectionType type;
 
 
     @NotNull(message = "Lane status is required")

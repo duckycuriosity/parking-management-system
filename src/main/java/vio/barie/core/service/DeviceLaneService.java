@@ -4,10 +4,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import vio.barie.core.common.BaseStatus;
 import vio.barie.core.common.OperatingStatus;
-import vio.barie.core.common.RoleCamera;
 import vio.barie.core.dto.DeviceLaneResponse;
 import vio.barie.core.repository.DeviceLaneRepository;
 import vio.barie.core.repository.ParkingDeviceRepository;
+import vio.barie.core.utils.DetectionType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,7 +51,7 @@ public class DeviceLaneService {
                                 .name(row.getCameraName())
                                 .url(row.getCameraUrl())
                                 .type(parseEnum(BaseStatus.class, row.getCameraType()))
-                                .role(parseEnum(RoleCamera.class, row.getCameraRole()))
+                                .role(parseEnum(DetectionType.class, row.getCameraRole()))
                                 .build())
                         .distinct()
                         .collect(Collectors.toList());

@@ -23,6 +23,7 @@ public class ParkingDeviceEntity {
     @Column(name = "device_id", unique = true, nullable = false, length = 100)
     private String deviceId;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private OperatingStatus status;
 

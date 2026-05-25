@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import vio.barie.core.common.BaseStatus;
 import vio.barie.core.common.OperatingStatus;
-import vio.barie.core.common.RoleCamera;
+import vio.barie.core.utils.DetectionType;
 
 import java.util.List;
 
@@ -41,7 +41,7 @@ public class DeviceLaneResponse {
         private Long id;
         private String name;
         private String url;
-        private RoleCamera role; // Lấy từ bảng barrier_camera (plate, face)
+        private DetectionType role; // Lấy từ bảng barrier_camera (plate, face)
         private BaseStatus type;
     }
 }
