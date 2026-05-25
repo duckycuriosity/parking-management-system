@@ -14,5 +14,7 @@ public interface ParkingCustomerRepository extends JpaRepository<ParkingCustomer
 
     Optional<ParkingCustomerEntity> findByPhoneNumber(String phoneNumber);
 
+    ParkingCustomerEntity findCustomerById (Long id);
+
     Optional<ParkingCustomerEntity> findParkingCustomerByUsernameAndPhoneNumber(String username, String phoneNumber);
 }

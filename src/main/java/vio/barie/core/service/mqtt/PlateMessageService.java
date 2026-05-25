@@ -8,12 +8,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import vio.barie.core.dto.parking.PendingEventDetection;
-import vio.barie.core.entity.BarrierEntity;
-import vio.barie.core.entity.CameraEntity;
-import vio.barie.core.entity.VehicleEntity;
-import vio.barie.core.repository.BarrierRepository;
-import vio.barie.core.repository.CameraRepository;
-import vio.barie.core.repository.VehicleRepository;
+import vio.barie.core.entity.*;
+import vio.barie.core.repository.*;
 import vio.barie.core.utils.DetectionType;
 import vio.barie.core.utils.DirectionType;
 
@@ -32,9 +28,12 @@ public class PlateMessageService {
     private final VehicleRepository vehicleRepository;
     private final CameraRepository cameraRepository;
     private final AiMQTTEventBuffer aiEventBuffer;
-    private final DetectionMatchingService detectionMatchingService;
+    private final TicketRepository ticketRepository;
+    private final ParkingCustomerRepository parkingCustomerRepository;
+    private final ParkingSessionRepository parkingSessionRepository;
     private final ParkingMessageService parkingMessageService;
     private final BarrierRepository barrierRepository;
+    private final DetectionMatchingService detectionMatchingService;
     private final UUID uuid = UUID.randomUUID();
 
     public void handle(JsonNode event) {
@@ -72,37 +71,166 @@ public class PlateMessageService {
                 return;
             }
 
-            if (!vehicleRepository.existsByPlateNumber(plateNumber)) {
-                VehicleEntity newVehicle = new VehicleEntity();
-                newVehicle.setPlateNumber(plateNumber);
-                newVehicle.setAiIdentityPlateId("UNVERIFIED_" + uuid.toString());
-                newVehicle.setVehicleType("OTHER");
-                vehicleRepository.save(newVehicle);
-            }
+            DirectionType direction = DirectionType.valueOf(barrier.get().getDirection());
             VehicleEntity vehicle = vehicleRepository.findPlateByPlateNumber(plateNumber);
 
-            PendingEventDetection pd = new PendingEventDetection();
-            pd.setType(DetectionType.PLATE);
-            pd.setPlateNumber(plateNumber);
-
-            if (barrier.map(BarrierEntity::getDirection).orElse("").equals(DirectionType.ENTRY.toString().toLowerCase())) {
-                pd.setEntryLaneId(laneId);
-                pd.setEntryBarrierId(barrier.map(BarrierEntity::getBarrierId).orElse(null));
-                pd.setEntryCameraId(cameraInLane.getId());
-                pd.setDirectionType(DirectionType.ENTRY);
-                parkingMessageService.publishEntryVehicleInfo(barrier.map(BarrierEntity::getBarrierId).orElse(null), plateNumber, LocalDateTime.now());
-            } else if (barrier.map(BarrierEntity::getDirection).orElse("").equals(DirectionType.EXIT.toString().toLowerCase())) {
-                pd.setExitBarrierId(barrier.map(BarrierEntity::getBarrierId).orElse(null));
-                pd.setExitCameraId(cameraInLane.getId());
-                pd.setExitLaneId(laneId);
-                pd.setDirectionType(DirectionType.EXIT);
+            // If vehicle is registered with active ticket, handle as registered customer
+            if (vehicle != null && ticketRepository.existsByVehicleId(vehicle.getId())) {
+                handleRegisteredVehicle(vehicle, plateNumber, cameraInLane, barrier.get(), laneId, direction, cameraUUID);
+            } else {
+                // Otherwise handle as guest/unregistered vehicle
+                handleUnregisteredVehicle(plateNumber, cameraInLane, barrier.get(), laneId, direction);
             }
-            pd.setTimestampMs(System.currentTimeMillis());
 
-            aiEventBuffer.addPlateEvent(pd);
         } catch (Exception ex) {
             log.error("PlateMessageService: failed to handle plate event — payload={} error={}", event, ex.getMessage(),
                     ex);
         }
+    }
+
+    /**
+     * Handle plate event for registered customer (has active ticket)
+     * For ENTRY: immediately process without waiting for face match
+     * For EXIT: buffer event and wait for face match to verify identity
+     */
+    private void handleRegisteredVehicle(VehicleEntity vehicle, String plateNumber, 
+                                          CameraEntity cameraInLane, BarrierEntity barrier, 
+                                          long laneId, DirectionType direction, String cameraUUID) {
+        try {
+            Optional<TicketEntity> ticket = ticketRepository.findTicketByVehicleId(vehicle.getId());
+            if (ticket.isEmpty()) {
+                parkingMessageService.publishErrorWhenHandlingEvent(
+                    "Cannot find ticket for registered vehicle", cameraUUID, DetectionType.PLATE);
+                logger.warn("No ticket found for registered vehicle: plate={}", plateNumber);
+                return;
+            }
+
+            ParkingCustomerEntity customer = parkingCustomerRepository
+                    .findCustomerById(ticket.get().getCustomerId());
+            if (customer == null) {
+                parkingMessageService.publishErrorWhenHandlingEvent(
+                    "Customer not found for ticket", cameraUUID, DetectionType.PLATE);
+                logger.warn("Customer not found for vehicle: plate={}", plateNumber);
+                return;
+            }
+
+            PendingEventDetection event = buildPendingEventForRegistered(
+                    vehicle, customer, plateNumber, cameraInLane, barrier, laneId, direction);
+
+            if (direction == DirectionType.ENTRY) {
+                // For registered customers at entry: immediately process without face matching
+                logger.info("ENTRY registered vehicle plate={} customer={} — processing immediately", 
+                        plateNumber, customer.getId());
+                detectionMatchingService.handleEntryEvent(event);
+            } else if (direction == DirectionType.EXIT) {
+                // For registered customers at exit: buffer event and wait for face match
+                // to verify it's the same person who entered
+                logger.info("EXIT registered vehicle plate={} customer={} — buffering for face match", 
+                        plateNumber, customer.getId());
+                aiEventBuffer.addPlateEvent(event);
+            }
+
+        } catch (Exception ex) {
+            logger.error("handleRegisteredVehicle: failed to process registered vehicle — plate={} error={}", 
+                    plateNumber, ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Handle plate event for unregistered/guest vehicle
+     * Always buffer event and wait for face matching logic to create session
+     */
+    private void handleUnregisteredVehicle(String plateNumber, CameraEntity cameraInLane,
+                                           BarrierEntity barrier, long laneId, DirectionType direction) {
+        try {
+            // Create vehicle record for new unregistered vehicle
+            VehicleEntity newVehicle = createNewVehicle(plateNumber);
+            
+            PendingEventDetection event = buildPendingEventForUnregistered(
+                    plateNumber, cameraInLane, barrier, laneId, direction);
+
+            if (direction == DirectionType.ENTRY) {
+                // Notify entry of unregistered vehicle
+                parkingMessageService.publishEntryVehicleInfo(barrier.getBarrierId(), plateNumber, LocalDateTime.now());
+                logger.info("ENTRY unregistered vehicle plate={} — buffering for face + plate matching", plateNumber);
+            } else if (direction == DirectionType.EXIT) {
+                logger.info("EXIT unregistered vehicle plate={} — buffering for face + plate matching", plateNumber);
+            }
+
+            aiEventBuffer.addPlateEvent(event);
+
+        } catch (Exception ex) {
+            logger.error("handleUnregisteredVehicle: failed to process unregistered vehicle — plate={} error={}", 
+                    plateNumber, ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Create PendingEventDetection for registered customer (has ticket)
+     */
+    private PendingEventDetection buildPendingEventForRegistered(VehicleEntity vehicle,
+                                                                  ParkingCustomerEntity customer,
+                                                                  String plateNumber,
+                                                                  CameraEntity camera,
+                                                                  BarrierEntity barrier,
+                                                                  long laneId,
+                                                                  DirectionType direction) {
+        PendingEventDetection event = new PendingEventDetection();
+        event.setPlateNumber(plateNumber);
+        event.setAiPlateId(Integer.valueOf(vehicle.getAiIdentityPlateId()));
+        event.setType(DetectionType.PLATE);
+        event.setTimestampMs(System.currentTimeMillis());
+        event.setProfileId(customer.getAiProfileId());
+        event.setDirectionType(direction);
+
+        if (direction == DirectionType.ENTRY) {
+            event.setEntryBarrierId(barrier.getBarrierId());
+            event.setEntryCameraId(camera.getId());
+            event.setEntryLaneId(laneId);
+        } else {
+            event.setExitBarrierId(barrier.getBarrierId());
+            event.setExitCameraId(camera.getId());
+            event.setExitLaneId(laneId);
+        }
+
+        return event;
+    }
+
+    /**
+     * Create PendingEventDetection for unregistered vehicle (guest)
+     */
+    private PendingEventDetection buildPendingEventForUnregistered(String plateNumber,
+                                                                    CameraEntity camera,
+                                                                    BarrierEntity barrier,
+                                                                    long laneId,
+                                                                    DirectionType direction) {
+        PendingEventDetection event = new PendingEventDetection();
+        event.setType(DetectionType.PLATE);
+        event.setPlateNumber(plateNumber);
+        event.setTimestampMs(System.currentTimeMillis());
+        event.setDirectionType(direction);
+
+        if (direction == DirectionType.ENTRY) {
+            event.setEntryBarrierId(barrier.getBarrierId());
+            event.setEntryCameraId(camera.getId());
+            event.setEntryLaneId(laneId);
+        } else {
+            event.setExitBarrierId(barrier.getBarrierId());
+            event.setExitCameraId(camera.getId());
+            event.setExitLaneId(laneId);
+        }
+
+        return event;
+    }
+
+    /**
+     * Create new vehicle record for unregistered vehicle with temporary AI identity
+     */
+    private VehicleEntity createNewVehicle(String plateNumber) {
+        VehicleEntity vehicle = new VehicleEntity();
+        vehicle.setPlateNumber(plateNumber);
+        vehicle.setAiIdentityPlateId("UNVERIFIED_" + UUID.randomUUID().toString());
+        vehicle.setVehicleType("OTHER");
+        return vehicleRepository.save(vehicle);
     }
 }
