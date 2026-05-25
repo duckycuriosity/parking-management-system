@@ -1,6 +1,6 @@
 spring:
   redis:
-    host: host.docker.internal
+    host: 192.168.168.30
     port: 6379
   security:
     oauth2:
