@@ -71,7 +71,7 @@ public class PlateMessageService {
                 return;
             }
 
-            DirectionType direction = DirectionType.valueOf(barrier.get().getDirection());
+            DirectionType direction = DirectionType.valueOf(barrier.get().getDirection().toUpperCase());
             VehicleEntity vehicle = vehicleRepository.findPlateByPlateNumber(plateNumber);
 
             // If vehicle is registered with active ticket, handle as registered customer
