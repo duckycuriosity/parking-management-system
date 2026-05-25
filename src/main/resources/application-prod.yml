@@ -42,7 +42,7 @@ mqtt:
   max-inflight: 100
   clean-session: true
   device-register-topic: "parking/v1/client/#"
-  aibox-face-topic: "aibox/face"
+  aibox-face-topic: "aibox/facesearch"
   aibox-plate-topic: "aibox/licenseplate"
   publish-cmd-topic-prefix: "parking/v1/server"
   publish-cmd-topic-suffix: "/cmd"
