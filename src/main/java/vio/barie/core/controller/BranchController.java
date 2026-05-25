@@ -18,7 +18,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/branch")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")
+//@PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")
 public class BranchController {
 
     private final BranchService branchService;
@@ -28,7 +28,7 @@ public class BranchController {
         return Result.success(branchService.getById(id));
     }
 
-    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")
+//    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")
     @PostMapping("/list")
     public ResponseEntity<?> list(@Valid @RequestBody(required = false) BranchPaginationRequest paginationRequest) {
         if (paginationRequest == null) {
@@ -38,20 +38,20 @@ public class BranchController {
         return Result.success(result);
     }
 
-    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).ONLY_ORG_EDIT())")
+//    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).ONLY_ORG_EDIT())")
     @PostMapping
     public ResponseEntity<?> create(@Valid @RequestBody BranchCreateRequest request) {
         return Result.success(branchService.create(request));
     }
 
-    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_EDIT())")
+//    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_EDIT())")
     @PutMapping("/{id}")
     public ResponseEntity<?> update(
             @Valid @RequestBody BranchUpdateRequest request, @PathVariable Long id) {
         return Result.success(branchService.update(request, id));
     }
 
-    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).ONLY_ORG_EDIT())")
+//    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).ONLY_ORG_EDIT())")
     @DeleteMapping
     public ResponseEntity<?> delete(
             @RequestBody List<Long> ids) {

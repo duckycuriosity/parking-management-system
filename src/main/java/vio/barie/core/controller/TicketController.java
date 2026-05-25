@@ -21,20 +21,20 @@ public class TicketController {
 
     private final TicketService ticketService;
 
-    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).ONLY_ORG_EDIT())")
+//    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).ONLY_ORG_EDIT())")
     @PostMapping("/register")
     public Result<TicketEntity> register(@RequestBody TicketRegisterRequest req) {
         TicketEntity data = ticketService.registerTicket(req);
         return Result.ok("Thành công!", data);
     }
 
-    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")
+//    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")
     @GetMapping("/{id}")
     public Result<TicketEntity> getById(@PathVariable Long id) {
         return Result.ok(ticketService.getById(id));
     }
 
-    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")
+//    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")
     @PostMapping("/list")
     public Result<Page<TicketDTO>> list(@Valid @RequestBody(required = false) TicketPaginationRequest paginationRequest) {
         if (paginationRequest == null) {
