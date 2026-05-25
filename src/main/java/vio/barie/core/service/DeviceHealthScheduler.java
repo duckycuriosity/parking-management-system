@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import vio.barie.core.common.OperatingStatus;
 import vio.barie.core.entity.ParkingDeviceEntity;
 import vio.barie.core.repository.ParkingDeviceRepository;
 
@@ -31,7 +32,7 @@ public class DeviceHealthScheduler {
                 );
 
         for (ParkingDeviceEntity device : devices) {
-            device.setStatus("OFFLINE");
+            device.setStatus(OperatingStatus.OFFLINE);
             device.setDisconnectReason("PING_TIMEOUT");
         }
 

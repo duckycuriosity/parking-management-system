@@ -41,23 +41,21 @@ public class ParkingSessionService {
     @Transactional(readOnly = true)
     public Page<ParkingSessionDetailResponse> getAllParkingSessionByParkingLot(
             Long parkingLotId, String searchKey, String sessionType, String typeVehicle,
-            Long entryLaneId, Long exitLaneId, String status, Pageable pageable) {
+            Long entryLaneId, Long exitLaneId, String statusInOut, Pageable pageable) {
 
 
         String filterSearch = (searchKey != null) ? searchKey.trim() : "";
         String filterSessionType = (sessionType != null && !sessionType.trim().isEmpty()) ? sessionType.trim().toUpperCase() : "";
         String filterTypeVehicle = (typeVehicle != null) ? typeVehicle.trim().toUpperCase() : "";
-        String filterStatus = (status != null) ? status.trim().toUpperCase() : "";
+        String filterStatusInOut = (statusInOut != null) ? statusInOut.trim().toUpperCase() : "";
 
 
-        Page<Object[]> rawPage = parkingSessionRepository.findAllByParkingLotWithFilters(
-                parkingLotId, filterSearch, filterSessionType, filterTypeVehicle, entryLaneId, exitLaneId, filterStatus, pageable);
+        Page<ParkingSessionEntity> entityPage = parkingSessionRepository.findAllByParkingLotWithFilters(
+                parkingLotId, filterSearch, filterSessionType, filterTypeVehicle, entryLaneId, exitLaneId, filterStatusInOut, pageable);
 
 
-        return rawPage.map(row -> {
+        return entityPage.map(entity -> {
             // Ép kiểu mảng trả về: Vị trí 0 là SessionEntity, vị trí 1 là Ticket Status
-            ParkingSessionEntity entity = (ParkingSessionEntity) row[0];
-            String ticketStatus = (String) row[1];
 
 
             String formattedFee = "0 đ";
@@ -73,14 +71,18 @@ public class ParkingSessionService {
             String exitName = entity.getExitLane() != null ? entity.getExitLane().getName() : "Chưa ra";
 
 
-            String finalStatus = (ticketStatus != null) ? ticketStatus.toUpperCase() : "UNKNOWN";
+            String finalStatus;
             String finalExitLaneName;
             String displayLand;
 
-            if ("ACTIVE".equals(finalStatus)) {
+            if (entity.getExitTime() == null) {
+                // Đang trong bãi (Chỉ có Entry, chưa có Exit)
+                finalStatus = "IN";
                 finalExitLaneName = null;
                 displayLand = entryName;
             } else {
+                // Đã ra khỏi bãi (Có cả Entry và Exit)
+                finalStatus = "OUT";
                 finalExitLaneName = exitName;
                 displayLand = entryName + " -> " + exitName;
             }
@@ -95,7 +97,7 @@ public class ParkingSessionService {
                     .fee(formattedFee)
                     .userName(entity.getEntryCustomer() != null ? entity.getEntryCustomer().getUsername() : "Updating")
                     .land(displayLand)
-                    .status(finalStatus)
+                    .statusInOut(finalStatus)
                     .exitLaneName(finalExitLaneName)
                     .build();
         });

@@ -25,7 +25,7 @@ public class ParkingSessionController {
             @RequestParam(value = "typeVehicle", required = false) String typeVehicle,
             @RequestParam(value = "entryLaneId", required = false) Long entryLaneId,
             @RequestParam(value = "exitLaneId", required = false) Long exitLaneId,
-            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "statusInOut", required = false) String statusInOut,
             @PageableDefault(page = 0, size = 10, sort = "entryTime", direction = Sort.Direction.DESC) Pageable pageable
     ) {
 
@@ -43,7 +43,7 @@ public class ParkingSessionController {
 
 
         Page<ParkingSessionDetailResponse> response = parkingSessionService.getAllParkingSessionByParkingLot(
-                parkingLotId, searchKey, sessionType, typeVehicle, entryLaneId, exitLaneId, status, pageable);
+                parkingLotId, searchKey, sessionType, typeVehicle, entryLaneId, exitLaneId, statusInOut, pageable);
 
         return ResponseEntity.ok(response);
     }

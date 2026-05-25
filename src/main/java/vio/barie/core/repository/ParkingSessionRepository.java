@@ -47,7 +47,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
     Page<ActivitySessionResponse> getAllActivityHistory(Pageable pageable);
 
 
-    @Query("SELECT s, t.status FROM ParkingSessionEntity s " +
+    @Query("SELECT s FROM ParkingSessionEntity s " +
             "LEFT JOIN s.vehicle v " +
             "LEFT JOIN s.entryLane el " +
             "LEFT JOIN s.exitLane xl " +
@@ -62,15 +62,17 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "AND (:typeVehicle = '' OR UPPER(v.vehicleType) = UPPER(:typeVehicle)) " +
             "AND (:entryLaneId IS NULL OR el.id = :entryLaneId) " +
             "AND (:exitLaneId IS NULL OR xl.id = :exitLaneId) " +
-            "AND (:status = '' OR UPPER(t.status) = :status) " +
+            "AND (:statusInOut = '' " +
+            "     OR (:statusInOut = 'IN' AND s.exitTime IS NULL) " +
+            "     OR (:statusInOut = 'OUT' AND s.exitTime IS NOT NULL)) " +
             "ORDER BY s.entryTime DESC")
-    Page<Object[]> findAllByParkingLotWithFilters(
+    Page<ParkingSessionEntity> findAllByParkingLotWithFilters(
             @Param("parkingLotId") Long parkingLotId,
             @Param("searchKey") String searchKey,
             @Param("sessionType") String sessionType,
             @Param("typeVehicle") String typeVehicle,
             @Param("entryLaneId") Long entryLaneId,
             @Param("exitLaneId") Long exitLaneId,
-            @Param("status") String status,
+            @Param("statusInOut") String statusInOut,
             Pageable pageable);
 }
