@@ -143,8 +143,10 @@ public class PlateMessageService {
     private void handleUnregisteredVehicle(String plateNumber, CameraEntity cameraInLane,
                                            BarrierEntity barrier, long laneId, DirectionType direction) {
         try {
-            // Create vehicle record for new unregistered vehicle
-            VehicleEntity newVehicle = createNewVehicle(plateNumber);
+            if (!vehicleRepository.existsByPlateNumber(plateNumber)) {
+                logger.info("Vehicle with plate={} exists but no active ticket — treating as unregistered", plateNumber);
+                VehicleEntity newVehicle = createNewVehicle(plateNumber);
+            }
             
             PendingEventDetection event = buildPendingEventForUnregistered(
                     plateNumber, cameraInLane, barrier, laneId, direction);
