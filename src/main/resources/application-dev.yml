@@ -1,4 +1,7 @@
 spring:
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
   security:
     oauth2:
       resourceserver:
@@ -35,14 +38,14 @@ mqtt:
   host: tcp://lab.viotech.com.vn:11883
   username:
   password:
-  client-id: barie-core-service-dev-12
+  client-id: barie-core-service-dev-1874
   # tuning values for diagnostics; adjust as needed
   keep-alive-seconds: 120
   connection-timeout-seconds: 60
   max-inflight: 100
   clean-session: true
   device-register-topic: "parking/v1/client/#"
-  aibox-face-topic: "aibox/face"
+  aibox-face-topic: "aibox/facesearch"
   aibox-plate-topic: "aibox/licenseplate"
   publish-cmd-topic-prefix: "parking/v1/server"
   publish-cmd-topic-suffix: "/cmd"

@@ -14,11 +14,10 @@ public class PendingEventDetection {
     Long exitCameraId;
     Long exitLaneId;
 
-    DetectionType type;  // FACE | PLATE
+    DetectionType type; // FACE | PLATE
     DirectionType directionType; // ENTRY | EXIT
     Integer profileId;
     String plateNumber;
-    Integer aiPlateId;
+    String aiPlateId;
     long timestampMs;
 }
-

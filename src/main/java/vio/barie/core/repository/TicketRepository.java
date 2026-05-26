@@ -10,4 +10,6 @@ public interface TicketRepository extends JpaRepository<TicketEntity, Long>, Jpa
     Optional<TicketEntity> findByVehicleIdAndStatus (Long vehicleId,String status);
     Optional<TicketEntity> findById(Long Id);
     Optional<TicketEntity> findTicketByCustomerIdAndVehicleId(Long customerId, Long vehicleId);
+    Boolean existsByVehicleId(Long vehicleId);
+    Optional<TicketEntity> findTicketByVehicleId(Long vehicleId);
 }
