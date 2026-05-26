@@ -72,4 +72,12 @@ public class PaymentEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sys_user_id", referencedColumnName = "id")
     private SysUserEntity sysUser;
+
+    /** them truong cho SePay */
+    @Column(name = "sepay_tx_id", unique = true)
+    private Long sepayTxId;
+    @Column(name = "gateway", length = 50)
+    private String gateway;
+    @Column(name = "reference_code", length = 100)
+    private String referenceCode;
 }
