@@ -3,6 +3,7 @@ package vio.barie.core.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import vio.barie.core.common.BaseStatus;
 import vio.barie.core.entity.base.BaseEntity;
 
 import java.util.List;
@@ -19,6 +20,13 @@ public class ParkingLotEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "building_id", nullable = false)
     private BuildingEntity building;
+
+    @Column(name = "description")
+    private String description;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
+    private BaseStatus status;
 
     // Quan hệ 1-n với Lane
     @OneToMany(mappedBy = "parkingLot", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

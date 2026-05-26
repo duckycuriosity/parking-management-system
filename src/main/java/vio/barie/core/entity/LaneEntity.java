@@ -21,6 +21,9 @@ public class LaneEntity extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private DirectionType type;
 
+    @Column(name = "description")
+    private String description;
+
     @Enumerated(EnumType.STRING)
     private BaseStatus status;
 

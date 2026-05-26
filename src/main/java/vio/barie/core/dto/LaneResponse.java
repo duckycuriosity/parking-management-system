@@ -8,7 +8,9 @@ import vio.barie.core.utils.DirectionType;
 public class LaneResponse {
     private Long id;
     private String name;
+    private String parkingLotName;
     private DirectionType type;
+    private String description;
     private BaseStatus status;
     private Long parkingLotId;
     private java.time.LocalDateTime createdAt;

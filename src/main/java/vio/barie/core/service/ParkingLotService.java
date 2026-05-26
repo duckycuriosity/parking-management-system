@@ -30,8 +30,11 @@ public class ParkingLotService {
         ParkingLotEntity entity = parkingLotMapper.toEntity(request);
         entity.setBuilding(building);
 
+        entity.setDescription(request.getDescription());
+        entity.setStatus(request.getStatus());
         ParkingLotEntity saved = parkingLotRepository.save(entity);
         return parkingLotMapper.toResponse(saved);
+
     }
 
     public List<ParkingLotResponse> findAll() {
@@ -43,7 +46,7 @@ public class ParkingLotService {
                 .orElseThrow(() -> new BusinessException("Parking lot not found", "PARKING_LOT_NOT_FOUND", 404));
         return parkingLotMapper.toResponse(entity);
     }
-    
+
     @Transactional
     public ParkingLotResponse update(Long id, ParkingLotCreateRequest request) {
         ParkingLotEntity entity = parkingLotRepository.findById(id)
@@ -54,7 +57,8 @@ public class ParkingLotService {
 
         entity.setName(request.getName());
         entity.setBuilding(building);
-
+        entity.setDescription(request.getDescription());
+        entity.setStatus(request.getStatus());
         ParkingLotEntity saved = parkingLotRepository.save(entity);
         return parkingLotMapper.toResponse(saved);
     }

@@ -12,7 +12,10 @@ public class ParkingLotMapper {
 
     public ParkingLotEntity toEntity(ParkingLotCreateRequest request) {
         ParkingLotEntity entity = new ParkingLotEntity();
+
         entity.setName(request.getName());
+        entity.setDescription(request.getDescription());
+        entity.setStatus(request.getStatus());
         return entity;
     }
 
@@ -24,6 +27,8 @@ public class ParkingLotMapper {
             resp.setBuildingId(entity.getBuilding().getId());
             resp.setBuildingName(entity.getBuilding().getName());
         }
+        resp.setDescription(entity.getDescription());
+        resp.setStatus(entity.getStatus());
         resp.setCreatedAt(entity.getCreatedAt());
         return resp;
     }
