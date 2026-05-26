@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
+import vio.barie.core.common.BaseStatus;
 import vio.barie.core.entity.base.BaseEntity;
 
 @Entity
@@ -24,8 +25,9 @@ public class CameraEntity extends BaseEntity {
     @Column(name = "url")
     private String url;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "type")
-    private String type;
+    private BaseStatus type;
 
     @Column(name = "code")
     private String code;
@@ -33,8 +35,12 @@ public class CameraEntity extends BaseEntity {
     @Column(name = "ip_address")
     private String ipAddress;
 
+    @Column(name = "description")
+    private String description;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "status")
-    private String status;
+    private BaseStatus status;
 
     @Column(name = "latitude")
     private Double latitude;

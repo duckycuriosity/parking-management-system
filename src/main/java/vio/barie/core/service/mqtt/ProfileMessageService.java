@@ -86,12 +86,14 @@ public class ProfileMessageService {
             pd.setType(DetectionType.FACE);
             pd.setProfileId(profileId);
 
-            if (barrier.map(BarrierEntity::getDirection).orElse("").equals(DirectionType.ENTRY.toString().toLowerCase())) {
+            DirectionType barrierDirection = barrier.map(BarrierEntity::getDirection).orElse(null);
+
+            if (barrierDirection == DirectionType.ENTRY) {
                 pd.setEntryLaneId(laneId);
                 pd.setEntryBarrierId(barrier.map(BarrierEntity::getBarrierId).orElse(null));
                 pd.setEntryCameraId(cameraInLane.getId());
                 pd.setDirectionType(DirectionType.ENTRY);
-            } else if (barrier.map(BarrierEntity::getDirection).orElse("").equals(DirectionType.EXIT.toString().toLowerCase())) {
+            } else if (barrierDirection == DirectionType.EXIT) {
                 pd.setExitBarrierId(barrier.map(BarrierEntity::getBarrierId).orElse(null));
                 pd.setExitCameraId(cameraInLane.getId());
                 pd.setExitLaneId(laneId);

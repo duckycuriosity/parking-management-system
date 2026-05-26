@@ -18,6 +18,7 @@ import vio.barie.core.repository.BarrierRepository;
 import vio.barie.core.repository.ParkingDeviceRepository;
 import vio.barie.core.repository.ParkingMessageRepository;
 import vio.barie.core.utils.DetectionType;
+import vio.barie.core.utils.DirectionType;
 import vio.barie.core.utils.MqttErrorCommand;
 
 import java.math.BigDecimal;
@@ -60,13 +61,21 @@ public class ParkingMessageService {
             json.path("barriers").forEach(barrier -> {
                 BarrierEntity saveBarrier = new BarrierEntity();
                 saveBarrier.setBarrierId(barrier.path("barrier_id").asText());
-                saveBarrier.setDirection(barrier.path("direction").asText());
+                String directionStr = barrier.path("direction").asText();
+                if (directionStr != null && !directionStr.isBlank()) {
+                    try {
+                        saveBarrier.setDirection(DirectionType.valueOf(directionStr.toUpperCase()));
+                    } catch (IllegalArgumentException e) {
+                        log.warn("Invalid direction value from MQTT payload for barrier {}: {}",
+                                saveBarrier.getBarrierId(), directionStr);
+                    }
+                }
                 saveBarrier.setDescription(barrier.path("description").asText());
                 saveBarrier.setModbusAddr(barrier.path("modbus_addr").asInt());
                 saveBarrier.setParkingDevice(device);
-
                 BarrierEntity existing = barrierRepository.findByBarrierId(saveBarrier.getBarrierId()).orElse(null);
                 if (existing != null) {
+                    // Khi thiết bị connect, nó lấy dữ liệu từ JSON đẩy đè vào DB
                     existing.setDirection(saveBarrier.getDirection());
                     existing.setDescription(saveBarrier.getDescription());
                     existing.setModbusAddr(saveBarrier.getModbusAddr());

@@ -1,20 +1,16 @@
 package vio.barie.core.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vio.barie.core.dto.Result;
 import vio.barie.core.dto.camera.CameraCreateRequest;
 import vio.barie.core.dto.camera.CameraResponse;
-import vio.barie.core.dto.vms.LiveStreamRequestDTO;
 import vio.barie.core.service.CameraService;
 
 import java.util.List;
 
 @RestController
-@RequestMapping
+@RequestMapping("/api/camera")
 @RequiredArgsConstructor
 public class CameraController {
     private final CameraService cameraService;
@@ -26,18 +22,31 @@ public class CameraController {
                 createdCamera);
     }
 
-//    @PostMapping("/start")
-//    public ResponseEntity<JsonNode> startLiveStream(@Valid @RequestBody LiveStreamRequestDTO request) {
-//        JsonNode response = cameraService.startLiveSteam(request);
-//        return ResponseEntity.ok(response);
-//    }
 
-    @GetMapping("/list")
+    @GetMapping
     public Result<List<CameraResponse>> getCameraList() {
         List<CameraResponse> response = cameraService.getCameraList();
-        return Result.ok("Get list cameras successfully",
-                response
-        );
+        return Result.ok("Get list cameras successfully", response);
+    }
+
+    @GetMapping("/{id}")
+    public Result<CameraResponse> getCameraById(@PathVariable Long id) {
+        CameraResponse response = cameraService.getCameraById(id);
+        return Result.ok("Get camera successfully", response);
+    }
+
+    @PutMapping("/{id}")
+    public Result<CameraResponse> updateCamera(
+            @PathVariable Long id,
+            @RequestBody CameraCreateRequest request) {
+        CameraResponse response = cameraService.updateCamera(id, request);
+        return Result.ok("Camera updated successfully", response);
+    }
+
+    @DeleteMapping("/{id}")
+    public Result<CameraResponse> deleteCamera(@PathVariable Long id) {
+        cameraService.deleteCamera(id);
+        return Result.ok("Camera deleted successfully", null);
     }
 
 }

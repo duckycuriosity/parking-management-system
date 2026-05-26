@@ -13,6 +13,4 @@ public class CameraCreateRequest {
 
     @NotBlank
     private String url;
-
-    private int id = 0;
 }

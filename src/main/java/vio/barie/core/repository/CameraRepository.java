@@ -5,9 +5,16 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import vio.barie.core.entity.CameraEntity;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface CameraRepository extends JpaRepository<CameraEntity, Long> {
+    @Query("SELECT c FROM CameraEntity c LEFT JOIN FETCH c.lane l LEFT JOIN FETCH l.parkingLot")
+    List<CameraEntity> findAllWithRelations();
+
+    @Query("SELECT c FROM CameraEntity c LEFT JOIN FETCH c.lane l LEFT JOIN FETCH l.parkingLot WHERE c.id = :id")
+    Optional<CameraEntity> findByIdWithRelations(@Param("id") Long id);
+    
     @Query("SELECT c FROM CameraEntity c JOIN FETCH c.lane WHERE c.id = :id")
     Optional<CameraEntity> findByIdWithLane(@Param("id") Long id);
 
