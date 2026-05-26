@@ -25,7 +25,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 @RequiredArgsConstructor
 public class DetectionMatchingService {
 
-    private static final long MATCH_WINDOW_MS = 10_000L; // 10 seconds
+    private static final long MATCH_WINDOW_MS = 120_000L; // 2 minutes
 
     private static final Logger logger = LoggerFactory.getLogger(DetectionMatchingService.class);
 
