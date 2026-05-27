@@ -1,2 +1,2 @@
 ALTER TABLE public.lane
-    ADD COLUMN location VARCHAR(255);
+    ADD COLUMN IF NOT EXISTS location VARCHAR(255);
