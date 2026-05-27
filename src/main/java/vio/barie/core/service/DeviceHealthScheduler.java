@@ -28,7 +28,7 @@ public class DeviceHealthScheduler {
         List<ParkingDeviceEntity> devices =
                 deviceRepository.findByLastSeenBeforeAndStatus(
                         threshold,
-                        "ONLINE"
+                        OperatingStatus.ONLINE
                 );
 
         for (ParkingDeviceEntity device : devices) {
