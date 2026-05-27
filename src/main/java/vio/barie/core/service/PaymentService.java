@@ -16,9 +16,13 @@ import vio.barie.core.common.TicketStatus;
 import vio.barie.core.common.TicketType;
 import vio.barie.core.config.exception.ServiceException;
 import vio.barie.core.config.payment.MegaPayConfig;
+import vio.barie.core.dto.parking.PaymentMessage;
+import vio.barie.core.dto.parking.PaymentSuccessCommand;
 import vio.barie.core.dto.payment.*;
+import vio.barie.core.entity.ParkingSessionEntity;
 import vio.barie.core.entity.PaymentEntity;
 import vio.barie.core.entity.TicketEntity;
+import vio.barie.core.repository.ParkingSessionRepository;
 import vio.barie.core.repository.PaymentRepository;
 import vio.barie.core.repository.TicketRepository;
 import vio.barie.core.service.mqtt.ParkingMessageService;
@@ -34,6 +38,7 @@ import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.util.Calendar;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static cn.hutool.core.convert.Convert.hexToBytes;
@@ -46,6 +51,7 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final PaymentGateway paymentGateway; // inject adapter vào đây
 
+    @Transactional
     public PaymentEntity createSessionPayment(
             String invoiceNo,
             BigDecimal amount,
@@ -58,6 +64,9 @@ public class PaymentService {
             Long laneId,
             LocalDateTime exitTime
     ) {
+        // Mark any previous PENDING payment for this session as FAILED (superseded)
+        failPendingPaymentsForSession(sessionId);
+
         PaymentEntity payment = new PaymentEntity();
 
         payment.setInvoiceNo(invoiceNo);
@@ -90,6 +99,9 @@ public class PaymentService {
             Long ticketId
 //            Long customerId
     ) {
+        // Mark any previous PENDING payment for this ticket as FAILED (superseded)
+        failPendingPaymentsForTicket(ticketId);
+
         PaymentEntity payment = new PaymentEntity();
 
         payment.setInvoiceNo(invoiceNo);
@@ -120,6 +132,30 @@ public class PaymentService {
     public PaymentInquiryResponse inquiryByInvoiceNo(String invoiceNo){
         return paymentGateway.inquiryByInvoiceNo(invoiceNo);
     };
-    
-    
+
+    private void failPendingPaymentsForSession(Long sessionId) {
+        if (sessionId == null) return;
+        java.util.List<PaymentEntity> stale =
+                paymentRepository.findPendingBySessionId(String.valueOf(sessionId));
+        if (stale.isEmpty()) return;
+        for (PaymentEntity p : stale) {
+            p.setStatus("FAILED");
+            p.setResultMessage("Superseded by new payment attempt");
+        }
+        paymentRepository.saveAll(stale);
+        log.info("Marked {} stale PENDING payment(s) as FAILED for sessionId={}", stale.size(), sessionId);
+    }
+
+    private void failPendingPaymentsForTicket(Long ticketId) {
+        if (ticketId == null) return;
+        java.util.List<PaymentEntity> stale =
+                paymentRepository.findPendingByTicketId(String.valueOf(ticketId));
+        if (stale.isEmpty()) return;
+        for (PaymentEntity p : stale) {
+            p.setStatus("FAILED");
+            p.setResultMessage("Superseded by new payment attempt");
+        }
+        paymentRepository.saveAll(stale);
+        log.info("Marked {} stale PENDING payment(s) as FAILED for ticketId={}", stale.size(), ticketId);
+    }
 }

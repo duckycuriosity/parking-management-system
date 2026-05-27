@@ -7,6 +7,7 @@ import vio.barie.core.entity.PaymentEntity;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
@@ -47,4 +48,25 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
     java.util.List<Object[]> revenueGroupByCallbackType(@Param("status") String status,
                                                         @Param("from") LocalDateTime from,
                                                         @Param("to")   LocalDateTime to);
+
+    @Query(value = "SELECT * FROM payment " +
+            "WHERE callback_type = 'SESSION' " +
+            "AND status = 'PENDING' " +
+            "AND callback_context->>'sessionId' = :sessionId",
+            nativeQuery = true)
+    List<PaymentEntity> findPendingBySessionId(@Param("sessionId") String sessionId);
+
+    @Query(value = "SELECT * FROM payment " +
+            "WHERE callback_type = 'TICKET' " +
+            "AND status = 'PENDING' " +
+            "AND callback_context->>'ticketId' = :ticketId",
+            nativeQuery = true)
+    List<PaymentEntity> findPendingByTicketId(@Param("ticketId") String ticketId);
+
+    @Query(value = "SELECT * FROM payment " +
+            "WHERE callback_type = 'SESSION' " +
+            "AND callback_context->>'sessionId' = :sessionId " +
+            "ORDER BY created_at DESC LIMIT 1",
+            nativeQuery = true)
+    Optional<PaymentEntity> findLatestBySessionId(@Param("sessionId") String sessionId);
 }

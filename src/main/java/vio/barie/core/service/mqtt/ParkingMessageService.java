@@ -1,21 +1,18 @@
 package vio.barie.core.service.mqtt;
 
+import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import vio.barie.core.dto.parking.OpenCmdCommand;
-import vio.barie.core.dto.parking.PaymentConfirmedCommand;
-import vio.barie.core.dto.parking.PaymentSuccessCommand;
-import vio.barie.core.dto.parking.VehicleInfoCommand;
-import vio.barie.core.entity.BarrierEntity;
-import vio.barie.core.entity.ParkingDeviceEntity;
-import vio.barie.core.entity.ParkingMessageEntity;
-import vio.barie.core.repository.BarrierRepository;
-import vio.barie.core.repository.ParkingDeviceRepository;
-import vio.barie.core.repository.ParkingMessageRepository;
+import vio.barie.core.common.PaymentCallbackType;
+import vio.barie.core.dto.parking.*;
+import vio.barie.core.entity.*;
+import vio.barie.core.repository.*;
+import vio.barie.core.service.PaymentService;
 import vio.barie.core.utils.DetectionType;
 import vio.barie.core.utils.MqttErrorCommand;
 
@@ -31,6 +28,9 @@ public class ParkingMessageService {
     private final ParkingMessageRepository messageRepository;
     private final ParkingDeviceRepository deviceRepository;
     private final BarrierRepository barrierRepository;
+    private final ParkingSessionRepository parkingSessionRepository;
+    private final PaymentRepository paymentRepository;
+    private final ObjectMapper objectMapper;
     private final MQTTPublisher mqttPublisher;
     private static final DateTimeFormatter DT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     @Value("${mqtt.publish-cmd-topic-prefix}")
@@ -154,13 +154,101 @@ public class ParkingMessageService {
 
     public void handlePayment(String topic, JsonNode json) {
         try {
-            String deviceId = json.path("device_id").asText();
-            String sessionId = json.path("session_id").asText();
             saveHistory(topic, json, "payment");
-            log.info("Payment received: deviceId={} sessionId={}", deviceId, sessionId);
+
+            PaymentMessage msg = objectMapper.treeToValue(json, PaymentMessage.class);
+            String method = msg.getMethod() == null ? "" : msg.getMethod().trim().toLowerCase();
+
+            log.info("Payment received: deviceId={} sessionId={} method={} amountDue={} amountPaid={}",
+                    msg.getDeviceId(), msg.getSessionId(), method, msg.getAmountDue(), msg.getAmountPaid());
+
+            if ("cash".equals(method)) {
+                PaymentSuccessCommand result = handleCashPayment(msg);
+                if (result != null){
+                    publishPaymentSuccess(result);
+                } else {
+                    log.error("ParkingMessageService.handlePayment type CASH failed on topic: {}, jsonNode: {} !",topic,json);
+                }
+            }
+
+            // QR payments được xác nhận qua MegaPay IPN (PaymentService.handleIPN)
+            log.debug("handlePayment: ignoring non-cash payment ack — method={} sessionId={}",
+                    method, msg.getSessionId());
         } catch (Exception ex) {
             log.error("ParkingMessageService.handlePayment failed topic={}: {}", topic, ex.getMessage(), ex);
         }
+    }
+
+    public PaymentSuccessCommand handleCashPayment(PaymentMessage msg) {
+        Long sessionId;
+        try {
+            sessionId = Long.parseLong(msg.getSessionId());
+        } catch (NumberFormatException ex) {
+            log.warn("handleCashPayment: invalid sessionId={}", msg.getSessionId());
+            return null;
+        }
+
+        ParkingSessionEntity session = parkingSessionRepository.findById(sessionId).orElse(null);
+        if (session == null) {
+            log.warn("handleCashPayment: session not found id={}", sessionId);
+            return null;
+        }
+
+        // có thể lấy từ payment context nhưng sẽ ưu tiên trường được gửi lên hơn
+        String barrierId = msg.getBarrierId();
+        String plate = msg.getPlate();
+
+        // Tìm payment đã được tạo khi xe ra (thường là PENDING/QR record)
+        PaymentEntity payment = paymentRepository
+                .findLatestBySessionId(String.valueOf(sessionId))
+                .orElse(null);
+        if (payment == null) {
+            log.warn("handleCashPayment: no payment record found for sessionId={} — skip", sessionId);
+            return null;
+        }
+
+        // Idempotency: payment đã PAID rồi → không cập nhật DB nữa,
+        // nhưng vẫn publish payment_success phòng khi thiết bị bị mất gói lần trước
+        if ("PAID".equalsIgnoreCase(payment.getStatus())) {
+            log.info("handleCashPayment: payment id={} already PAID for sessionId={} — re-publishing payment_success",
+                    payment.getId(), sessionId);
+            return PaymentSuccessCommand
+                    .builder()
+                    .sessionId(sessionId)
+                    .barrierIds(List.of(barrierId))
+                    .plate(plate)
+                    .build();
+        }
+
+        int amountDue = msg.getAmountDue() == null ? 0 : msg.getAmountDue();
+        int amountPaid = msg.getAmountPaid() == null ? 0 : msg.getAmountPaid();
+        if (amountPaid < amountDue) {
+            log.warn("handleCashPayment: amountPaid={} < amountDue={} sessionId={}",
+                    amountPaid, amountDue, sessionId);
+            // todo: nên gửi về tbao error cho bên Hiển
+            return null;
+        }
+
+        int amountChange = msg.getAmountChange() != null ? msg.getAmountChange() : (amountPaid - amountDue);
+
+        // Cập nhật payment có sẵn → PAID/CASH
+        payment.setPaymentMethod("CASH");
+        payment.setStatus("PAID");
+        payment.setPaidAt(LocalDateTime.now());
+        payment.setResultCode("CASH_OK");
+        payment.setResultMessage("Cash payment confirmed by device");
+
+        paymentRepository.save(payment);
+
+        log.info("handleCashPayment: payment id={} updated to PAID(CASH) sessionId={} paid={} change={}",
+                payment.getId(), sessionId, amountPaid, amountChange);
+
+        return PaymentSuccessCommand
+                .builder()
+                .sessionId(sessionId)
+                .barrierIds(List.of(barrierId))
+                .plate(plate)
+                .build();
     }
 
     public void handleEvent(String topic, JsonNode json) {
@@ -279,7 +367,7 @@ public class ParkingMessageService {
         }
 
         PaymentSuccessCommand successCmd = PaymentSuccessCommand.builder()
-                .sessionId(String.valueOf(sessionId))
+                .sessionId(sessionId)
                 .barrierIds(List.of(barrierId))
                 .plate(plate)
                 .status("success")
@@ -288,6 +376,16 @@ public class ParkingMessageService {
                 .build();
 
         publish(deviceId, successCmd);
+    }
+
+    public void publishPaymentSuccess(PaymentSuccessCommand cmd) {
+        String deviceId = resolveDeviceId(cmd.getBarrierIds().getFirst());
+        if (deviceId == null) {
+            log.warn("publishPaymentSuccess: barrierId is null or not found, skipping — sessionId={}", cmd.getSessionId());
+            return;
+        }
+
+        publish(deviceId, cmd);
     }
 
     public void publishPaymentConfirmed(String barrierId, Long sessionId, BigDecimal amountPaid, String invoiceNo) {
