@@ -4,6 +4,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import vio.barie.core.common.TicketType;
 import vio.barie.core.dto.ActivitySessionResponse;
 import vio.barie.core.entity.ParkingSessionEntity;
 import org.springframework.data.domain.Pageable;
@@ -58,7 +59,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "AND (:searchKey = '' " +
             "     OR LOWER(ec.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) " +
             "     OR LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%'))) " +
-            "AND (:sessionType = '' OR s.sessionType = :sessionType) " +
+            "AND (:sessionType IS NULL OR s.sessionType = :sessionType) " +
             "AND (:typeVehicle = '' OR UPPER(v.vehicleType) = UPPER(:typeVehicle)) " +
             "AND (:entryLaneId IS NULL OR el.id = :entryLaneId) " +
             "AND (:exitLaneId IS NULL OR xl.id = :exitLaneId) " +
@@ -66,13 +67,41 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "     OR (:statusInOut = 'IN' AND s.exitTime IS NULL) " +
             "     OR (:statusInOut = 'OUT' AND s.exitTime IS NOT NULL)) " +
             "ORDER BY s.entryTime DESC")
-    Page<ParkingSessionEntity> findAllByParkingLotWithFilters(
+    Page<ParkingSessionEntity> findIdByParkingLotWithFilters(
             @Param("parkingLotId") Long parkingLotId,
             @Param("searchKey") String searchKey,
-            @Param("sessionType") String sessionType,
+            @Param("sessionType") TicketType sessionType,
             @Param("typeVehicle") String typeVehicle,
             @Param("entryLaneId") Long entryLaneId,
             @Param("exitLaneId") Long exitLaneId,
             @Param("statusInOut") String statusInOut,
             Pageable pageable);
+
+    @Query("SELECT s FROM ParkingSessionEntity s " +
+            "LEFT JOIN s.vehicle v " +
+            "LEFT JOIN s.entryLane el " +
+            "LEFT JOIN s.exitLane xl " +
+            "LEFT JOIN FETCH s.entryCustomer ec " +
+            "LEFT JOIN TicketEntity t ON s.ticketId = t.id " +
+            "LEFT JOIN ParkingCustomerEntity c ON t.customerId = c.id " +
+            "WHERE (:searchKey = '' " +
+            "     OR LOWER(ec.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) " +
+            "     OR LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%'))) " +
+            "AND (:sessionType IS NULL OR s.sessionType = :sessionType) " +
+            "AND (:typeVehicle = '' OR UPPER(v.vehicleType) = UPPER(:typeVehicle)) " +
+            "AND (:entryLaneId IS NULL OR el.id = :entryLaneId) " +
+            "AND (:exitLaneId IS NULL OR xl.id = :exitLaneId) " +
+            "AND (:statusInOut = '' " +
+            "     OR (:statusInOut = 'IN' AND s.exitTime IS NULL) " +
+            "     OR (:statusInOut = 'OUT' AND s.exitTime IS NOT NULL)) " +
+            "ORDER BY s.entryTime DESC")
+    Page<ParkingSessionEntity> findAllParkingLotWithFilters(
+            @Param("searchKey") String searchKey,
+            @Param("sessionType") TicketType sessionType,
+            @Param("typeVehicle") String typeVehicle,
+            @Param("entryLaneId") Long entryLaneId,
+            @Param("exitLaneId") Long exitLaneId,
+            @Param("statusInOut") String statusInOut,
+            Pageable pageable);
+
 }

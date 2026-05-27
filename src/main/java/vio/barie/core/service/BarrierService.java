@@ -86,6 +86,64 @@ public class BarrierService {
         }).collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public BarrierDetailResponse getBarrierDetailById(String barrierId) {
+
+        BarrierEntity barrier = barrierRepository.findByBarrierId(barrierId)
+                .orElseThrow(() -> new BusinessException("Barrier id not found: " + barrierId, "BARRIER_NOT_FOUND", 404));
+
+        // khởi tạo builder cho response
+        BarrierDetailResponse.BarrierDetailResponseBuilder builder = BarrierDetailResponse.builder()
+                .barrierId(barrier.getBarrierId())
+                .description(barrier.getDescription());
+
+        if (barrier.getDirection() != null) {
+            builder.direction(barrier.getDirection());
+        }
+
+        // map thông tin device và lane
+        if (barrier.getParkingDevice() != null) {
+            builder.parkingDeviceId(barrier.getParkingDevice().getId());
+            builder.deviceName(barrier.getParkingDevice().getDeviceId());
+
+            if (barrier.getParkingDevice().getLane() != null) {
+                builder.laneId(barrier.getParkingDevice().getLane().getId());
+                builder.laneName(barrier.getParkingDevice().getLane().getName());
+            }
+        }
+
+        //  lấy thông tin cameras liên kết với barrier này
+        List<BarrierCameraEntity> barrierCameras = barrierCameraRepository.findByBarrierId(barrierId);
+
+        if (!barrierCameras.isEmpty()) {
+            List<Long> cameraIds = barrierCameras.stream()
+                    .map(BarrierCameraEntity::getCameraId)
+                    .distinct()
+                    .collect(Collectors.toList());
+
+
+            Map<Long, CameraEntity> cameraMap = cameraRepository.findAllById(cameraIds).stream()
+                    .collect(Collectors.toMap(CameraEntity::getId, cam -> cam));
+
+            // map face camera và plate camera
+            for (BarrierCameraEntity bc : barrierCameras) {
+                CameraEntity cam = cameraMap.get(bc.getCameraId());
+                if (cam != null) {
+                    if ("FACE".equalsIgnoreCase(bc.getRole())) {
+                        builder.faceCameraId(cam.getId());
+                        builder.faceCameraName(cam.getName());
+                    } else if ("PLATE".equalsIgnoreCase(bc.getRole())) {
+                        builder.plateCameraId(cam.getId());
+                        builder.plateCameraName(cam.getName());
+                    }
+                }
+            }
+        }
+
+        return builder.build();
+    }
+
+
     @Transactional
     public void updateBarrier(String barrierId, BarrierUpdateRequest request) {
 

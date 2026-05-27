@@ -24,8 +24,8 @@ public class CameraController {
 
 
     @GetMapping
-    public Result<List<CameraResponse>> getCameraList() {
-        List<CameraResponse> response = cameraService.getCameraList();
+    public Result<List<CameraResponse>> getCameraList(@RequestParam(name = "searchKey", required = false) String searchKey) {
+        List<CameraResponse> response = cameraService.getCameraList(searchKey);
         return Result.ok("Get list cameras successfully", response);
     }
 

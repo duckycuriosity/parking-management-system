@@ -6,6 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import vio.barie.core.common.TicketStatus;
+import vio.barie.core.common.TicketType;
 import vio.barie.core.entity.VehicleEntity;
 
 import java.time.LocalDateTime;
@@ -20,8 +22,8 @@ public class TicketDTO {
     private VehicleEntity vehicle;
     private LocalDateTime registerAt;
     private LocalDateTime expireAt;
-    private String status; // 'ACTIVE', 'DEAD'
+    private TicketStatus status; // 'ACTIVE', 'DEAD'
     private LocalDateTime createdAt;
-    private String ticketType;
+    private TicketType ticketType;
     private Long customerId;
 }

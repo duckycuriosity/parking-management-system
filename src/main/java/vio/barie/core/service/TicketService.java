@@ -5,6 +5,7 @@ import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vio.barie.core.common.TicketStatus;
 import vio.barie.core.config.exception.ServiceException;
 import vio.barie.core.dto.TicketCreateRequest;
 import vio.barie.core.dto.ticket.TicketDTO;
@@ -63,7 +64,7 @@ public class TicketService {
             throw new ServiceException("Đơn vị thời gian không hợp lệ! Chỉ có thể là 'DAY', 'MONTH', 'YEAR'", 404);
         }
 
-        ticket.setStatus("ACTIVE");
+        ticket.setStatus(TicketStatus.ACTIVE);
 
         ticketRepo.save(ticket);
         return ticket;
@@ -80,8 +81,16 @@ public class TicketService {
         ticket.setRegisterAt(req.getRegisterAt());
         ticket.setExpireAt(req.getExpireAt());
 
-        // mặc định trạng thái inactive
-        ticket.setStatus(req.getStatus() != null ? req.getStatus().toUpperCase() : "INACTIVE");
+        // mặc định trạng thái DEAD
+        if (req.getStatus() != null) {
+            try {
+                ticket.setStatus((req.getStatus()));
+            } catch (IllegalArgumentException e) {
+                ticket.setStatus(TicketStatus.DEAD);
+            }
+        } else {
+            ticket.setStatus(TicketStatus.DEAD);
+        }
         ticket = ticketRepo.save(ticket);
         return TicketEntity.convertToDTO(ticket);
     }

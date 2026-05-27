@@ -22,6 +22,14 @@ public class BarrierController {
         return Result.ok("Get a detailed list of successful barrier installations.", response);
     }
 
+    @GetMapping("/{barrierId}")
+    public Result<BarrierDetailResponse> getBarrierById(@PathVariable String barrierId) {
+
+        BarrierDetailResponse response = barrierService.getBarrierDetailById(barrierId);
+
+        return Result.ok("Get barrier id details successfully.", response);
+    }
+
     @PutMapping("/{barrierId}")
     public Result<Void> updateBarrier(
             @PathVariable String barrierId,

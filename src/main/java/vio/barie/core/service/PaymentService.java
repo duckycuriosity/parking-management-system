@@ -121,7 +121,7 @@ public class PaymentService {
         String payType = req.getPayType() != null ? req.getPayType() : config.getPayType();
 
         String merchantToken = MegaPaySignatureUtil.generatePaymentToken(
-                timeStamp, invoiceNo, config.getMerId(), amountStr,linkExptime, config.getEncodeKey());
+                timeStamp, invoiceNo, config.getMerId(), amountStr, linkExptime, config.getEncodeKey());
 
         String hashData = invoiceNo + amountStr + config.getEncodeKey();
         String hash = MegaPaySignatureUtil.sha256(hashData);
@@ -189,18 +189,17 @@ public class PaymentService {
                         404));
 
         // xac nhan thanh toan da hoan thanh
-        if (payment.getCallbackType().equals(PaymentCallbackType.SESSION.name())){
+        if (payment.getCallbackType().equals(PaymentCallbackType.SESSION.name())) {
             // thong bao den hardware qua mqtt de ui chuyen man hinh thanh: Dang xu ly
             JSONObject context = payment.getCallbackContext();
             ioTService.publishPaymentConfirmed(context.getStr("barrierId"),
                     context.getLong("sessionId"),
                     new BigDecimal(response.getAmount()),
                     response.getInvoiceNo());
-        }
-        else if (payment.getCallbackType().equals(PaymentCallbackType.TICKET.name())) {
+        } else if (payment.getCallbackType().equals(PaymentCallbackType.TICKET.name())) {
             // todo: thong bao den ui qua ws,.. de ui chuyen man hinh thanh: Dang xu ly
         } else {
-            throw new ServiceException("Chưa hỗ trợ callback type: "+payment.getCallbackType(),404);
+            throw new ServiceException("Chưa hỗ trợ callback type: " + payment.getCallbackType(), 404);
         }
 
         // Tránh xử lý 2 lần
@@ -228,7 +227,7 @@ public class PaymentService {
         paymentRepository.save(payment);
         log.info("IPN processed: invoiceNo={}, status={}", response.getInvoiceNo(), payment.getStatus());
         // payment callback
-        if (payment.getCallbackType().equals(PaymentCallbackType.SESSION.name())){
+        if (payment.getCallbackType().equals(PaymentCallbackType.SESSION.name())) {
             JSONObject context = payment.getCallbackContext();
             // thong bao giao dich thanh cong de mo cong
             ioTService.publishPaymentSuccess(context.getStr("barrierId"),
@@ -240,10 +239,10 @@ public class PaymentService {
             TicketEntity ticket = ticketRepository.findById(context.getLong("ticketId")).orElseThrow(
                     () -> new ServiceException("Không tìm ticket tương ", 404)
             );
-            ticket.setStatus(TicketStatus.ACTIVE.name());
+            ticket.setStatus(TicketStatus.ACTIVE);
             ticketRepository.save(ticket);
         } else {
-            throw new ServiceException("Chưa hỗ trợ callback type: "+payment.getCallbackType(),404);
+            throw new ServiceException("Chưa hỗ trợ callback type: " + payment.getCallbackType(), 404);
         }
     }
 
@@ -336,8 +335,8 @@ public class PaymentService {
                 .body(params)
                 .retrieve()
                 .body(String.class);
-        log.debug("MegaPay createLink response: {}",respBody);
-        return JSONUtil.toBean(respBody,CreatePaymentResponse.class);
+        log.debug("MegaPay createLink response: {}", respBody);
+        return JSONUtil.toBean(respBody, CreatePaymentResponse.class);
     }
 
     private MultiValueMap<String, String> toForm(Map<String, String> params) {
@@ -345,6 +344,6 @@ public class PaymentService {
         params.forEach(form::add);
         return form;
     }
-    
-    
+
+
 }

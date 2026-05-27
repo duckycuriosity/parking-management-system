@@ -87,8 +87,13 @@ public class CameraService {
     }
 
 
-    public List<CameraResponse> getCameraList() {
-        List<CameraEntity> entities = cameraRepository.findAllWithRelations();
+    public List<CameraResponse> getCameraList(String searchKey) {
+        List<CameraEntity> entities;
+        if (searchKey != null && !searchKey.trim().isEmpty()) {
+            entities = cameraRepository.searchByParkingLotNameWithRelations(searchKey.trim());
+        } else {
+            entities = cameraRepository.findAllWithRelations();
+        }
         return cameraMapper.toResponseList(entities);
     }
 
