@@ -70,12 +70,12 @@ public class LaneService {
     }
 
     public List<LaneResponse> findAll() {
-        return laneMapper.toResponseList(laneRepository.findAll());
+        return laneMapper.toResponseList(laneRepository.findAllWithParkingLot());
     }
 
 
     public LaneResponse findById(Long id) {
-        LaneEntity entity = laneRepository.findById(id)
+        LaneEntity entity = laneRepository.findByIdWithParkingLot(id)
                 .orElseThrow(() -> new BusinessException("Lane not found", "LANE_NOT_FOUND", 404));
         return laneMapper.toResponse(entity);
     }
@@ -96,6 +96,7 @@ public class LaneService {
 
         entity.setName(request.getName());
         entity.setType(request.getType());
+        entity.setDescription(request.getDescription());
         entity.setStatus(request.getStatus());
         entity.setParkingLot(parkingLot);
 

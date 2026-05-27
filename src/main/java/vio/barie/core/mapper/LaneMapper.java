@@ -14,6 +14,7 @@ public class LaneMapper {
         LaneEntity entity = new LaneEntity();
         entity.setName(request.getName());
         entity.setType(request.getType());
+        entity.setDescription(request.getDescription());
         entity.setStatus(request.getStatus());
         return entity;
     }
@@ -23,10 +24,12 @@ public class LaneMapper {
         response.setId(entity.getId());
         response.setName(entity.getName());
         response.setType(entity.getType());
+        response.setDescription(entity.getDescription());
         response.setStatus(entity.getStatus());
         response.setCreatedAt(entity.getCreatedAt());
         if (entity.getParkingLot() != null) {
             response.setParkingLotId(entity.getParkingLot().getId());
+            response.setParkingLotName(entity.getParkingLot().getName());
         }
         if (entity.getCameras() != null) {
             response.setCameraIds(entity.getCameras().stream().map(c -> c.getId()).toList());
@@ -34,6 +37,7 @@ public class LaneMapper {
         if (entity.getParkingDevices() != null) {
             response.setParkingDeviceIds(entity.getParkingDevices().stream().map(d -> d.getId()).toList());
         }
+
         return response;
     }
 

@@ -16,6 +16,7 @@ import vio.barie.core.utils.DirectionType;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
+
 import org.springframework.dao.DataIntegrityViolationException;
 
 @Slf4j
@@ -76,7 +77,7 @@ public class PlateMessageService {
                 return;
             }
 
-            DirectionType direction = DirectionType.valueOf(barrier.get().getDirection().toUpperCase());
+            DirectionType direction = barrier.get().getDirection();
             VehicleEntity vehicle = vehicleRepository.findPlateByPlateNumber(plateNumber);
 
             // If vehicle is registered with active ticket, handle as registered customer
@@ -100,8 +101,8 @@ public class PlateMessageService {
      * For EXIT: buffer event and wait for face match to verify identity
      */
     private void handleRegisteredVehicle(VehicleEntity vehicle, String plateNumber,
-            CameraEntity cameraInLane, BarrierEntity barrier,
-            long laneId, DirectionType direction, String cameraUUID) {
+                                         CameraEntity cameraInLane, BarrierEntity barrier,
+                                         long laneId, DirectionType direction, String cameraUUID) {
         try {
             Optional<TicketEntity> ticket = ticketRepository.findTicketByVehicleId(vehicle.getId());
             if (ticket.isEmpty()) {
@@ -147,7 +148,7 @@ public class PlateMessageService {
      * Always buffer event and wait for face matching logic to create session
      */
     private void handleUnregisteredVehicle(String plateNumber, CameraEntity cameraInLane,
-            BarrierEntity barrier, long laneId, DirectionType direction) {
+                                           BarrierEntity barrier, long laneId, DirectionType direction) {
         try {
             if (!vehicleRepository.existsByPlateNumber(plateNumber)) {
                 logger.info("Vehicle with plate={} exists but no active ticket — treating as unregistered",
@@ -178,12 +179,12 @@ public class PlateMessageService {
      * Create PendingEventDetection for registered customer (has ticket)
      */
     private PendingEventDetection buildPendingEventForRegistered(VehicleEntity vehicle,
-            ParkingCustomerEntity customer,
-            String plateNumber,
-            CameraEntity camera,
-            BarrierEntity barrier,
-            long laneId,
-            DirectionType direction) {
+                                                                 ParkingCustomerEntity customer,
+                                                                 String plateNumber,
+                                                                 CameraEntity camera,
+                                                                 BarrierEntity barrier,
+                                                                 long laneId,
+                                                                 DirectionType direction) {
         PendingEventDetection event = new PendingEventDetection();
         event.setPlateNumber(plateNumber);
         // aiIdentityPlateId can be a numeric id or UUID string from AI; keep as String
@@ -210,10 +211,10 @@ public class PlateMessageService {
      * Create PendingEventDetection for unregistered vehicle (guest)
      */
     private PendingEventDetection buildPendingEventForUnregistered(String plateNumber,
-            CameraEntity camera,
-            BarrierEntity barrier,
-            long laneId,
-            DirectionType direction) {
+                                                                   CameraEntity camera,
+                                                                   BarrierEntity barrier,
+                                                                   long laneId,
+                                                                   DirectionType direction) {
         PendingEventDetection event = new PendingEventDetection();
         event.setType(DetectionType.PLATE);
         event.setPlateNumber(plateNumber);

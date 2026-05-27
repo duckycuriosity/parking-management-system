@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import vio.barie.core.entity.base.BaseEntity;
+import vio.barie.core.utils.DirectionType;
 
 import java.time.LocalDateTime;
 
@@ -30,8 +31,9 @@ public class BarrierEntity extends BaseEntity {
     @Column(name = "description", length = 255)
     private String description;
 
-    @Column(name = "direction", length = 20)
-    private String direction;
+
+    @Enumerated(EnumType.STRING)
+    private DirectionType direction;
 
     @Column(name = "modbus_addr")
     private Integer modbusAddr;

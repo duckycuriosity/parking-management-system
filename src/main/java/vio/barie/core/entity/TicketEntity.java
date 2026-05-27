@@ -3,6 +3,8 @@ package vio.barie.core.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import vio.barie.core.common.TicketStatus;
+import vio.barie.core.common.TicketType;
 import vio.barie.core.dto.ticket.TicketDTO;
 import vio.barie.core.entity.base.BaseEntity;
 
@@ -13,9 +15,9 @@ import java.time.LocalDateTime;
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class TicketEntity extends BaseEntity {
-
+    @Enumerated(EnumType.STRING)
     @Column(name = "ticket_type")
-    private String ticketType;
+    private TicketType ticketType;
 
     @Column(name = "customer_id")
     private Long customerId;
@@ -30,8 +32,9 @@ public class TicketEntity extends BaseEntity {
     @Column(name = "expire_at", nullable = false)
     private LocalDateTime expireAt;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status")
-    private String status; // 'ACTIVE','DEAD'
+    private TicketStatus status; // 'ACTIVE','DEAD'
 
     public static TicketDTO convertToDTO(TicketEntity entity) {
         TicketDTO dto = new TicketDTO();

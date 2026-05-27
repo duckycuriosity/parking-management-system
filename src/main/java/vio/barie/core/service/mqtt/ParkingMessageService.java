@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import vio.barie.core.common.OperatingStatus;
 import vio.barie.core.dto.parking.OpenCmdCommand;
 import vio.barie.core.dto.parking.PaymentConfirmedCommand;
 import vio.barie.core.dto.parking.PaymentSuccessCommand;
@@ -17,6 +18,7 @@ import vio.barie.core.repository.BarrierRepository;
 import vio.barie.core.repository.ParkingDeviceRepository;
 import vio.barie.core.repository.ParkingMessageRepository;
 import vio.barie.core.utils.DetectionType;
+import vio.barie.core.utils.DirectionType;
 import vio.barie.core.utils.MqttErrorCommand;
 
 import java.math.BigDecimal;
@@ -50,7 +52,7 @@ public class ParkingMessageService {
                             .deviceId(deviceId)
                             .createdAt(LocalDateTime.now())
                             .build());
-            device.setStatus("Online");
+            device.setStatus(OperatingStatus.ONLINE);
             device.setFirmwareVersion(json.path("firmware_version").asText(null));
             device.setHasCashReader(json.path("has_cash_reader").asBoolean());
             device.setHasDisplay(json.path("has_display").asBoolean());
@@ -59,13 +61,21 @@ public class ParkingMessageService {
             json.path("barriers").forEach(barrier -> {
                 BarrierEntity saveBarrier = new BarrierEntity();
                 saveBarrier.setBarrierId(barrier.path("barrier_id").asText());
-                saveBarrier.setDirection(barrier.path("direction").asText());
+                String directionStr = barrier.path("direction").asText();
+                if (directionStr != null && !directionStr.isBlank()) {
+                    try {
+                        saveBarrier.setDirection(DirectionType.valueOf(directionStr.toUpperCase()));
+                    } catch (IllegalArgumentException e) {
+                        log.warn("Invalid direction value from MQTT payload for barrier {}: {}",
+                                saveBarrier.getBarrierId(), directionStr);
+                    }
+                }
                 saveBarrier.setDescription(barrier.path("description").asText());
                 saveBarrier.setModbusAddr(barrier.path("modbus_addr").asInt());
                 saveBarrier.setParkingDevice(device);
-
                 BarrierEntity existing = barrierRepository.findByBarrierId(saveBarrier.getBarrierId()).orElse(null);
                 if (existing != null) {
+                    // Khi thiết bị connect, nó lấy dữ liệu từ JSON đẩy đè vào DB
                     existing.setDirection(saveBarrier.getDirection());
                     existing.setDescription(saveBarrier.getDescription());
                     existing.setModbusAddr(saveBarrier.getModbusAddr());
@@ -90,7 +100,7 @@ public class ParkingMessageService {
             saveHistory(topic, json, "disconnect");
             deviceRepository.findByDeviceId(deviceId)
                     .ifPresent(device -> {
-                        device.setStatus("OFFLINE");
+                        device.setStatus(OperatingStatus.OFFLINE);
                         device.setDisconnectReason(reason);
                         device.setUpdatedAt(LocalDateTime.now());
                         deviceRepository.save(device);
@@ -110,7 +120,7 @@ public class ParkingMessageService {
                             .deviceId(deviceId)
                             .createdAt(LocalDateTime.now())
                             .build());
-            device.setStatus("Online");
+            device.setStatus(OperatingStatus.ONLINE);
             device.setLastSeen(LocalDateTime.now());
             device.setUptimeSeconds(json.path("uptime_seconds").asLong());
             device.setFreeMemMb(json.path("free_mem_mb").asInt());
@@ -144,7 +154,7 @@ public class ParkingMessageService {
                 .cpuTempC(
                         json.has("cpu_temp_c")
                                 ? BigDecimal.valueOf(
-                                        json.path("cpu_temp_c").asDouble())
+                                json.path("cpu_temp_c").asDouble())
                                 : null)
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -195,7 +205,7 @@ public class ParkingMessageService {
     }
 
     public void publishEntryVehicleInfo(String barrierId, String plate,
-            LocalDateTime entryTime) {
+                                        LocalDateTime entryTime) {
         String deviceId = resolveDeviceId(barrierId);
         if (deviceId == null) {
             log.warn("publishVehicleInfo: barrierId is null or not found");
@@ -219,7 +229,7 @@ public class ParkingMessageService {
     }
 
     public void publishVehicleInfo(String barrierId, Long sessionId, String plate,
-            LocalDateTime entryTime, BigDecimal amountDue, String qrUrl) {
+                                   LocalDateTime entryTime, BigDecimal amountDue, String qrUrl) {
         String deviceId = resolveDeviceId(barrierId);
         if (deviceId == null) {
             log.warn("publishVehicleInfo: barrierId is null or not found, skipping — sessionId={}", sessionId);
@@ -250,7 +260,7 @@ public class ParkingMessageService {
     }
 
     public void publishOpenForMonthlyTicket(String barrierId, Long sessionId, String plate,
-            String ownerName, LocalDateTime validUntil) {
+                                            String ownerName, LocalDateTime validUntil) {
         String deviceId = resolveDeviceId(barrierId);
         if (deviceId == null) {
             log.warn("publishOpenForMonthlyTicket: barrierId is null or not found, skipping — sessionId={}", sessionId);
@@ -344,7 +354,7 @@ public class ParkingMessageService {
         }
     }
 
-    public void publishErrorWhenHandlingEvent (String message, String cameraUUID, DetectionType type) {
+    public void publishErrorWhenHandlingEvent(String message, String cameraUUID, DetectionType type) {
         try {
             String topic = prefix + "/" + error;
             MqttErrorCommand payload = new MqttErrorCommand();

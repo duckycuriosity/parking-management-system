@@ -2,6 +2,7 @@ package vio.barie.core.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import vio.barie.core.common.OperatingStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -22,8 +23,9 @@ public class ParkingDeviceEntity {
     @Column(name = "device_id", unique = true, nullable = false, length = 100)
     private String deviceId;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
-    private String status;
+    private OperatingStatus status;
 
     @Column(name = "firmware_version", length = 50)
     private String firmwareVersion;

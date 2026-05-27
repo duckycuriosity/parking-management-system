@@ -2,9 +2,12 @@ package vio.barie.core.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import vio.barie.core.common.BaseStatus;
+import vio.barie.core.common.OperatingStatus;
 import vio.barie.core.dto.DeviceLaneResponse;
 import vio.barie.core.repository.DeviceLaneRepository;
 import vio.barie.core.repository.ParkingDeviceRepository;
+import vio.barie.core.utils.DetectionType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,7 +16,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-public class DeviceLandService {
+public class DeviceLaneService {
     private final ParkingDeviceRepository parkingDeviceRepository;
 
     public List<DeviceLaneResponse> getAllDeviceByLaneId(Long laneId) {
@@ -47,8 +50,8 @@ public class DeviceLandService {
                                 .id(row.getCameraId())
                                 .name(row.getCameraName())
                                 .url(row.getCameraUrl())
-                                .type(row.getCameraType())
-                                .role(row.getCameraRole())
+                                .type(parseEnum(BaseStatus.class, row.getCameraType()))
+                                .role(parseEnum(DetectionType.class, row.getCameraRole()))
                                 .build())
                         .distinct()
                         .collect(Collectors.toList());
@@ -65,11 +68,18 @@ public class DeviceLandService {
             responseList.add(DeviceLaneResponse.builder()
                     .id(firstDeviceRow.getDeviceId())
                     .deviceId(firstDeviceRow.getDeviceCode())
-                    .status(firstDeviceRow.getDeviceStatus())
+                    .status(parseEnum(OperatingStatus.class, firstDeviceRow.getDeviceStatus()))
+                    .firmwareVersion(firstDeviceRow.getFirmwareVersion())
+                    .lastSeen(firstDeviceRow.getLastSeen())
+                    .location(firstDeviceRow.getLocation())
                     .barriers(barrierInfos)
                     .build());
         }
 
         return responseList;
+    }
+
+    private <E extends Enum<E>> E parseEnum(Class<E> enumClass, String value) {
+        return (value == null || value.trim().isEmpty()) ? null : Enum.valueOf(enumClass, value);
     }
 }

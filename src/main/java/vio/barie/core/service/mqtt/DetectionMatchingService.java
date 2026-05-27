@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import vio.barie.core.common.TicketStatus;
+import vio.barie.core.common.TicketType;
 import vio.barie.core.dto.parking.PendingEventDetection;
 import vio.barie.core.dto.payment.CreatePaymentRequest;
 import vio.barie.core.dto.payment.CreatePaymentResponse;
@@ -19,6 +21,7 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+
 import org.springframework.data.redis.core.RedisTemplate;
 
 @Service
@@ -151,7 +154,7 @@ public class DetectionMatchingService {
             // Check for active monthly ticket
             Optional<TicketEntity> ticket = ticketRepository
                     .findTicketByCustomerIdAndVehicleId(customer.getId(), vehicle.getId())
-                    .filter(t -> "ACTIVE".equalsIgnoreCase(t.getStatus()))
+                    .filter(t -> t.getStatus() == TicketStatus.ACTIVE)
                     .filter(t -> t.getExpireAt() != null && t.getExpireAt().isAfter(LocalDateTime.now()));
 
             // Create parking session
@@ -165,9 +168,9 @@ public class DetectionMatchingService {
 
             if (ticket.isPresent()) {
                 session.setTicketId(ticket.get().getId());
-                session.setSessionType(ticket.map(TicketEntity::getTicketType).orElse(""));
+                session.setSessionType(ticket.get().getTicketType());
             } else {
-                session.setSessionType("DAILY");
+                session.setSessionType(TicketType.DAILY);
             }
 
             parkingSessionRepository.save(session);
@@ -366,7 +369,7 @@ public class DetectionMatchingService {
     }
 
     private PendingEventDetection findAndRemoveMatch(List<PendingEventDetection> events,
-            PendingEventDetection incoming) {
+                                                     PendingEventDetection incoming) {
         PendingEventDetection match = null;
         long bestDelta = Long.MAX_VALUE;
 
@@ -409,12 +412,13 @@ public class DetectionMatchingService {
         return (left.getType() == vio.barie.core.utils.DetectionType.FACE
                 && right.getType() == vio.barie.core.utils.DetectionType.PLATE)
                 || (left.getType() == vio.barie.core.utils.DetectionType.PLATE
-                        && right.getType() == vio.barie.core.utils.DetectionType.FACE);
+                && right.getType() == vio.barie.core.utils.DetectionType.FACE);
     }
 
     private TicketEntity findValidMonthlyTicket(Long vehicleId) {
         // chỉ lấy ra vé gửi xe
-        return ticketRepository.findByVehicleIdAndStatus(vehicleId, "ACTIVE")
+        return ticketRepository.findByVehicleIdAndStatus(vehicleId, TicketStatus.ACTIVE.name())
+
                 // .filter(t -> t.getExpireAt() != null &&
                 // t.getExpireAt().isAfter(LocalDateTime.now()))
                 .orElse(null);

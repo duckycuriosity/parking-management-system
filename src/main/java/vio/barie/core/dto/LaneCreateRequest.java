@@ -4,6 +4,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+import vio.barie.core.common.BaseStatus;
+import vio.barie.core.utils.DirectionType;
 
 @Data
 public class LaneCreateRequest {
@@ -12,13 +14,15 @@ public class LaneCreateRequest {
     @Size(max = 255, message = "Lane name must not exceed 255 characters")
     private String name;
 
-    @NotBlank(message = "Lane type is required")
-    @Size(max = 50, message = "Lane type must not exceed 50 characters")
-    private String type;
 
-    @NotBlank(message = "Lane status is required")
-    @Size(max = 50, message = "Lane status must not exceed 50 characters")
-    private String status;
+    @NotNull(message = "Lane type is required")
+    private DirectionType type;
+
+    @Size(max = 2000, message = "Description must not exceed 2000 characters")
+    private String description;
+    
+    @NotNull(message = "Lane status is required")
+    private BaseStatus status;
 
     @NotNull(message = "parkingLotId is required")
     private Long parkingLotId;
