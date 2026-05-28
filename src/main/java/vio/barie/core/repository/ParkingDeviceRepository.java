@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import vio.barie.core.common.OperatingStatus;
 import vio.barie.core.entity.ParkingDeviceEntity;
 
 import java.time.LocalDateTime;
@@ -16,11 +17,11 @@ public interface ParkingDeviceRepository extends JpaRepository<ParkingDeviceEnti
 
     List<ParkingDeviceEntity> findByLane_Id(Long laneId);
 
-    List<ParkingDeviceEntity> findByStatus(String status);
+    List<ParkingDeviceEntity> findByStatus(OperatingStatus status);
 
     List<ParkingDeviceEntity> findByLastSeenBeforeAndStatus(
             LocalDateTime time,
-            String status);
+            OperatingStatus status);
 
     @Query(value = "SELECT " +
             "pd.id AS deviceId, pd.device_id AS deviceCode, pd.status AS deviceStatus, pd.firmware_version AS firmwareVersion, " +

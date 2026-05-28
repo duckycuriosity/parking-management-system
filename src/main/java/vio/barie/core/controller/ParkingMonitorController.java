@@ -3,6 +3,7 @@ package vio.barie.core.controller;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import vio.barie.core.common.OperatingStatus;
 import vio.barie.core.entity.ParkingDeviceEntity;
 import vio.barie.core.entity.ParkingMessageEntity;
 import vio.barie.core.repository.ParkingDeviceRepository;
@@ -24,7 +25,7 @@ public class ParkingMonitorController {
 
     @GetMapping("/devices/online")
     public List<ParkingDeviceEntity> onlineDevices() {
-        return deviceRepository.findByStatus("ONLINE");
+        return deviceRepository.findByStatus(OperatingStatus.ONLINE);
     }
 
     @GetMapping("/messages/latest")
