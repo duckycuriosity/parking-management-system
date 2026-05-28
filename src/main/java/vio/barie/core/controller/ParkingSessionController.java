@@ -37,8 +37,6 @@ public class ParkingSessionController {
         return ResponseEntity.ok(response);
     }
 
-    // ... [Hàm getParkingSessionsByParkingLot của bạn giữ nguyên, có thể tận dụng validatePageableSort để code gọn hơn] ...
-
     private Pageable validatePageableSort(Pageable pageable) {
         boolean hasInvalidSort = pageable.getSort().stream()
                 .anyMatch(order -> order.getProperty().contains("string"));

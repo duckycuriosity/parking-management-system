@@ -3,10 +3,10 @@ package vio.barie.core.service;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import vio.barie.core.config.exception.BusinessException;
 import vio.barie.core.dto.BuildingCreateRequest;
 import vio.barie.core.dto.BuildingResponse;
 import vio.barie.core.entity.BuildingEntity;
-import vio.barie.core.exception.BusinessException;
 import vio.barie.core.mapper.BuildingMapper;
 import vio.barie.core.repository.BuildingRepository;
 

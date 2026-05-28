@@ -42,8 +42,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             Exception ex,
             WebRequest request) {
 
-        log.error("handleRuntimeException {}",ex.getMessage());
-        return Result.errorResponseWithData(500, "Có lỗi xảy ra xin thử lại",ex.getMessage());
+        log.error("handleRuntimeException {}", ex.getMessage());
+        return Result.errorResponseWithData(500, "Có lỗi xảy ra xin thử lại", ex.getMessage());
     }
 
     @ExceptionHandler(ClientException.class)
@@ -54,6 +54,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         log.error("handleClientException: {}", ex.getMessage());
         return Result.errorResponse(ex.getStatusCode(), ex.getMessage());
     }
+
     @ExceptionHandler(ServiceException.class)
     public ResponseEntity<?> serviceExceptionHandle(
             ServiceException ex,
