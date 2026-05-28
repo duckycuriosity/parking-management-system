@@ -12,6 +12,8 @@ import vio.barie.core.common.BaseStatus;
 @NoArgsConstructor
 public class CameraResponse {
     private Long id;
+    private String plateNumber;
+    private String vehicleType;
     private Long aiCameraId;
     private String name;
     private String url;

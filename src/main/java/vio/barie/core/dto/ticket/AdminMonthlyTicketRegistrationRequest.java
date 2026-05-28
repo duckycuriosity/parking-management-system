@@ -2,8 +2,14 @@ package vio.barie.core.dto.ticket;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.Data;
+import org.springframework.format.annotation.DateTimeFormat;
+import vio.barie.core.common.TicketStatus;
+import vio.barie.core.common.TicketType;
+
+import java.time.LocalDateTime;
 
 @Data
 public class AdminMonthlyTicketRegistrationRequest {
@@ -22,9 +28,8 @@ public class AdminMonthlyTicketRegistrationRequest {
 
     private String customerZaloId;
 
-    @NotBlank(message = "Ticket type required")
-    @Pattern(regexp = "^(MONTH|QUARTER)$", message = "Ticket type must be MONTH or QUARTER")
-    private String ticketType;
+    @NotNull(message = "Ticket type required")
+    private TicketType ticketType;
 
     @NotBlank(message = "Plate number required")
     private String vehiclePlateNumber;
@@ -38,4 +43,7 @@ public class AdminMonthlyTicketRegistrationRequest {
     private String plateType;
 
     private String notes;
+
+
+    private TicketStatus status;
 }

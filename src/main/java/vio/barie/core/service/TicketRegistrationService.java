@@ -113,11 +113,12 @@ public class TicketRegistrationService {
 
         TicketEntity ticket = new TicketEntity();
         ticket.setVehicle(savedVehicle);
-        ticket.setCustomerId(customer.map(ParkingCustomerEntity::getId).orElse(0L));
-        ticket.setTicketType(TicketType.valueOf(req.getTicketType()));
+        ticket.setCustomer(customer.orElse(null));
+        ticket.setTicketType(req.getTicketType());
         ticket.setRegisterAt(now);
         ticket.setExpireAt(expireAt);
         ticket.setStatus(TicketStatus.DEAD); // Ticket dead cho đến khi người dùng thanh toán
+        ticket.setStatus(req.getStatus() != null ? req.getStatus() : TicketStatus.DEAD);
 
         TicketEntity savedTicket = ticketRepository.save(ticket);
         log.info("Ticket created successfully: ticketId={}, expireAt={}",
@@ -126,7 +127,7 @@ public class TicketRegistrationService {
         // 8️⃣ Build and return response
         TicketRegistrationResponseDTO response = TicketRegistrationResponseDTO.builder()
                 .ticketId(savedTicket.getId())
-                .ticketType(req.getTicketType())
+                .ticketType(req.getTicketType().name())
                 .ticketStatus(savedTicket.getStatus().name())
                 .registeredAt(savedTicket.getRegisterAt())
                 .expireAt(savedTicket.getExpireAt())
@@ -197,13 +198,15 @@ public class TicketRegistrationService {
     /**
      * Calculate ticket expiration date based on type
      */
-    private LocalDateTime calculateExpireDate(String ticketType) {
+    private LocalDateTime calculateExpireDate(TicketType ticketType) {
         LocalDateTime now = LocalDateTime.now();
 
-        if ("MONTH".equals(ticketType)) {
+        if (ticketType == TicketType.MONTH) {
             return now.plusMonths(1);
-        } else if ("QUARTER".equals(ticketType)) {
+        } else if (ticketType == TicketType.QUARTER) {
             return now.plusMonths(3);
+        } else if (ticketType == TicketType.YEAR) {
+            return now.plusYears(1);
         }
 
         // Default: 1 month
@@ -231,7 +234,9 @@ public class TicketRegistrationService {
         }
 
         // Ticket type validation
-        if (!"MONTH".equals(req.getTicketType()) && !"QUARTER".equals(req.getTicketType())) {
+        if (req.getTicketType() != TicketType.MONTH
+                && req.getTicketType() != TicketType.QUARTER
+                && req.getTicketType() != TicketType.YEAR) {
             throw new ServiceException("Invalid ticket type: " + req.getTicketType(), 400);
         }
 

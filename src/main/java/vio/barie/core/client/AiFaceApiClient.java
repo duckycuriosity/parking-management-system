@@ -66,7 +66,12 @@ public class AiFaceApiClient {
     public List<AiFaceCheckResponse> faceCheck(MultipartFile image) throws IOException {
         long start = System.currentTimeMillis();
         HttpHeaders headers = baseHeaders();
-        headers.setContentType(MediaType.IMAGE_JPEG);
+        String mimeType = image.getContentType();
+        if (mimeType != null && !mimeType.isEmpty()) {
+            headers.setContentType(MediaType.parseMediaType(mimeType));
+        } else {
+            headers.setContentType(MediaType.IMAGE_JPEG);
+        }
 
         HttpEntity<byte[]> req = new HttpEntity<>(image.getBytes(), headers);
 

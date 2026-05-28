@@ -54,7 +54,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "LEFT JOIN s.exitLane xl " +
             "LEFT JOIN FETCH s.entryCustomer ec " +
             "LEFT JOIN TicketEntity t ON s.ticketId = t.id " +
-            "LEFT JOIN ParkingCustomerEntity c ON t.customerId = c.id " +
+            "LEFT JOIN t.customer c " +
             "WHERE s.parkingLot.id = :parkingLotId " +
             "AND (:searchKey = '' " +
             "     OR LOWER(ec.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) " +
@@ -83,12 +83,13 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "LEFT JOIN s.exitLane xl " +
             "LEFT JOIN FETCH s.entryCustomer ec " +
             "LEFT JOIN TicketEntity t ON s.ticketId = t.id " +
-            "LEFT JOIN ParkingCustomerEntity c ON t.customerId = c.id " +
-            "WHERE (:searchKey = '' " +
+            "LEFT JOIN t.customer c " +
+            "WHERE s.parkingLot.id = :parkingLotId " +
+            "AND (:searchKey IS NULL OR :searchKey = '' " +
             "     OR LOWER(ec.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) " +
             "     OR LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%'))) " +
             "AND (:sessionType IS NULL OR s.sessionType = :sessionType) " +
-            "AND (:typeVehicle = '' OR UPPER(v.vehicleType) = UPPER(:typeVehicle)) " +
+            "AND (:typeVehicle IS NULL OR UPPER(v.vehicleType) = UPPER(:typeVehicle)) " +
             "AND (:entryLaneId IS NULL OR el.id = :entryLaneId) " +
             "AND (:exitLaneId IS NULL OR xl.id = :exitLaneId) " +
             "AND (:statusInOut = '' " +

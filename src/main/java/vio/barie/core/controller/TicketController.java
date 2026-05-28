@@ -40,9 +40,25 @@ public class TicketController {
 
     //    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")
     @GetMapping("/all")
-    public Result<List<TicketDTO>> getAll() {
-        List<TicketDTO> data = ticketService.getAllTickets();
-        return Result.ok(data);
+    public Result<Page<TicketDTO>> getAll(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(name = "sortBy", defaultValue = "createdAt", required = false) String sortBy,
+            @RequestParam(name = "sortDirection", defaultValue = "DESC", required = false) String sortDirection,
+            @RequestParam(name = "searchKey", required = false) String searchKey,
+            @RequestParam(name = "status", required = false) vio.barie.core.common.TicketStatus status
+    ) {
+
+        TicketPaginationRequest req = TicketPaginationRequest.builder()
+                .page(page)
+                .size(size)
+                .sortBy(sortBy)
+                .sortDirection(sortDirection)
+                .searchKey(searchKey)
+                .status(status)
+                .build();
+        Page<TicketDTO> data = ticketService.list(req);
+        return Result.ok("Lấy danh sách vé thành công!", data);
     }
 
     //    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")
@@ -57,6 +73,7 @@ public class TicketController {
         ticketService.deleteTicketById(id);
         return Result.ok("Xóa vé thành công!", null);
     }
+
 
     @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")
     @PostMapping("/list")
