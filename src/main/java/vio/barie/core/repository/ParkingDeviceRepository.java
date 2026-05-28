@@ -17,7 +17,7 @@ public interface ParkingDeviceRepository extends JpaRepository<ParkingDeviceEnti
 
     List<ParkingDeviceEntity> findByLane_Id(Long laneId);
 
-    List<ParkingDeviceEntity> findByStatus(String status);
+    List<ParkingDeviceEntity> findByStatus(OperatingStatus status);
 
     List<ParkingDeviceEntity> findByLastSeenBeforeAndStatus(
             LocalDateTime time,
