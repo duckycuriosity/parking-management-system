@@ -40,6 +40,7 @@ public class TicketRegistrationService {
     private final TicketRepository ticketRepository;
     private final PaymentService paymentService;
     private final CalculatorService calculatorService;
+    private final TicketSummaryCacheService summaryCacheService;
 
     /**
      * Admin đăng ký vé tháng/quý cho khách hàng
@@ -121,6 +122,19 @@ public class TicketRegistrationService {
         ticket.setStatus(req.getStatus() != null ? req.getStatus() : TicketStatus.DEAD);
 
         TicketEntity savedTicket = ticketRepository.save(ticket);
+
+        if (savedTicket.getStatus() == TicketStatus.ACTIVE) {
+            summaryCacheService.increment("total");
+            summaryCacheService.increment("active");
+
+            // nếu vé mới đăng ký mà có hạn < 5 ngày (ít xảy ra nhưng vẫn nên check)
+            if (savedTicket.getExpireAt().isBefore(LocalDateTime.now().plusDays(5))) {
+                summaryCacheService.increment("expiring_soon");
+            }
+        } else if (savedTicket.getStatus() == TicketStatus.INACTIVE) {
+            summaryCacheService.increment("total");
+            summaryCacheService.increment("expired");
+        }
         log.info("Ticket created successfully: ticketId={}, expireAt={}",
                 savedTicket.getId(), expireAt);
 

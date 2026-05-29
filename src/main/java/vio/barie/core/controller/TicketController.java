@@ -10,9 +10,11 @@ import vio.barie.core.dto.TicketCreateRequest;
 import vio.barie.core.dto.ticket.TicketDTO;
 import vio.barie.core.dto.ticket.TicketPaginationRequest;
 import vio.barie.core.dto.ticket.TicketRegisterRequest;
+import vio.barie.core.dto.ticket.TicketSummaryResponse;
 import vio.barie.core.entity.TicketEntity;
 import org.springframework.data.domain.*;
 import vio.barie.core.service.TicketService;
+import vio.barie.core.service.TicketSummaryCacheService;
 
 import java.util.List;
 
@@ -23,6 +25,7 @@ import java.util.List;
 public class TicketController {
 
     private final TicketService ticketService;
+    private final TicketSummaryCacheService summaryCacheService;
 
     @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).ONLY_ORG_EDIT())")
     @PostMapping("/register")
@@ -36,6 +39,14 @@ public class TicketController {
     public Result<TicketDTO> create(@RequestBody TicketCreateRequest req) {
         TicketDTO data = ticketService.createTicket(req);
         return Result.ok("Tạo vé thành công!", data);
+    }
+
+    //    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")
+    @GetMapping("/summary")
+    public Result<TicketSummaryResponse> getSummary() {
+        // đọc thẳng từ RAM (Redis), thời gian phản hồi ~1ms
+        TicketSummaryResponse data = summaryCacheService.getSummary();
+        return Result.ok("Get ticket summary successfully", data);
     }
 
     //    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")
@@ -84,4 +95,6 @@ public class TicketController {
         Page<TicketDTO> data = ticketService.list(paginationRequest);
         return Result.ok(data);
     }
+
+
 }

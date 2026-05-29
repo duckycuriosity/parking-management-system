@@ -50,4 +50,20 @@ public interface TicketRepository extends JpaRepository<TicketEntity, Long>, Jpa
             @Param("status") String status,
             Pageable pageable
     );
+
+    // 1. tổng số vé (Bỏ qua DEAD)
+    @Query("SELECT COUNT(t) FROM TicketEntity t WHERE t.status IN ('ACTIVE', 'INACTIVE')")
+    long countTotalTickets();
+
+    // 2. vé đang hoạt động (status = ACTIVE và chưa qua ngày hết hạn)
+    @Query("SELECT COUNT(t) FROM TicketEntity t WHERE t.status = 'ACTIVE' AND t.expireAt >= CURRENT_TIMESTAMP")
+    long countActiveTickets();
+
+    // 3. vé đã hết hạn (status = INACTIVE hoặc đã qua ngày hết hạn)
+    @Query("SELECT COUNT(t) FROM TicketEntity t WHERE t.status = 'INACTIVE' OR (t.status = 'ACTIVE' AND t.expireAt < CURRENT_TIMESTAMP)")
+    long countExpiredTickets();
+
+    // 4. vé sắp hết hạn (ACTIVE, còn hạn, nhưng ngày hết hạn <= 5 ngày tới)
+    @Query("SELECT COUNT(t) FROM TicketEntity t WHERE t.status = 'ACTIVE' AND t.expireAt >= CURRENT_TIMESTAMP AND t.expireAt <= :in5Days")
+    long countExpiringSoonTickets(@Param("in5Days") java.time.LocalDateTime in5Days);
 }
