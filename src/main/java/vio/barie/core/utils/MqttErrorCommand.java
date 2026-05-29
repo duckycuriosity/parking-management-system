@@ -7,4 +7,5 @@ public class MqttErrorCommand {
     private String message;
     private String cameraUUID;
     private DetectionType type;
+    private String barrierId;
 }

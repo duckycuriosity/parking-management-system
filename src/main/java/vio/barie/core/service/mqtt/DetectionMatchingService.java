@@ -52,12 +52,14 @@ public class DetectionMatchingService {
     public void ingest(PendingEventDetection detection) {
         if (detection == null) {
             logger.warn("ingest: received null detection");
+            ioTService.publishErrorWhenHandlingEvent("Received null detection", "", detection != null ? detection.getType() : null);
             return;
         }
 
         try {
             if (detection.getDirectionType() == null) {
                 logger.warn("ingest: detection has no direction — type={}", detection.getType());
+                ioTService.publishErrorWhenHandlingEvent("Detection has no direction", "", detection.getType());
                 return;
             }
 
@@ -69,6 +71,7 @@ public class DetectionMatchingService {
                         detection.getDirectionType() == DirectionType.ENTRY ? detection.getEntryCameraId()
                                 : detection.getExitCameraId(),
                         detection.getPlateNumber(), detection.getProfileId());
+                ioTService.publishErrorWhenHandlingEvent("Cannot resolve barrier for detection", "", detection.getType());
                 return;
             }
 
@@ -127,6 +130,7 @@ public class DetectionMatchingService {
             if (vehicle == null || customer == null) {
                 logger.warn("handleEntryEvent: missing vehicle or customer — plate={} profileId={}",
                         detection.getPlateNumber(), detection.getProfileId());
+                ioTService.publishErrorWhenHandlingEvent("Vehicle or customer not found for entry event", "", detection.getType());
                 return;
             }
 
@@ -134,6 +138,7 @@ public class DetectionMatchingService {
             Long laneId = detection.getEntryLaneId();
             if (barrierId == null || laneId == null) {
                 logger.warn("handleEntryEvent: missing barrier or lane info");
+                ioTService.publishErrorWhenHandlingEvent("Missing barrier or lane info for entry event", "", detection.getType());
                 return;
             }
 
@@ -142,12 +147,14 @@ public class DetectionMatchingService {
                     .orElse(null);
             if (barrier == null || barrier.getParkingDevice() == null || barrier.getParkingDevice().getLane() == null) {
                 logger.warn("handleEntryEvent: barrier {} has no proper lane/device config", barrierId);
+                ioTService.publishErrorWhenHandlingEvent("Invalid barrier configuration for entry event", "", detection.getType());
                 return;
             }
 
             LaneEntity lane = barrier.getParkingDevice().getLane();
             if (lane.getParkingLot() == null) {
                 logger.warn("handleEntryEvent: lane {} has no parking lot", laneId);
+                ioTService.publishErrorWhenHandlingEvent("Lane has no parking lot for entry event", "", detection.getType());
                 return;
             }
 
@@ -199,13 +206,14 @@ public class DetectionMatchingService {
             if (vehicle == null || customer == null) {
                 logger.warn("handleExitEvent: missing vehicle or customer — plate={} profileId={}",
                         detection.getPlateNumber(), detection.getProfileId());
-                return;
+                ioTService.publishErrorWhenHandlingEvent("Vehicle or customer not found for exit event", "", detection.getType());
             }
 
             String barrierId = detection.getExitBarrierId();
             Long laneId = detection.getExitLaneId();
             if (barrierId == null || laneId == null) {
                 logger.warn("handleExitEvent: missing barrier or lane info");
+                ioTService.publishErrorWhenHandlingEvent("Missing barrier or lane info for exit event", "", detection.getType());
                 return;
             }
 
@@ -218,6 +226,7 @@ public class DetectionMatchingService {
             if (openSession == null) {
                 logger.warn("handleExitEvent: no open parking session found for vehicle={} customer={}",
                         vehicle.getId(), customer.getId());
+                ioTService.publishErrorWhenHandlingEvent("No open parking session found for exit event", "", detection.getType());
                 return;
             }
 
@@ -225,7 +234,7 @@ public class DetectionMatchingService {
             BarrierEntity barrier = barrierRepository.findByBarrierIdWithDeviceAndLaneAndParkingLot(barrierId)
                     .orElse(null);
             if (barrier == null || barrier.getParkingDevice() == null || barrier.getParkingDevice().getLane() == null) {
-                logger.warn("handleExitEvent: barrier {} has no proper lane/device config", barrierId);
+                ioTService.publishErrorWhenHandlingEvent("Invalid barrier configuration for exit event", "", detection.getType());
                 return;
             }
 
