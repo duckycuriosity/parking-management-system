@@ -1,5 +1,6 @@
 package vio.barie.core.service;
 
+import cn.hutool.json.JSONObject;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -154,7 +155,7 @@ public class TicketRegistrationService {
         return response;
     }
 
-    public String getTicketPayment(Long ticketId) {
+    public JSONObject getTicketPayment(Long ticketId) {
         TicketEntity ticket = ticketRepository.findById(ticketId).orElseThrow(
                 () -> new ServiceException("Không tìm ticket tương ", 404)
         );
@@ -169,7 +170,7 @@ public class TicketRegistrationService {
         CreatePaymentRequest payReq = new CreatePaymentRequest();
         payReq.setAmount(amount);
         payReq.setGoodsName("Phi gui xe");
-        payReq.setDescription("Phi dang ki ve gui xe");
+        payReq.setDescription("THANH TOAN VE GUI XE " + ticket.getVehicle().getPlateNumber());
         CreatePaymentResponse qr = paymentService.createPaymentLink(payReq);
 
         // tao payment
@@ -181,7 +182,14 @@ public class TicketRegistrationService {
                 ticket.getId()
 //                ticket.getCustomerId()
         );
-        return qr.getPaymentLink();
+        JSONObject result = new JSONObject();
+        result.set("qr", qr.getPaymentLink());
+        result.set("desc", "THANH TOAN VE GUI XE " + ticket.getVehicle().getPlateNumber());
+        result.set("bank_name", "MB");
+        result.set("bank_acc_num", "0843233326");
+        result.set("amount",qr.getAmount());
+        result.set("company_name","VioTech");
+        return result;
     }
 
     public TicketDTO getLatestStatus(Long ticketId) {
