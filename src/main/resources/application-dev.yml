@@ -1,16 +1,17 @@
 spring:
-  redis:
-    host: ${REDIS_HOST:localhost}
-    port: ${REDIS_PORT:6379}
+  data:
+    redis:
+      host: ${REDIS_HOST:192.168.168.30}
+      port: ${REDIS_PORT:6379}
   security:
     oauth2:
       resourceserver:
         jwt:
           issuer-uri: ${KEYCLOAK_ISSUER_URI:https://sso.safelinksystem.app/realms/barie}
   datasource:
-    url: jdbc:postgresql://localhost:5432/barie
-    username: postgres
-    password: postgres
+    url: jdbc:postgresql://192.168.168.30:5434/barie
+    username: barie_dev
+    password: n7FuKNTV@@
 #    url: jdbc:postgresql://192.168.168.30:5434/barie
 #    username: barie_dev
 #    password: n7FuKNTV@@
@@ -38,7 +39,7 @@ mqtt:
   host: tcp://192.168.168.30:1883
   username:
   password:
-  client-id: barie-core-service-dev-01
+  client-id: barie-core-service-dev-03636
   # tuning values for diagnostics; adjust as needed
   keep-alive-seconds: 120
   connection-timeout-seconds: 60

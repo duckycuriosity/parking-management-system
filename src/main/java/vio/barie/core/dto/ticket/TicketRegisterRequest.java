@@ -9,7 +9,7 @@ public class TicketRegisterRequest {
     @NonNull
     private Long vehicleId;
     private int duration;
-    private String type; // 'DAY', 'MONTH', 'YEAR'
+    private String type; // 'DAY', 'MONTH', 'QUARTER'
     private LocalDateTime registerAt;
     private Long paymentId;
 }
