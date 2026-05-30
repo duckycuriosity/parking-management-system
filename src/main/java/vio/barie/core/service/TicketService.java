@@ -87,11 +87,9 @@ public class TicketService {
         ticket.setExpireAt(req.getExpireAt());
 
         // mặc định trạng thái DEAD
-        if (req.getStatus() != null) {
-            ticket.setStatus(req.getStatus());
-        } else {
-            ticket.setStatus(TicketStatus.DEAD);
-        }
+
+        ticket.setStatus(TicketStatus.DEAD);
+
         ticket = ticketRepo.save(ticket);
         return TicketEntity.convertToDTO(ticket);
     }
@@ -147,20 +145,21 @@ public class TicketService {
                     .vehicleType(entity.getVehicle() != null ? entity.getVehicle().getVehicleType() : null)
                     .username(entity.getCustomer() != null ? entity.getCustomer().getUsername() : null)
                     .phoneNumber(entity.getCustomer() != null ? entity.getCustomer().getPhoneNumber() : null)
-                    .status(calculateDynamicStatus(entity.getRegisterAt(), entity.getExpireAt()))
+//                    .status(calculateDynamicStatus(entity.getRegisterAt(), entity.getExpireAt()))
+                    .status(entity.getStatus())
                     .build();
         });
     }
 
-    private TicketStatus calculateDynamicStatus(LocalDateTime registerAt, LocalDateTime expireAt) {
-        LocalDateTime now = LocalDateTime.now();
-        if (expireAt != null && now.isAfter(expireAt)) {
-            return TicketStatus.INACTIVE;
-        } else if (registerAt != null && expireAt != null && !now.isBefore(registerAt) && !now.isAfter(expireAt)) {
-            return TicketStatus.ACTIVE;
-        }
-        return TicketStatus.DEAD;
-    }
+//    private TicketStatus calculateDynamicStatus(LocalDateTime registerAt, LocalDateTime expireAt) {
+//        LocalDateTime now = LocalDateTime.now();
+//        if (expireAt != null && now.isAfter(expireAt)) {
+//            return TicketStatus.INACTIVE;
+//        } else if (registerAt != null && expireAt != null && !now.isBefore(registerAt) && !now.isAfter(expireAt)) {
+//            return TicketStatus.ACTIVE;
+//        }
+//        return TicketStatus.DEAD;
+//    }
 
 
 }

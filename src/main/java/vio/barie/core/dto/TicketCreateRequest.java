@@ -19,5 +19,5 @@ public class TicketCreateRequest {
     // FE truyền lên số Long (mili-giây), Backend tự động dịch sang LocalDateTime
     @JsonFormat(shape = JsonFormat.Shape.NUMBER)
     private LocalDateTime expireAt;
-    private TicketStatus status;
+//    private TicketStatus status;
 }

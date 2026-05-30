@@ -151,7 +151,7 @@ public class BarrierService {
         BarrierEntity barrier = barrierRepository.findByBarrierId(barrierId)
                 .orElseThrow(() -> new BusinessException("Barrier id not found: " + barrierId, "BARRIER_NOT_FOUND", 404));
 
-//        barrier.setDirection(request.getDirection());
+        barrier.setDirection(request.getDirection());
         barrier.setDescription(request.getDescription());
 
         ParkingDeviceEntity device = parkingDeviceRepository.findById(request.getParkingDeviceId())

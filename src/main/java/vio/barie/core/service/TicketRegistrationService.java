@@ -202,8 +202,8 @@ public class TicketRegistrationService {
         result.set("desc", "THANH TOAN VE GUI XE " + ticket.getVehicle().getPlateNumber());
         result.set("bank_name", "MB");
         result.set("bank_acc_num", "0843233326");
-        result.set("amount",qr.getAmount());
-        result.set("company_name","VioTech");
+        result.set("amount", qr.getAmount());
+        result.set("company_name", "VioTech");
         return result;
     }
 
