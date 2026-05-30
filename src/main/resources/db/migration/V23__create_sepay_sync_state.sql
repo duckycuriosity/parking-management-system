@@ -1,2 +1,0 @@
-ALTER TABLE payment
-ALTER COLUMN sepay_tx_id TYPE VARCHAR(64);

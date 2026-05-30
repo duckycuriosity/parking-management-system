@@ -180,7 +180,7 @@ public class SePayGateway implements PaymentGateway {
             JSONObject context = payment.getCallbackContext();
             TicketEntity ticket = ticketRepository.findById(context.getLong("ticketId"))
                     .orElseThrow(() -> new ServiceException("Không tìm thấy ticket tương ứng", 404));
-            ticket.setStatus(TicketStatus.ACTIVE.name());
+            ticket.setStatus(TicketStatus.ACTIVE);
             ticketRepository.save(ticket);
         } else {
             throw new ServiceException(

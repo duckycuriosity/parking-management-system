@@ -6,7 +6,7 @@
 -- có `id` BIGINT duy nhất từ SePay -> dùng cho idempotency.
 
 ALTER TABLE payment
-    ADD COLUMN IF NOT EXISTS sepay_tx_id    BIGINT,
+    ADD COLUMN IF NOT EXISTS sepay_tx_id    VARCHAR(50),
     ADD COLUMN IF NOT EXISTS gateway        VARCHAR(50),
     ADD COLUMN IF NOT EXISTS reference_code VARCHAR(100);
 

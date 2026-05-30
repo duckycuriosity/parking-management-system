@@ -177,7 +177,7 @@ public class MegaPayGateway implements PaymentGateway {
             TicketEntity ticket = ticketRepository.findById(context.getLong("ticketId")).orElseThrow(
                     () -> new ServiceException("Không tìm ticket tương ", 404)
             );
-            ticket.setStatus(TicketStatus.ACTIVE.name());
+            ticket.setStatus(TicketStatus.ACTIVE);
             ticketRepository.save(ticket);
         } else {
             throw new ServiceException("Chưa hỗ trợ callback type: "+payment.getCallbackType(),404);

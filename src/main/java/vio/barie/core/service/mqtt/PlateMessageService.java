@@ -181,7 +181,7 @@ public class PlateMessageService {
 
         } catch (Exception ex) {
                 parkingMessageService.publishErrorWhenHandlingEvent(
-                        "Failed to process unregistered vehicle event", cameraInLane.getUUID(), DetectionType.PLATE,
+                        "Failed to process unregistered vehicle event", cameraInLane.getUuid(), DetectionType.PLATE,
                         barrier.getBarrierId());
             logger.error("handleUnregisteredVehicle: failed to process unregistered vehicle — plate={} error={}",
                     plateNumber, ex.getMessage(), ex);

@@ -177,7 +177,7 @@ public class DetectionMatchingService {
                 session.setTicketId(ticket.get().getId());
                 session.setSessionType(ticket.get().getTicketType());
             } else {
-                session.setSessionType(TicketType.DAILY);
+                session.setSessionType(TicketType.DAY);
             }
 
             parkingSessionRepository.save(session);

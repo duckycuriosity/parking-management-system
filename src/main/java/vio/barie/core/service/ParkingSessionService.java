@@ -83,9 +83,9 @@ public class ParkingSessionService {
         String formattedFee = "0 đ";
 
         if (sessionType != null) {
-            if (sessionType == TicketType.DAILY) {
+            if (sessionType == TicketType.DAY) {
                 formattedFee = "Vé lượt";
-            } else if (sessionType == TicketType.MONTHLY || sessionType == TicketType.QUARTER) {
+            } else if (sessionType == TicketType.MONTH || sessionType == TicketType.QUARTER) {
                 formattedFee = "Miễn phí";
             }
         }
