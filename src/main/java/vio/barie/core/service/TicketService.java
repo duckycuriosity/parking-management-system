@@ -58,10 +58,8 @@ public class TicketService {
             ticket.setExpireAt(ticket.getExpireAt().plusDays(req.getDuration()));
         } else if (req.getType().equals("MONTH")) {
             ticket.setExpireAt(ticket.getExpireAt().plusMonths(req.getDuration()));
-        } else if (req.getType().equals("YEAR")) {
-            ticket.setExpireAt(ticket.getExpireAt().plusYears(req.getDuration()));
         } else {
-            throw new ServiceException("Đơn vị thời gian không hợp lệ! Chỉ có thể là 'DAY', 'MONTH', 'YEAR'", 404);
+            throw new ServiceException("Đơn vị thời gian không hợp lệ! Chỉ có thể là 'DAY', 'MONTH', 'QUARTER'", 404);
         }
 
         ticket.setStatus(TicketStatus.ACTIVE);

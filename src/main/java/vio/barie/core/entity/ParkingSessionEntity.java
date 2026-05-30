@@ -6,7 +6,7 @@ import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 
-import vio.barie.core.common.TicketType;
+import vio.barie.core.common.SessionType;
 import vio.barie.core.entity.base.BaseEntity;
 
 @Entity
@@ -56,5 +56,5 @@ public class ParkingSessionEntity extends BaseEntity {
     
     @Enumerated(EnumType.STRING)
     @Column(name = "session_type", nullable = false)
-    private TicketType sessionType; // 'MONTHLY', 'QUARTERLY', 'YEARLY', 'DAILY'
+    private SessionType sessionType; // 'DAY', 'MONTH', 'QUARTER'
 }
