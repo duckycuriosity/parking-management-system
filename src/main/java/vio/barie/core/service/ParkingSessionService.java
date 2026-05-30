@@ -1,6 +1,7 @@
 package vio.barie.core.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Set;
 
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ParkingSessionService {
@@ -40,7 +42,7 @@ public class ParkingSessionService {
 
     private TicketType parseTicketType(String type) {
         if (type == null || type.trim().isEmpty()) {
-            return null; // Trả về null để query bỏ qua filter này (IS NULL)
+            return null;
         }
         try {
             return TicketType.valueOf(type.trim().toUpperCase());
@@ -54,10 +56,10 @@ public class ParkingSessionService {
             String searchKey, String sessionType, String typeVehicle,
             Long entryLaneId, Long exitLaneId, String statusInOut, Pageable pageable) {
 
+
         Page<ParkingSessionEntity> entityPage = parkingSessionRepository.findAllParkingLotWithFilters(
                 formatString(searchKey), parseTicketType(sessionType), formatString(typeVehicle),
                 entryLaneId, exitLaneId, formatString(statusInOut), pageable);
-
         return entityPage.map(this::mapToDetailResponse);
     }
 
@@ -75,7 +77,10 @@ public class ParkingSessionService {
     }
 
     private String formatString(String input) {
-        return (input != null) ? input.trim().toUpperCase() : "";
+
+        return (input != null && !input.trim().isEmpty())
+                ? input.trim().toUpperCase()
+                : null;
     }
 
     private ParkingSessionDetailResponse mapToDetailResponse(ParkingSessionEntity entity) {
@@ -83,9 +88,9 @@ public class ParkingSessionService {
         String formattedFee = "0 đ";
 
         if (sessionType != null) {
-            if (sessionType == TicketType.DAILY) {
+            if (sessionType == TicketType.DAY) {
                 formattedFee = "Vé lượt";
-            } else if (sessionType == TicketType.MONTH || sessionType == TicketType.QUARTER || sessionType == TicketType.YEAR) {
+            } else if (sessionType == TicketType.MONTH || sessionType == TicketType.QUARTER) {
                 formattedFee = "Miễn phí";
             }
         }

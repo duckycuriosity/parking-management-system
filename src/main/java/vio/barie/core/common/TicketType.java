@@ -1,5 +1,5 @@
 package vio.barie.core.common;
 
 public enum TicketType {
-    DAILY, QUARTER, MONTH, YEAR
+    DAY, QUARTER, MONTH
 }

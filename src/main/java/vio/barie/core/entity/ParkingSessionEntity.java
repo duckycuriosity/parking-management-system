@@ -53,8 +53,8 @@ public class ParkingSessionEntity extends BaseEntity {
 
     @Column(name = "ticket_id")
     private Long ticketId;
-    
+
     @Enumerated(EnumType.STRING)
     @Column(name = "session_type", nullable = false)
-    private TicketType sessionType; // 'MONTHLY', 'QUARTERLY', 'YEARLY', 'DAILY'
+    private TicketType sessionType; // 'MONTH', 'QUARTER', 'DAY'
 }

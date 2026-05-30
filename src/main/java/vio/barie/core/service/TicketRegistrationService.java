@@ -219,10 +219,7 @@ public class TicketRegistrationService {
             return now.plusMonths(1);
         } else if (ticketType == TicketType.QUARTER) {
             return now.plusMonths(3);
-        } else if (ticketType == TicketType.YEAR) {
-            return now.plusYears(1);
         }
-
         // Default: 1 month
         return now.plusMonths(1);
     }
@@ -250,7 +247,7 @@ public class TicketRegistrationService {
         // Ticket type validation
         if (req.getTicketType() != TicketType.MONTH
                 && req.getTicketType() != TicketType.QUARTER
-                && req.getTicketType() != TicketType.YEAR) {
+        ) {
             throw new ServiceException("Invalid ticket type: " + req.getTicketType(), 400);
         }
 

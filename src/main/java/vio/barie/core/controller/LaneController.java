@@ -17,6 +17,10 @@ import vio.barie.core.dto.*;
 import vio.barie.core.service.LaneService;
 import lombok.extern.slf4j.Slf4j;
 import vio.barie.core.service.ParkingLotService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
@@ -41,9 +45,14 @@ public class LaneController {
     }
 
     @GetMapping
-    public Result<List<LaneResponse>> findAll() {
+    public Result<Page<LaneResponse>> findAll(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+
         return Result.ok("Lane list fetched successfully",
-                laneService.findAll());
+                laneService.findAll(pageable));
     }
 
     @GetMapping("/{id}")

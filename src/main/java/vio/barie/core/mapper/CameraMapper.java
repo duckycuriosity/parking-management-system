@@ -37,6 +37,7 @@ public class CameraMapper {
 
         if (entity.getLane() != null) {
             response.setLane_id(entity.getLane().getId());
+            response.setLaneName(entity.getLane().getName());
             if (entity.getLane().getParkingLot() != null) {
                 response.setParkingLotName(entity.getLane().getParkingLot().getName());
             }

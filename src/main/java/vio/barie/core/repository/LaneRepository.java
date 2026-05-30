@@ -1,5 +1,7 @@
 package vio.barie.core.repository;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -17,7 +19,7 @@ public interface LaneRepository extends JpaRepository<LaneEntity, Long> {
     @Query("SELECT l FROM LaneEntity l JOIN FETCH l.parkingLot p WHERE p.id = :parkingLotId")
     List<LaneEntity> findAllByParkingLotId(@Param("parkingLotId") Long parkingLotId);
 
-    @Query("SELECT l FROM LaneEntity l JOIN FETCH l.parkingLot")
-    List<LaneEntity> findAllWithParkingLot();
-
+    @Query(value = "SELECT l FROM LaneEntity l JOIN FETCH l.parkingLot",
+            countQuery = "SELECT count(l) FROM LaneEntity l")
+    Page<LaneEntity> findAllWithParkingLot(Pageable pageable);
 }

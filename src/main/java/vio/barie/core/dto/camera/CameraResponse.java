@@ -22,6 +22,7 @@ public class CameraResponse {
     private JsonNode extra;
     private Long lane_id;
     private String parkingLotName;
+    private String laneName;
     private String description;
     private BaseStatus status;
     private DateTime created_date;
