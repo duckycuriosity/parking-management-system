@@ -35,9 +35,5 @@ public class SePayConfig {
     /** Cron polling reconciliation (ms). Default 5 phút. */
     private long reconciliationIntervalMs = 5L * 60L * 1000L;
 
-    public String getTransactionsListUrl()   { return apiBaseUrl + "/transactions/list"; }
-    public String getTransactionsCountUrl()  { return apiBaseUrl + "/transactions/count"; }
-    public String getTransactionById(String txId) {
-        return apiBaseUrl + "/transactions/" + txId;
-    }
+    public String getTransactionsListUrl()   { return apiBaseUrl + "/transactions"; }
 }

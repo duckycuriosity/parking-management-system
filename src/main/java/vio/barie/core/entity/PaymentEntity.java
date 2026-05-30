@@ -75,7 +75,7 @@ public class PaymentEntity extends BaseEntity {
 
     /** them truong cho SePay */
     @Column(name = "sepay_tx_id", unique = true)
-    private Long sepayTxId;
+    private String sepayTxId;
     @Column(name = "gateway", length = 50)
     private String gateway;
     @Column(name = "reference_code", length = 100)

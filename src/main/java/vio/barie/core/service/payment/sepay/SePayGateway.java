@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 import vio.barie.core.common.PaymentCallbackType;
+import vio.barie.core.common.PaymentType;
 import vio.barie.core.common.TicketStatus;
 import vio.barie.core.config.exception.ServiceException;
 import vio.barie.core.config.payment.SePayConfig;
@@ -44,11 +45,6 @@ public class SePayGateway implements PaymentGateway {
     private static final DateTimeFormatter SEPAY_DATE_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    static final String STATUS_PAID    = "PAID";
-    static final String STATUS_PENDING = "PENDING";
-    static final String STATUS_FAILED  = "FAILED";
-    static final String STATUS_FRAUD   = "FRAUD_SUSPECTED";
-
     // TẠO QR
     public CreatePaymentResponse createPaymentLink(CreatePaymentRequest req) {
         if (req.getAmount() == null || req.getAmount().signum() <= 0) {
@@ -74,10 +70,12 @@ public class SePayGateway implements PaymentGateway {
         resp.setAmount(req.getAmount());
         resp.setPayType(req.getPayType() != null ? req.getPayType() : "QR");
         resp.setLinkExptime(linkExptime);
-        resp.setQrCode(qrUrl);
+        // sepay ko ho tro base64
+        resp.setQrCode(null);
         resp.setPaymentLink(qrUrl);
         resp.setResultCd("00_000");
         resp.setResultMsg("OK");
+        // do chỉ dùng webhook nên ko có merid -> tạm thời set là bank account
         resp.setMerId(sepayConfig.getBankAccount());
         resp.setTimeStamp(String.valueOf(System.currentTimeMillis()));
         return resp;
@@ -116,10 +114,10 @@ public class SePayGateway implements PaymentGateway {
         }
 
         // (3) Parse invoiceNo
-        String invoiceNo = extractInvoiceNo(payload.getContent());
+        String invoiceNo = extractInvoiceNo(payload.getCode());
         if (invoiceNo == null) {
-            log.warn("SePay webhook: không tìm thấy invoiceNo trong content='{}', txId={}",
-                    payload.getContent(), payload.getId());
+            log.warn("SePay webhook: không tìm thấy invoiceNo trong content='{}', payload={}",
+                    payload.getContent(), payload);
             return;
         }
 
@@ -132,7 +130,7 @@ public class SePayGateway implements PaymentGateway {
                 && payment.getAmount().compareTo(payload.getTransferAmount()) != 0) {
             log.warn("SePay webhook: lệch số tiền invoice={} expected={} actual={}",
                     invoiceNo, payment.getAmount(), payload.getTransferAmount());
-            payment.setStatus(STATUS_FRAUD);
+            payment.setStatus(PaymentType.FRAUD.name());
             payment.setResultMessage("Amount mismatch: expected="
                     + payment.getAmount() + " actual=" + payload.getTransferAmount());
             payment.setSepayTxId(payload.getId());
@@ -142,7 +140,7 @@ public class SePayGateway implements PaymentGateway {
             return;
         }
 
-        if (STATUS_PAID.equals(payment.getStatus())) {
+        if (PaymentType.PAID.name().equals(payment.getStatus())) {
             log.info("SePay webhook: invoice {} đã PAID, chỉ gán sepay_tx_id và bỏ qua nghiệp vụ",
                     invoiceNo);
             payment.setSepayTxId(payload.getId());
@@ -159,7 +157,8 @@ public class SePayGateway implements PaymentGateway {
                     invoiceNo);
         }
 
-        payment.setStatus(STATUS_PAID);
+
+        payment.setStatus(PaymentType.PAID.name());
         payment.setPaidAt(parseSePayDate(payload.getTransactionDate()));
         payment.setSepayTxId(payload.getId());
         payment.setGateway(payload.getGateway());
@@ -191,59 +190,45 @@ public class SePayGateway implements PaymentGateway {
 
     // INQUIRY — DB local + fallback SePay nếu PENDING
     public PaymentInquiryResponse inquiryByInvoiceNo(String invoiceNo) {
-        PaymentEntity local = paymentRepository.findByInvoiceNo(invoiceNo).orElse(null);
-        if (local == null) return null;
+        SePayTransaction sePayTransaction = findSePayTransactionByInvoice(invoiceNo);
+        if (sePayTransaction == null) return null;
 
-        // Nếu còn PENDING -> thử gọi SePay xem có giao dịch khớp không (webhook miss?)
-        if (STATUS_PENDING.equals(local.getStatus())) {
-            findSePayTransactionByInvoice(invoiceNo).ifPresent(tx -> {
-                log.info("Inquiry: phát hiện invoice {} đã có giao dịch SePay, replay webhook handler",
-                        invoiceNo);
-                try {
-                    handleCallback(tx.toString());
-                } catch (Exception e) {
-                    log.error("Inquiry replay error: {}", e.getMessage(), e);
-                }
-            });
-            local = paymentRepository.findByInvoiceNo(invoiceNo).orElse(local);
-        }
+        log.info("SePayTransaction found: {}",sePayTransaction);
 
         return PaymentInquiryResponse.builder()
-                .invoiceNo(local.getInvoiceNo())
-                .status(local.getStatus())
-                .amount(local.getAmount())
-                .metadata(local.toString())
+                .invoiceNo(invoiceNo)
+                .status(PaymentType.PAID.name())
+                .amount(sePayTransaction.getAmountIn())
+                .metadata(JSONUtil.toJsonPrettyStr(sePayTransaction))
                 .build();
     }
 
-    /** Tìm 1 giao dịch SePay khớp invoiceNo */
-    public Optional<SePayTransaction> findSePayTransactionByInvoice(String invoiceNo) {
+    public SePayTransaction findSePayTransactionByInvoice(String invoiceNo) {
         try {
-            UriComponentsBuilder uri = UriComponentsBuilder
+            String url = UriComponentsBuilder
                     .fromUriString(sepayConfig.getTransactionsListUrl())
                     .queryParam("q", invoiceNo)
-                    .queryParam("limit", 1);
-            SePayTransactionListResponse resp = sepayGet(uri.build().toUri().toString(),
-                    SePayTransactionListResponse.class);
-            if (resp == null || resp.getTransactions() == null || resp.getTransactions().isEmpty()) return Optional.empty();
-            return Optional.of(resp.getTransactions().getFirst());
+                    .build()
+                    .toUri()
+                    .toString();
+            SePayTransactionListResponse resp = restClient.get()
+                    .uri(url)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + sepayConfig.getApiToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(SePayTransactionListResponse.class);
+
+            if (resp == null || resp.getData() == null || resp.getData().isEmpty()) return null;
+            for (int i = 0; i < resp.getData().size(); i++) {
+                if (resp.getData().get(i).getCode().toLowerCase().trim().equals(invoiceNo.toLowerCase().trim())){
+                    return resp.getData().get(i);
+                }
+            }
+            return null;
         } catch (Exception e) {
             log.error("SePay inquiry error invoice={}: {}", invoiceNo, e.getMessage(), e);
-            return Optional.empty();
+            return null;
         }
-    }
-
-    /** GET kèm Bearer token. */
-    public <T> T sepayGet(String url, Class<T> respType) {
-        if (sepayConfig.getApiToken() == null || sepayConfig.getApiToken().isBlank()) {
-            throw new ServiceException("Chưa cấu hình sepay.api-token", 500);
-        }
-        return restClient.get()
-                .uri(url)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + sepayConfig.getApiToken())
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .body(respType);
     }
 
     private String extractInvoiceNo(String content) {

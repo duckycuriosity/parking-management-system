@@ -12,6 +12,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import vio.barie.core.common.PaymentCallbackType;
+import vio.barie.core.common.PaymentType;
 import vio.barie.core.common.TicketStatus;
 import vio.barie.core.common.TicketType;
 import vio.barie.core.config.exception.ServiceException;
@@ -75,7 +76,7 @@ public class PaymentService {
         payment.setPaymentMethod("QR");
         payment.setPayType(payType);
         payment.setDescription(Sanitize.clean(description));
-        payment.setStatus("PENDING");
+        payment.setStatus(PaymentType.PENDING.name());
         payment.setCallbackType(PaymentCallbackType.SESSION.name());
 
         JSONObject context = new JSONObject();
@@ -110,7 +111,7 @@ public class PaymentService {
         payment.setPaymentMethod("QR");
         payment.setPayType(payType);
         payment.setDescription(Sanitize.clean(description));
-        payment.setStatus("PENDING");
+        payment.setStatus(PaymentType.PENDING.name());
         payment.setCallbackType(PaymentCallbackType.TICKET.name());
 
         JSONObject context = new JSONObject();
@@ -122,7 +123,9 @@ public class PaymentService {
     }
 
     public CreatePaymentResponse createPaymentLink(CreatePaymentRequest req){
-        return paymentGateway.createPaymentLink(req);
+        CreatePaymentResponse response = paymentGateway.createPaymentLink(req);
+        log.debug("CreatePaymentResponse : {}",response);
+        return response;
     };
 
     public void handleCallback(String body){
@@ -139,7 +142,7 @@ public class PaymentService {
                 paymentRepository.findPendingBySessionId(String.valueOf(sessionId));
         if (stale.isEmpty()) return;
         for (PaymentEntity p : stale) {
-            p.setStatus("FAILED");
+            p.setStatus(PaymentType.FAILED.name());
             p.setResultMessage("Superseded by new payment attempt");
         }
         paymentRepository.saveAll(stale);
@@ -152,7 +155,7 @@ public class PaymentService {
                 paymentRepository.findPendingByTicketId(String.valueOf(ticketId));
         if (stale.isEmpty()) return;
         for (PaymentEntity p : stale) {
-            p.setStatus("FAILED");
+            p.setStatus(PaymentType.FAILED.name());
             p.setResultMessage("Superseded by new payment attempt");
         }
         paymentRepository.saveAll(stale);

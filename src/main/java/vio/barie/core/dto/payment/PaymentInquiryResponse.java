@@ -13,6 +13,6 @@ public class PaymentInquiryResponse {
     private String invoiceNo;
     private String status;
     private BigDecimal amount;
-    // Chứa data riêng của megapay hoặc sepay
+    // Chứa ca body
     private String metadata;
 }

@@ -14,7 +14,7 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
     Optional<PaymentEntity> findById(Long id);
     Optional<PaymentEntity> findByInvoiceNo(String invoiceNo);
     boolean existsById(Long id);
-    boolean existsBySepayTxId(Long sepayTxId);
+    boolean existsBySepayTxId(String sepayTxId);
 
     // Stats / Reconciliation
 
@@ -69,4 +69,17 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
             "ORDER BY created_at DESC LIMIT 1",
             nativeQuery = true)
     Optional<PaymentEntity> findLatestBySessionId(@Param("sessionId") String sessionId);
+
+    /**
+     * Tìm payment mới nhất gắn với 1 ticket (callback_type=TICKET, ticketId trong jsonb).
+     * Native query vì callback_context là JSONB của Postgres.
+     */
+    @Query(value = """
+            SELECT * FROM payment
+            WHERE callback_type = 'TICKET'
+              AND callback_context->>'ticketId' = :ticketId
+            ORDER BY created_at DESC
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<PaymentEntity> findLatestByTikcetId(@Param("ticketId") String ticketId);
 }

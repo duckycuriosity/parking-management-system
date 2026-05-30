@@ -278,7 +278,7 @@ public class DetectionMatchingService {
             ioTService.publishVehicleInfo(barrierId, openSession.getId(), vehicle.getPlateNumber(),
                     openSession.getEntryTime(), amount,
                     // paymentService.decodePaymentLink(qr.getPaymentLink())
-                    qr.getQrCode());
+                    qr.getPaymentLink());
 
         } catch (Exception ex) {
             logger.error("handleExitEvent: failed — type={}: {}", detection.getType(), ex.getMessage(), ex);

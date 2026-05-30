@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import vio.barie.core.common.PaymentType;
 import vio.barie.core.common.TicketStatus;
 import vio.barie.core.config.exception.ServiceException;
 import vio.barie.core.dto.AiPlateResponse;
@@ -12,12 +13,17 @@ import vio.barie.core.dto.AiProfileResponse;
 import vio.barie.core.dto.PlateCreateRequest;
 import vio.barie.core.dto.payment.CreatePaymentRequest;
 import vio.barie.core.dto.payment.CreatePaymentResponse;
+import vio.barie.core.dto.payment.PaymentInquiryResponse;
+import vio.barie.core.dto.payment.SePayTransaction;
 import vio.barie.core.dto.ticket.AdminMonthlyTicketRegistrationRequest;
+import vio.barie.core.dto.ticket.TicketDTO;
 import vio.barie.core.dto.ticket.TicketRegistrationResponseDTO;
 import vio.barie.core.entity.ParkingCustomerEntity;
+import vio.barie.core.entity.PaymentEntity;
 import vio.barie.core.entity.TicketEntity;
 import vio.barie.core.entity.VehicleEntity;
 import vio.barie.core.repository.ParkingCustomerRepository;
+import vio.barie.core.repository.PaymentRepository;
 import vio.barie.core.repository.TicketRepository;
 import vio.barie.core.repository.VehicleRepository;
 
@@ -37,6 +43,7 @@ public class TicketRegistrationService {
     private final ParkingCustomerRepository parkingCustomerRepository;
     private final VehicleRepository vehicleRepository;
     private final TicketRepository ticketRepository;
+    private final PaymentRepository paymentRepository;
     private final PaymentService paymentService;
     private final CalculatorService calculatorService;
 
@@ -173,7 +180,37 @@ public class TicketRegistrationService {
                 ticket.getId()
 //                ticket.getCustomerId()
         );
-        return qr.getQrCode();
+        return qr.getPaymentLink();
+    }
+
+    public TicketDTO getLatestStatus(Long ticketId) {
+        if (ticketId == null) return null;
+
+        PaymentEntity payment = paymentRepository
+                .findLatestByTikcetId(String.valueOf(ticketId))
+                .orElse(null);
+        if (payment == null) {
+            log.info("getLatestStatus: không có payment nào cho ticketId={}", ticketId);
+            return null;
+        }
+
+        // Self-heal: nếu còn PENDING, thử check SePay xem tiền đã về chưa
+        if (PaymentType.PENDING.name().equals(payment.getStatus())) {
+            try {
+                PaymentInquiryResponse inquiryResponse = paymentService.inquiryByInvoiceNo(payment.getInvoiceNo());
+                if (inquiryResponse != null) {
+                    log.info("getLatestStatus: ticketId={} có giao dịch SePay khớp invoice={}, replay handler",
+                            ticketId, payment.getInvoiceNo());
+                    paymentService.handleCallback(inquiryResponse.getMetadata());
+                }
+            } catch (Exception e) {
+                log.error("getLatestStatus replay error: {}", e.getMessage(), e);
+            }
+        }
+        // Lấy trạng thái ticket hiện tại
+        return ticketRepository.findById(ticketId)
+                .map(TicketEntity::convertToDTO)
+                .orElse(null);
     }
 
     /**

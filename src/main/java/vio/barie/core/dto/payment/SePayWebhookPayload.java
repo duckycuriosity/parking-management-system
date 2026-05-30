@@ -25,7 +25,7 @@ import java.math.BigDecimal;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SePayWebhookPayload {
     /** ID giao dịch duy nhất = cột sepay_tx_id */
-    private Long id;
+    private String id;
     /** Tên ngân hàng: Vietcombank, VPBank... */
     private String gateway;
     /** yyyy-MM-dd HH:mm:ss */

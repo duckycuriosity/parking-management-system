@@ -11,6 +11,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import vio.barie.core.common.PaymentCallbackType;
+import vio.barie.core.common.PaymentType;
 import vio.barie.core.common.TicketStatus;
 import vio.barie.core.config.exception.ServiceException;
 import vio.barie.core.config.payment.MegaPayConfig;
@@ -84,6 +85,7 @@ public class MegaPayGateway implements PaymentGateway {
 
         try {
             CreatePaymentResponse response = createPaymentLink(params);
+            response.setPaymentLink(decodePaymentLink(response.getPaymentLink()));
 
             if (!"00_000".equals(response.getResultCd())) {
                 throw new ServiceException("Tạo link thanh toán thất bại: " + response.getResultMsg(), 400);
@@ -139,20 +141,20 @@ public class MegaPayGateway implements PaymentGateway {
         }
 
         // Tránh xử lý 2 lần
-        if ("PAID".equals(payment.getStatus())) {
+        if (PaymentType.PAID.name().equals(payment.getStatus())) {
             log.info("IPN: payment voi invoiceNo {} đã PAID, bỏ qua", response.getInvoiceNo());
             return;
         }
 
         if ("00_000".equals(response.getResultCd())) {
-            payment.setStatus("PAID");
+            payment.setStatus(PaymentType.PAID.name());
             payment.setPaidAt(LocalDateTime.now());
             // double check
             inquiryByInvoiceNo(response.getInvoiceNo());
         } else if ("99".equals(response.getResultCd())) {
-            payment.setStatus("PENDING");
+            payment.setStatus(PaymentType.PENDING.name());
         } else {
-            payment.setStatus("FAILED");
+            payment.setStatus(PaymentType.FAILED.name());
         }
 
         payment.setResultCode(response.getResultCd());
@@ -201,12 +203,12 @@ public class MegaPayGateway implements PaymentGateway {
             paymentRepository.findByInvoiceNo(invoiceNo).ifPresent(tx -> {
                 String rc = resp.getResultCd();
                 if ("00_000".equals(rc)) {
-                    tx.setStatus("PAID");
+                    tx.setStatus(PaymentType.PAID.name());
                     tx.setPaidAt(LocalDateTime.now());
                 } else if ("99".equals(rc)) {
-                    tx.setStatus("PENDING");
+                    tx.setStatus(PaymentType.PENDING.name());
                 } else {
-                    tx.setStatus("FAILED");
+                    tx.setStatus(PaymentType.FAILED.name());
                 }
                 tx.setResultCode(rc);
                 tx.setResultMessage(resp.getResultMsg());
@@ -217,7 +219,7 @@ public class MegaPayGateway implements PaymentGateway {
                     .invoiceNo(resp.getInvoiceNo())
                     .status(resp.getStatus())
                     .amount(new BigDecimal(resp.getAmount()))
-                    .metadata(resp.toString())
+                    .metadata(JSONUtil.toJsonPrettyStr(resp))
                     .build();
 //            finalResp.setMetadata(resp.getInvoiceNo());
             return finalResp;
@@ -249,7 +251,7 @@ public class MegaPayGateway implements PaymentGateway {
         // QR hết hạn sau 15 phút
         SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss");
         Calendar cal = Calendar.getInstance();
-        cal.add(Calendar.MINUTE, 15);
+        cal.add(Calendar.MINUTE, config.getQrExpireMinutes());
         return sdf.format(cal.getTime());
     }
 

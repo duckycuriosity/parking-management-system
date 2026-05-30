@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import vio.barie.core.dto.Result;
 import vio.barie.core.dto.ticket.AdminMonthlyTicketRegistrationRequest;
+import vio.barie.core.dto.ticket.TicketDTO;
 import vio.barie.core.dto.ticket.TicketRegistrationResponseDTO;
 import vio.barie.core.service.TicketRegistrationService;
 
@@ -71,5 +72,14 @@ public class AdminTicketRegistrationController {
                         200,
                         "qrcode",
                         qr);
+        }
+
+        @GetMapping("/getLatestStatus/{ticketId}")
+        public Result<TicketDTO> getLatestStatus(@PathVariable Long ticketId) {
+            TicketDTO ticketDTO = ticketRegistrationService.getLatestStatus(ticketId);
+            return new Result<>(
+                    200,
+                    "latest ticket status",
+                    ticketDTO);
         }
 }
