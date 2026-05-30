@@ -5,7 +5,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -13,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import vio.barie.core.dto.Result;
 import vio.barie.core.dto.ticket.AdminMonthlyTicketRegistrationRequest;
+import vio.barie.core.dto.ticket.TicketDTO;
 import vio.barie.core.dto.ticket.TicketRegistrationResponseDTO;
 import vio.barie.core.service.TicketRegistrationService;
 
@@ -39,7 +39,6 @@ public class AdminTicketRegistrationController {
             +
             "Includes face registration, vehicle registration, and ticket creation.")
     public Result<TicketRegistrationResponseDTO> registerMonthlyTicket(
-            @ParameterObject
             @Valid @ModelAttribute AdminMonthlyTicketRegistrationRequest request,
             @RequestPart("image") MultipartFile image) {
 
@@ -56,22 +55,31 @@ public class AdminTicketRegistrationController {
             return Result.ok("Monthly ticket registered successfully",
                     response);
 
-        } catch (IOException ex) {
-            log.error("IO error while processing face image: {}", ex.getMessage(), ex);
-            throw new RuntimeException("Failed to process face image: " + ex.getMessage(), ex);
-        } catch (Exception ex) {
-            log.error("Error registering monthly ticket - customer: {}, error: {}",
-                    request.getName(), ex.getMessage(), ex);
-            throw ex;
+                } catch (IOException ex) {
+                        log.error("IO error while processing face image: {}", ex.getMessage(), ex);
+                        throw new RuntimeException("Failed to process face image: " + ex.getMessage(), ex);
+                } catch (Exception ex) {
+                        log.error("Error registering monthly ticket - customer: {}, error: {}",
+                                        request.getName(), ex.getMessage(), ex);
+                        throw ex;
+                }
         }
-    }
 
-    @GetMapping("/qrcode/{ticketId}")
-    public Result<String> getTicketRegistrationQrcode(@PathVariable Long ticketId) {
-        String qr = ticketRegistrationService.getTicketPayment(ticketId);
-        return new Result<>(
-                200,
-                "qrcode",
-                qr);
-    }
+        @GetMapping("/qrcode/{ticketId}")
+        public Result<String> getTicketRegistrationQrcode(@PathVariable Long ticketId) {
+                String qr = ticketRegistrationService.getTicketPayment(ticketId);
+                return new Result<>(
+                        200,
+                        "qrcode",
+                        qr);
+        }
+
+        @GetMapping("/getLatestStatus/{ticketId}")
+        public Result<TicketDTO> getLatestStatus(@PathVariable Long ticketId) {
+            TicketDTO ticketDTO = ticketRegistrationService.getLatestStatus(ticketId);
+            return new Result<>(
+                    200,
+                    "latest ticket status",
+                    ticketDTO);
+        }
 }

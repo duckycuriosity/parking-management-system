@@ -1,11 +1,15 @@
 package vio.barie.core.controller;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import vio.barie.core.config.payment.SePayConfig;
+import vio.barie.core.dto.Result;
 import vio.barie.core.dto.payment.MegaPayResponse;
+import vio.barie.core.dto.payment.PaymentInquiryResponse;
 import vio.barie.core.dto.payment.RefundRequest;
 import vio.barie.core.service.PaymentService;
 
@@ -18,28 +22,44 @@ import java.util.Map;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final SePayConfig sepayConfig;
 
-    // redirect ve UI
-    @GetMapping("/callback")
-    public ResponseEntity<Void> callback(@RequestParam Map<String, String> params) {
-        log.info("MegaPay callback: invoiceNo={}, resultCd={}",
-                params.get("invoiceNo"), params.get("resultCd"));
-        paymentService.handleCallback(params);
-        return ResponseEntity.ok().build();
-    }
-
+    // ipn cho megapay
     @PostMapping("/ipn")
-    public ResponseEntity<String> ipn(@RequestBody MegaPayResponse params) {
-        log.info("MegaPay IPN: invoiceNo, resultCd={}",
-                params.getInvoiceNo(), params.getResultCd());
-        paymentService.handleIPN(params);
+    public ResponseEntity<String> ipn(@RequestBody String str) {
+        log.info("MegaPay IPN: {}",str);
+        paymentService.handleCallback(str);
         return ResponseEntity.ok("OK");
     }
 
+    // Webhook, phải trả HTTP 200 + {"success": true} trong 30s => dung ResponseEntity
+    @PostMapping("/webhook/sepay")
+    public ResponseEntity<Map<String, Object>> sepayWebhook(
+            @RequestBody String str,
+            HttpServletRequest request) {
+
+        String auth = request.getHeader("Authorization");
+        String expected = "Apikey " + sepayConfig.getWebhookApiKey();
+        if (sepayConfig.getWebhookApiKey() == null
+                || sepayConfig.getWebhookApiKey().isBlank()
+                || !expected.equals(auth)) {
+            log.warn("SePay webhook unauthorized: incoming body={}",str);
+            return ResponseEntity.status(401).body(Map.of("success", false));
+        }
+
+        try {
+            paymentService.handleCallback(str);
+        } catch (Exception e) {
+            log.error("SePay webhook handler error: {}", e.getMessage(), e);
+            return ResponseEntity.status(500).body(Map.of("success", false));
+        }
+        return ResponseEntity.ok(Map.of("success", true));
+    }
+
     @GetMapping("/inquiry/{invoiceNo}")
-    public ResponseEntity<MegaPayResponse> inquiry(@PathVariable String invoiceNo) {
-        MegaPayResponse resp = paymentService.inquiryByInvoiceNo(invoiceNo);
-        if (resp == null) return ResponseEntity.notFound().build();
-        return ResponseEntity.ok(resp);
+    public Result<PaymentInquiryResponse> inquiry(@PathVariable String invoiceNo) {
+        PaymentInquiryResponse resp = paymentService.inquiryByInvoiceNo(invoiceNo);
+        if (resp == null) return Result.error(404, "Transaction not found");
+        return Result.ok(resp);
     }
 }

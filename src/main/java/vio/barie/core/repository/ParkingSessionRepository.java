@@ -4,7 +4,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import vio.barie.core.common.TicketType;
+import vio.barie.core.common.SessionType;
 import vio.barie.core.dto.ActivitySessionResponse;
 import vio.barie.core.entity.ParkingSessionEntity;
 import org.springframework.data.domain.Pageable;
@@ -70,7 +70,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
     Page<ParkingSessionEntity> findIdByParkingLotWithFilters(
             @Param("parkingLotId") Long parkingLotId,
             @Param("searchKey") String searchKey,
-            @Param("sessionType") TicketType sessionType,
+            @Param("sessionType") SessionType sessionType,
             @Param("typeVehicle") String typeVehicle,
             @Param("entryLaneId") Long entryLaneId,
             @Param("exitLaneId") Long exitLaneId,
@@ -98,7 +98,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "ORDER BY s.entryTime DESC")
     Page<ParkingSessionEntity> findAllParkingLotWithFilters(
             @Param("searchKey") String searchKey,
-            @Param("sessionType") TicketType sessionType,
+            @Param("sessionType") SessionType sessionType,
             @Param("typeVehicle") String typeVehicle,
             @Param("entryLaneId") Long entryLaneId,
             @Param("exitLaneId") Long exitLaneId,

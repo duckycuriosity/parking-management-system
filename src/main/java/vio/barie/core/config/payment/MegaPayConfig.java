@@ -22,6 +22,7 @@ public class MegaPayConfig {
     private String sandboxUrl;
     private String productionUrl;
     private boolean isSandbox = true;
+    private int qrExpireMinutes;
 
     public String getBaseUrl() {
         return isSandbox ? sandboxUrl : productionUrl;

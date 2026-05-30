@@ -15,7 +15,7 @@ public class PaymentSuccessCommand {
     private String type = "payment_success";
 
     @JsonProperty("session_id")
-    private String sessionId;
+    private Long sessionId;
 
     @JsonProperty("barrier_ids")
     private List<String> barrierIds;

@@ -1,16 +1,20 @@
 spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:192.168.168.30}
+      port: ${REDIS_PORT:6379}
   security:
     oauth2:
       resourceserver:
         jwt:
           issuer-uri: ${KEYCLOAK_ISSUER_URI:https://sso.safelinksystem.app/realms/barie}
   datasource:
-    #    url: jdbc:postgresql://localhost:5432/barie
-    #    username: postgres
-    #    password: postgres
     url: jdbc:postgresql://192.168.168.30:5434/barie
     username: barie_dev
     password: n7FuKNTV@@
+#    url: jdbc:postgresql://192.168.168.30:5434/barie
+#    username: barie_dev
+#    password: n7FuKNTV@@
     driver-class-name: org.postgresql.Driver
     hikari:
       pool-name: HikariDev
@@ -40,14 +44,14 @@ mqtt:
   host: tcp://192.168.168.30:1883
   username:
   password:
-  client-id: barie-core-service-dev-01
+  client-id: barie-core-service-dev-03636
   # tuning values for diagnostics; adjust as needed
   keep-alive-seconds: 120
   connection-timeout-seconds: 60
   max-inflight: 100
   clean-session: true
   device-register-topic: "parking/v1/client/#"
-  aibox-face-topic: "aibox/face"
+  aibox-face-topic: "aibox/facesearch"
   aibox-plate-topic: "aibox/licenseplate"
   publish-cmd-topic-prefix: "parking/v1/server"
   publish-cmd-topic-suffix: "/cmd"
@@ -70,6 +74,21 @@ megapay:
   callback-url: http://localhost:8080/api/payment/callback
   notify-url: http://localhost:8080/api/payment/ipn
   req-domain: http://localhost:8080
+  qr-expire-minutes: 15
+
+sepay:
+  api-base-url: https://userapi.sepay.vn/v2
+  api-token: JVLR8UBMXMNK9OIDAVW0H9ME6KYFRDCXLZTI0RA53MIZ2DUCYQ78CVFSWYZYNPFT                                # Bearer token (gọi SePay API: inquiry, reconciliation, stats)
+  webhook-api-key: viotechapikey
+  bank-account: 0843233326
+  bank-brand: MBBank
+  qr-base-url: https://qr.sepay.vn/img
+  qr-expire-minutes: 15
+  invoice-prefix: viotech
+  reconciliation-interval-ms: 300000
+
+payment:
+  method: sepay
 
 ai:
   core:
