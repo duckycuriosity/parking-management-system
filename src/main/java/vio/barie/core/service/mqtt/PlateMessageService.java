@@ -16,6 +16,7 @@ import vio.barie.core.utils.DirectionType;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
+
 import org.springframework.dao.DataIntegrityViolationException;
 
 @Slf4j
@@ -76,7 +77,7 @@ public class PlateMessageService {
                 return;
             }
 
-            DirectionType direction = DirectionType.valueOf(barrier.get().getDirection().toUpperCase());
+            DirectionType direction = barrier.get().getDirection();
             VehicleEntity vehicle = vehicleRepository.findPlateByPlateNumber(plateNumber);
 
             // If vehicle is registered with active ticket, handle as registered customer
@@ -100,13 +101,14 @@ public class PlateMessageService {
      * For EXIT: buffer event and wait for face match to verify identity
      */
     private void handleRegisteredVehicle(VehicleEntity vehicle, String plateNumber,
-            CameraEntity cameraInLane, BarrierEntity barrier,
-            long laneId, DirectionType direction, String cameraUUID) {
+                                         CameraEntity cameraInLane, BarrierEntity barrier,
+                                         long laneId, DirectionType direction, String cameraUUID) {
         try {
             Optional<TicketEntity> ticket = ticketRepository.findTicketByVehicleId(vehicle.getId());
             if (ticket.isEmpty()) {
                 parkingMessageService.publishErrorWhenHandlingEvent(
-                        "Cannot find ticket for registered vehicle", cameraUUID, DetectionType.PLATE);
+                        "Cannot find ticket for registered vehicle", cameraUUID, DetectionType.PLATE,
+                        barrier.getBarrierId());
                 logger.warn("No ticket found for registered vehicle: plate={}", plateNumber);
                 return;
             }
@@ -115,7 +117,8 @@ public class PlateMessageService {
                     .findCustomerById(ticket.get().getCustomerId());
             if (customer == null) {
                 parkingMessageService.publishErrorWhenHandlingEvent(
-                        "Customer not found for ticket", cameraUUID, DetectionType.PLATE);
+                        "Customer not found for ticket", cameraUUID, DetectionType.PLATE,
+                        barrier.getBarrierId());
                 logger.warn("Customer not found for vehicle: plate={}", plateNumber);
                 return;
             }
@@ -134,9 +137,17 @@ public class PlateMessageService {
                 logger.info("EXIT registered vehicle plate={} customer={} — buffering for face match",
                         plateNumber, customer.getId());
                 aiEventBuffer.addPlateEvent(event);
+            } else {
+                parkingMessageService.publishErrorWhenHandlingEvent(
+                        "Unknown direction type for plate event", cameraUUID, DetectionType.PLATE,
+                        barrier.getBarrierId());
+                logger.warn("Unknown direction type for plate event: plate={} direction={}", plateNumber, direction);
             }
 
         } catch (Exception ex) {
+            parkingMessageService.publishErrorWhenHandlingEvent(
+                    "Failed to process registered vehicle event", cameraUUID, DetectionType.PLATE,
+                    barrier.getBarrierId());
             logger.error("handleRegisteredVehicle: failed to process registered vehicle — plate={} error={}",
                     plateNumber, ex.getMessage(), ex);
         }
@@ -147,7 +158,7 @@ public class PlateMessageService {
      * Always buffer event and wait for face matching logic to create session
      */
     private void handleUnregisteredVehicle(String plateNumber, CameraEntity cameraInLane,
-            BarrierEntity barrier, long laneId, DirectionType direction) {
+                                           BarrierEntity barrier, long laneId, DirectionType direction) {
         try {
             if (!vehicleRepository.existsByPlateNumber(plateNumber)) {
                 logger.info("Vehicle with plate={} exists but no active ticket — treating as unregistered",
@@ -169,6 +180,9 @@ public class PlateMessageService {
             aiEventBuffer.addPlateEvent(event);
 
         } catch (Exception ex) {
+                parkingMessageService.publishErrorWhenHandlingEvent(
+                        "Failed to process unregistered vehicle event", cameraInLane.getUUID(), DetectionType.PLATE,
+                        barrier.getBarrierId());
             logger.error("handleUnregisteredVehicle: failed to process unregistered vehicle — plate={} error={}",
                     plateNumber, ex.getMessage(), ex);
         }
@@ -178,12 +192,12 @@ public class PlateMessageService {
      * Create PendingEventDetection for registered customer (has ticket)
      */
     private PendingEventDetection buildPendingEventForRegistered(VehicleEntity vehicle,
-            ParkingCustomerEntity customer,
-            String plateNumber,
-            CameraEntity camera,
-            BarrierEntity barrier,
-            long laneId,
-            DirectionType direction) {
+                                                                 ParkingCustomerEntity customer,
+                                                                 String plateNumber,
+                                                                 CameraEntity camera,
+                                                                 BarrierEntity barrier,
+                                                                 long laneId,
+                                                                 DirectionType direction) {
         PendingEventDetection event = new PendingEventDetection();
         event.setPlateNumber(plateNumber);
         // aiIdentityPlateId can be a numeric id or UUID string from AI; keep as String
@@ -210,10 +224,10 @@ public class PlateMessageService {
      * Create PendingEventDetection for unregistered vehicle (guest)
      */
     private PendingEventDetection buildPendingEventForUnregistered(String plateNumber,
-            CameraEntity camera,
-            BarrierEntity barrier,
-            long laneId,
-            DirectionType direction) {
+                                                                   CameraEntity camera,
+                                                                   BarrierEntity barrier,
+                                                                   long laneId,
+                                                                   DirectionType direction) {
         PendingEventDetection event = new PendingEventDetection();
         event.setType(DetectionType.PLATE);
         event.setPlateNumber(plateNumber);

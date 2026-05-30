@@ -1,11 +1,14 @@
 package vio.barie.core.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vio.barie.core.common.InOutStatus;
+import vio.barie.core.common.TicketType;
 import vio.barie.core.dto.ActivitySessionResponse;
 import vio.barie.core.dto.LaneResponse;
 import vio.barie.core.dto.ParkingSessionDetailResponse;
@@ -35,52 +38,81 @@ public class ParkingSessionService {
         return parkingSessionRepository.getAllActivityHistory(pageable);
     }
 
-    private static final Set<String> PAY_PER_USE_TICKETS = Set.of("DAILY", "GUEST", "EVENT");
+    private TicketType parseTicketType(String type) {
+        if (type == null || type.trim().isEmpty()) {
+            return null; // Trả về null để query bỏ qua filter này (IS NULL)
+        }
+        try {
+            return TicketType.valueOf(type.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return null; // Nếu client gửi type vớ vẩn thì bỏ qua filter
+        }
+    }
 
     @Transactional(readOnly = true)
-    public Page<ParkingSessionDetailResponse> getParkingSessionsForManagement(
-            Boolean activeOnly, String username, String sessionType, String typeVehicle, Long entryLaneId, Long exitLaneId, Pageable pageable) {
+    public Page<ParkingSessionDetailResponse> getAllParkingSession(
+            String searchKey, String sessionType, String typeVehicle,
+            Long entryLaneId, Long exitLaneId, String statusInOut, Pageable pageable) {
 
+        Page<ParkingSessionEntity> entityPage = parkingSessionRepository.findAllParkingLotWithFilters(
+                formatString(searchKey), parseTicketType(sessionType), formatString(typeVehicle),
+                entryLaneId, exitLaneId, formatString(statusInOut), pageable);
 
-        String filterUsername = (username != null) ? username.trim() : "";
-
-        String filterSessionType = (sessionType != null && !sessionType.trim().isEmpty())
-                ? sessionType.trim().toUpperCase()
-                : "";
-
-        String filterTypeVehicle = (typeVehicle != null) ? typeVehicle.trim().toUpperCase() : "";
-
-
-        Page<ParkingSessionEntity> entityPage = parkingSessionRepository.findAllWithFilters(
-                activeOnly, filterUsername, filterSessionType, filterTypeVehicle, entryLaneId, exitLaneId, pageable);
-
-        return entityPage.map(entity -> {
-            String formattedFee = "0 đ";
-            String currentType = entity.getSessionType() != null ? entity.getSessionType().toUpperCase() : "";
-
-            if (PAY_PER_USE_TICKETS.contains(currentType)) {
-                String vType = entity.getVehicle() != null ? entity.getVehicle().getVehicleType() : "";
-                formattedFee = "CAR".equalsIgnoreCase(vType) ? "15.000 đ" : "5.000 đ";
-            } else if (!currentType.isEmpty()) {
-                formattedFee = "Free";
-            }
-            String entryName = entity.getEntryLane() != null ? entity.getEntryLane().getName() : "N/A";
-            String exitName = entity.getExitLane() != null ? entity.getExitLane().getName() : "Chưa ra";
-
-            return ParkingSessionDetailResponse.builder()
-                    .sessionId(entity.getId())
-                    .plateNumber(entity.getVehicle() != null ? entity.getVehicle().getPlateNumber() : null)
-                    .entryLaneName(entity.getEntryLane() != null ? entity.getEntryLane().getName() : null)
-                    .entryTime(entity.getEntryTime())
-                    .exitTime(entity.getExitTime())
-                    .sessionType(entity.getSessionType())
-                    .typeVehicle(entity.getVehicle() != null ? entity.getVehicle().getVehicleType() : null)
-                    .fee(formattedFee)
-                    .userName(entity.getEntryCustomer() != null ? entity.getEntryCustomer().getUsername() : "Updating")
-                    .land(entryName + " -> " + exitName)
-                    .build();
-
-
-        });
+        return entityPage.map(this::mapToDetailResponse);
     }
+
+
+    @Transactional(readOnly = true)
+    public Page<ParkingSessionDetailResponse> getIdParkingSessionByParkingLot(
+            Long parkingLotId, String searchKey, String sessionType, String typeVehicle,
+            Long entryLaneId, Long exitLaneId, String statusInOut, Pageable pageable) {
+
+        Page<ParkingSessionEntity> entityPage = parkingSessionRepository.findIdByParkingLotWithFilters(
+                parkingLotId, formatString(searchKey), parseTicketType(sessionType), formatString(typeVehicle),
+                entryLaneId, exitLaneId, formatString(statusInOut), pageable);
+
+        return entityPage.map(this::mapToDetailResponse);
+    }
+
+    private String formatString(String input) {
+        return (input != null) ? input.trim().toUpperCase() : "";
+    }
+
+    private ParkingSessionDetailResponse mapToDetailResponse(ParkingSessionEntity entity) {
+        TicketType sessionType = entity.getSessionType();
+        String formattedFee = "0 đ";
+
+        if (sessionType != null) {
+            if (sessionType == TicketType.DAILY) {
+                formattedFee = "Vé lượt";
+            } else if (sessionType == TicketType.MONTHLY || sessionType == TicketType.QUARTER) {
+                formattedFee = "Miễn phí";
+            }
+        }
+
+        String entryName = entity.getEntryLane() != null ? entity.getEntryLane().getName() : "N/A";
+        String exitName = entity.getExitLane() != null ? entity.getExitLane().getName() : "Not found";
+
+
+        InOutStatus finalStatus = (entity.getExitTime() == null) ? InOutStatus.IN : InOutStatus.OUT;
+        String finalExitLaneName = (entity.getExitTime() == null) ? null : exitName;
+        String displayLand = (entity.getExitTime() == null) ? entryName : entryName + " -> " + exitName;
+
+
+        return ParkingSessionDetailResponse.builder()
+                .sessionId(entity.getId())
+                .plateNumber(entity.getVehicle() != null ? entity.getVehicle().getPlateNumber() : null)
+                .entryLaneName(entryName)
+                .entryTime(entity.getEntryTime())
+                .exitTime(entity.getExitTime())
+                .sessionType(sessionType) // truyền enum
+                .typeVehicle(entity.getVehicle() != null ? entity.getVehicle().getVehicleType() : null)
+                .fee(formattedFee)
+                .userName(entity.getEntryCustomer() != null ? entity.getEntryCustomer().getUsername() : "Updating")
+                .land(displayLand)
+                .statusInOut(finalStatus) // truyền enum
+                .exitLaneName(finalExitLaneName)
+                .build();
+    }
+
 }

@@ -14,6 +14,8 @@ public class BuildingMapper {
         BuildingEntity entity = new BuildingEntity();
         entity.setName(request.getName());
         entity.setAddress(request.getAddress());
+        entity.setDescription(request.getDescription());
+        entity.setStatus(request.getStatus());
         return entity;
     }
 
@@ -22,6 +24,8 @@ public class BuildingMapper {
         response.setId(entity.getId());
         response.setName(entity.getName());
         response.setAddress(entity.getAddress());
+        response.setDescription(entity.getDescription());
+        response.setStatus(entity.getStatus());
         response.setCreatedAt(entity.getCreatedAt());
         return response;
     }

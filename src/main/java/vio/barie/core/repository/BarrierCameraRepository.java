@@ -1,6 +1,9 @@
 package vio.barie.core.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import vio.barie.core.entity.BarrierCameraEntity;
 
@@ -17,4 +20,8 @@ public interface BarrierCameraRepository extends JpaRepository<BarrierCameraEnti
     void deleteByBarrierIdIn(List<String> barrierIds);
 
     List<BarrierCameraEntity> findByBarrierIdIn(List<String> barrierIds);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM BarrierCameraEntity bc WHERE bc.barrierId = :barrierId")
+    void deleteByBarrierIdQuery(@Param("barrierId") String barrierId);
 }

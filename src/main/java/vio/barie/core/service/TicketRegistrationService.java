@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import vio.barie.core.common.PaymentType;
 import vio.barie.core.common.TicketStatus;
+import vio.barie.core.common.TicketType;
 import vio.barie.core.config.exception.ServiceException;
 import vio.barie.core.dto.AiPlateResponse;
 import vio.barie.core.dto.AiProfileResponse;
@@ -120,10 +121,10 @@ public class TicketRegistrationService {
         TicketEntity ticket = new TicketEntity();
         ticket.setVehicle(savedVehicle);
         ticket.setCustomerId(customer.map(ParkingCustomerEntity::getId).orElse(0L));
-        ticket.setTicketType(req.getTicketType());
+        ticket.setTicketType(TicketType.valueOf(req.getTicketType()));
         ticket.setRegisterAt(now);
         ticket.setExpireAt(expireAt);
-        ticket.setStatus("DEAD"); // Ticket dead cho đến khi người dùng thanh toán
+        ticket.setStatus(TicketStatus.DEAD); // Ticket dead cho đến khi người dùng thanh toán
 
         TicketEntity savedTicket = ticketRepository.save(ticket);
         log.info("Ticket created successfully: ticketId={}, expireAt={}",
@@ -133,7 +134,7 @@ public class TicketRegistrationService {
         TicketRegistrationResponseDTO response = TicketRegistrationResponseDTO.builder()
                 .ticketId(savedTicket.getId())
                 .ticketType(req.getTicketType())
-                .ticketStatus(savedTicket.getStatus())
+                .ticketStatus(savedTicket.getStatus().name())
                 .registeredAt(savedTicket.getRegisterAt())
                 .expireAt(savedTicket.getExpireAt())
                 .customerId(customer.map(ParkingCustomerEntity::getId).orElse(null))

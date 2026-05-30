@@ -1,6 +1,7 @@
 package vio.barie.core.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -34,5 +35,12 @@ public interface BarrierRepository extends JpaRepository<BarrierEntity, Long> {
             "where b.barrierId in (select bc.barrierId from BarrierCameraEntity bc " +
             "where bc.cameraId = :cameraId and lower(bc.role) = lower(:role))")
     Optional<BarrierEntity> findBarrierByCameraIdAndRole(@Param("cameraId") Long cameraId,
-            @Param("role") String role);
+                                                         @Param("role") String role);
+
+    @Query("SELECT b FROM BarrierEntity b " +
+            "JOIN FETCH b.parkingDevice pd " +
+            "LEFT JOIN FETCH pd.lane")
+    List<BarrierEntity> findAllWithDeviceAndLane();
+
+  
 }

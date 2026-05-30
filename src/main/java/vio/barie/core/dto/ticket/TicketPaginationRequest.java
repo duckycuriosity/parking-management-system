@@ -15,5 +15,7 @@ import vio.barie.core.dto.PaginationRequest;
 public class TicketPaginationRequest extends PaginationRequest {
     private String plateNumber;
     private String status;
+//    private String startDate;
+//    private String endDate;
 }
 

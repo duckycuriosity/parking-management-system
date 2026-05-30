@@ -1,10 +1,15 @@
 package vio.barie.core.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import vio.barie.core.common.BaseStatus;
+import vio.barie.core.common.OperatingStatus;
+import vio.barie.core.utils.DetectionType;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -14,8 +19,11 @@ import java.util.List;
 public class DeviceLaneResponse {
     private Long id;
     private String deviceId;
-    private String status;
-   
+    private OperatingStatus status;
+    private String firmwareVersion;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime lastSeen;
+    private String location;
     private List<BarrierInfo> barriers;
 
     @Data
@@ -38,7 +46,8 @@ public class DeviceLaneResponse {
         private Long id;
         private String name;
         private String url;
-        private String role; // Lấy từ bảng barrier_camera (plate, face)
-        private String type;
+        private DetectionType role; // Lấy từ bảng barrier_camera (plate, face)
+        private BaseStatus type;
+        private String ipAddressCamera;
     }
 }
