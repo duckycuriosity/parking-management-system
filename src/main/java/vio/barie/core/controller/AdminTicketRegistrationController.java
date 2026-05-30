@@ -1,5 +1,6 @@
 package vio.barie.core.controller;
 
+import cn.hutool.json.JSONObject;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -66,8 +67,8 @@ public class AdminTicketRegistrationController {
         }
 
         @GetMapping("/qrcode/{ticketId}")
-        public Result<String> getTicketRegistrationQrcode(@PathVariable Long ticketId) {
-                String qr = ticketRegistrationService.getTicketPayment(ticketId);
+        public Result<JSONObject> getTicketRegistrationQrcode(@PathVariable Long ticketId) {
+                JSONObject qr = ticketRegistrationService.getTicketPayment(ticketId);
                 return new Result<>(
                         200,
                         "qrcode",
