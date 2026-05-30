@@ -107,7 +107,8 @@ public class PlateMessageService {
             Optional<TicketEntity> ticket = ticketRepository.findTicketByVehicleId(vehicle.getId());
             if (ticket.isEmpty()) {
                 parkingMessageService.publishErrorWhenHandlingEvent(
-                        "Cannot find ticket for registered vehicle", cameraUUID, DetectionType.PLATE);
+                        "Cannot find ticket for registered vehicle", cameraUUID, DetectionType.PLATE,
+                        barrier.getBarrierId());
                 logger.warn("No ticket found for registered vehicle: plate={}", plateNumber);
                 return;
             }
@@ -116,7 +117,8 @@ public class PlateMessageService {
                     .findCustomerById(ticket.get().getCustomerId());
             if (customer == null) {
                 parkingMessageService.publishErrorWhenHandlingEvent(
-                        "Customer not found for ticket", cameraUUID, DetectionType.PLATE);
+                        "Customer not found for ticket", cameraUUID, DetectionType.PLATE,
+                        barrier.getBarrierId());
                 logger.warn("Customer not found for vehicle: plate={}", plateNumber);
                 return;
             }
@@ -135,9 +137,17 @@ public class PlateMessageService {
                 logger.info("EXIT registered vehicle plate={} customer={} — buffering for face match",
                         plateNumber, customer.getId());
                 aiEventBuffer.addPlateEvent(event);
+            } else {
+                parkingMessageService.publishErrorWhenHandlingEvent(
+                        "Unknown direction type for plate event", cameraUUID, DetectionType.PLATE,
+                        barrier.getBarrierId());
+                logger.warn("Unknown direction type for plate event: plate={} direction={}", plateNumber, direction);
             }
 
         } catch (Exception ex) {
+            parkingMessageService.publishErrorWhenHandlingEvent(
+                    "Failed to process registered vehicle event", cameraUUID, DetectionType.PLATE,
+                    barrier.getBarrierId());
             logger.error("handleRegisteredVehicle: failed to process registered vehicle — plate={} error={}",
                     plateNumber, ex.getMessage(), ex);
         }
@@ -170,6 +180,9 @@ public class PlateMessageService {
             aiEventBuffer.addPlateEvent(event);
 
         } catch (Exception ex) {
+                parkingMessageService.publishErrorWhenHandlingEvent(
+                        "Failed to process unregistered vehicle event", cameraInLane.getUUID(), DetectionType.PLATE,
+                        barrier.getBarrierId());
             logger.error("handleUnregisteredVehicle: failed to process unregistered vehicle — plate={} error={}",
                     plateNumber, ex.getMessage(), ex);
         }

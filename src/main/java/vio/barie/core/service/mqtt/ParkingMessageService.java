@@ -355,17 +355,34 @@ public class ParkingMessageService {
     }
 
     public void publishErrorWhenHandlingEvent(String message, String cameraUUID, DetectionType type) {
+        publishErrorWhenHandlingEvent(message, cameraUUID, type, null);
+    }
+
+    public void publishErrorWhenHandlingEvent(String message, String cameraUUID, DetectionType type, String barrierId) {
+        if (barrierId == null || barrierId.isBlank()) {
+            log.warn("Cannot publish error event without barrierId: message={} cameraUUID={} type={}", message, cameraUUID, type);
+            return;
+        }
+
         try {
-            String topic = prefix + "/" + error;
+            String topic = buildErrorTopic(barrierId);
             MqttErrorCommand payload = new MqttErrorCommand();
             payload.setMessage(message);
             payload.setCameraUUID(cameraUUID);
             payload.setType(type);
+            payload.setBarrierId(barrierId);
             String json = JSONUtil.toJsonStr(payload);
             mqttPublisher.publish(topic, json);
+            log.info("Published error event to topic={}", topic);
         } catch (Exception e) {
-            log.error("Failed to publish to cameraUUID={}: {}", cameraUUID, e.getMessage(), e);
+            log.error("Failed to publish error event to barrierId={}: {}", barrierId, e.getMessage(), e);
         }
+    }
+
+    private String buildErrorTopic(String barrierId) {
+        String normalizedPrefix = prefix == null ? "" : prefix.replaceAll("/+$", "");
+        String normalizedError = error == null ? "/error" : error.startsWith("/") ? error : "/" + error;
+        return normalizedPrefix + "/" + barrierId + normalizedError;
     }
 
     private String resolveDeviceId(String barrierId) {

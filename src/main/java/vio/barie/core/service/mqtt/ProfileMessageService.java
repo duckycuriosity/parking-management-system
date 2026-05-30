@@ -45,6 +45,7 @@ public class ProfileMessageService {
 
             if (cameraUUID == null) {
                 logger.warn("ProfileHandler: face event has no profileId — cameraId={}", cameraCode);
+                parkingMessageService.publishErrorWhenHandlingEvent("Camera UUID is missing in event", "", DetectionType.FACE);
                 return;
             }
 
@@ -98,12 +99,16 @@ public class ProfileMessageService {
                 pd.setExitCameraId(cameraInLane.getId());
                 pd.setExitLaneId(laneId);
                 pd.setDirectionType(DirectionType.EXIT);
+            } else {
+                logger.warn("ProfileHandler: unknown barrier direction — cameraId={} direction={} event={}", cameraUUID, barrierDirection, event);
+                parkingMessageService.publishErrorWhenHandlingEvent("Unknown barrier direction", cameraUUID, DetectionType.FACE);
+                return;
             }
             pd.setTimestampMs(System.currentTimeMillis());
 
             aiEventBuffer.addFaceEvent(pd);
         } catch (Exception ex) {
-            log.error("ProfileMessageService: failed to handle profile event — payload={} error={}", event,
+            logger.error("ProfileMessageService: failed to handle profile event — payload={} error={}", event,
                     ex.getMessage(), ex);
             parkingMessageService.publishErrorWhenHandlingEvent(ex.getMessage(), "", DetectionType.FACE);
         }
