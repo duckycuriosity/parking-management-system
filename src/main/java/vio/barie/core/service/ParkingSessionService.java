@@ -72,7 +72,7 @@ public class ParkingSessionService {
     }
 
     private String formatString(String input) {
-        return (input != null) ? input.trim().toUpperCase() : "";
+        return (input != null && !input.trim().isEmpty()) ? input.trim().toUpperCase() : null;
     }
 
     private ParkingSessionDetailResponse mapToDetailResponse(ParkingSessionEntity entity) {
