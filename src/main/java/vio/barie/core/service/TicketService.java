@@ -148,7 +148,7 @@ public class TicketService {
                     .username(entity.getCustomer() != null ? entity.getCustomer().getUsername() : null)
                     .phoneNumber(entity.getCustomer() != null ? entity.getCustomer().getPhoneNumber() : null)
                     .customerId(entity.getCustomer() != null ? entity.getCustomer().getId() : null)
-                    .status(calculateDynamicStatus(entity.getRegisterAt(), entity.getExpireAt()))
+                    .status(entity.getStatus())
                     .build();
         });
     }
