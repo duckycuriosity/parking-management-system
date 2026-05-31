@@ -23,7 +23,8 @@ public class TicketDTO {
     private LocalDateTime registerAt;
     private LocalDateTime expireAt;
     private TicketStatus status; // 'ACTIVE', 'DEAD'
-    private LocalDateTime createdAt;
+//    private LocalDateTime createdAt;
+    private LocalDateTime startDate;
     private TicketType ticketType;
     private Long customerId;
     private String plateNumber;

@@ -69,12 +69,11 @@ public class TicketRegistrationService {
         // 2️⃣ Create or get customer
         boolean isCustomerExisting = getOrCreateCustomer(
                 req.getName(),
-                req.getCustomerPhone(),
-                req.getCustomerEmail(),
-                req.getCustomerZaloId());
+                req.getPhoneNumber(),
+                req.getCustomerEmail());
         if (isCustomerExisting) {
-            log.error("Customer with phone {} is already existing", req.getCustomerPhone());
-            throw new ServiceException("Customer with phone " + req.getCustomerPhone() + " already exists", 400);
+            log.error("Customer with phone {} is already existing", req.getPhoneNumber());
+            throw new ServiceException("Customer with phone " + req.getPhoneNumber() + " already exists", 400);
         }
 
         // 3️⃣ Register face via AI
@@ -87,7 +86,7 @@ public class TicketRegistrationService {
 
         Optional<ParkingCustomerEntity> customer = parkingCustomerRepository.findByAiProfileId(profile.getId());
         if (customer.isEmpty()) {
-            log.error("Customer not found after creation: name={}, phone={}", req.getName(), req.getCustomerPhone());
+            log.error("Customer not found after creation: name={}, phone={}", req.getName(), req.getPhoneNumber());
             throw new ServiceException("Customer not found after creation", 500);
         }
 
@@ -118,16 +117,17 @@ public class TicketRegistrationService {
 
         // 7️⃣ Create ticket
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime expireAt = calculateExpireDate(req.getTicketType());
+        LocalDateTime expireAt = calculateExpireDate(req.getTicketType(), req.getStartDate());
 
         TicketEntity ticket = new TicketEntity();
         ticket.setVehicle(savedVehicle);
         ticket.setCustomer(customer.orElse(null));
         ticket.setTicketType(req.getTicketType());
         ticket.setRegisterAt(now);
+        ticket.setStartDate(req.getStartDate());
         ticket.setExpireAt(expireAt);
+        ticket.setPhoneNumber(req.getPhoneNumber());
         ticket.setStatus(TicketStatus.DEAD); // Ticket dead cho đến khi người dùng thanh toán
-        ticket.setStatus(req.getStatus() != null ? req.getStatus() : TicketStatus.DEAD);
 
         TicketEntity savedTicket = ticketRepository.save(ticket);
 
@@ -153,6 +153,7 @@ public class TicketRegistrationService {
                 .ticketStatus(savedTicket.getStatus().name())
                 .registeredAt(savedTicket.getRegisterAt())
                 .expireAt(savedTicket.getExpireAt())
+                .startDate(savedTicket.getStartDate())
                 .customerId(customer.map(ParkingCustomerEntity::getId).orElse(null))
                 .customerName(customer.map(ParkingCustomerEntity::getUsername).orElse(null))
                 .customerPhone(customer.map(ParkingCustomerEntity::getPhoneNumber).orElse(null))
@@ -172,8 +173,7 @@ public class TicketRegistrationService {
 
     public JSONObject getTicketPayment(Long ticketId) {
         TicketEntity ticket = ticketRepository.findById(ticketId).orElseThrow(
-                () -> new ServiceException("Không tìm ticket tương ", 404)
-        );
+                () -> new ServiceException("Không tìm ticket tương ", 404));
 
         // chỉ cho phép gọi mã này nếu
         if (ticket.getStatus().equals(TicketStatus.ACTIVE.name())) {
@@ -195,20 +195,21 @@ public class TicketRegistrationService {
                 qr.getPayType(),
                 "Phi dang ki ve gui xe",
                 ticket.getId()
-//                ticket.getCustomerId()
+        // ticket.getCustomerId()
         );
         JSONObject result = new JSONObject();
         result.set("qr", qr.getPaymentLink());
         result.set("desc", "THANH TOAN VE GUI XE " + ticket.getVehicle().getPlateNumber());
         result.set("bank_name", "MB");
         result.set("bank_acc_num", "0843233326");
-        result.set("amount",qr.getAmount());
-        result.set("company_name","VioTech");
+        result.set("amount", qr.getAmount());
+        result.set("company_name", "VioTech");
         return result;
     }
 
     public TicketDTO getLatestStatus(Long ticketId) {
-        if (ticketId == null) return null;
+        if (ticketId == null)
+            return null;
 
         PaymentEntity payment = paymentRepository
                 .findLatestByTikcetId(String.valueOf(ticketId))
@@ -244,8 +245,7 @@ public class TicketRegistrationService {
     private boolean getOrCreateCustomer(
             String name,
             String phone,
-            String email,
-            String zaloId) {
+            String email) {
 
         // Try find by phone number
         Optional<ParkingCustomerEntity> existing = parkingCustomerRepository
@@ -257,8 +257,8 @@ public class TicketRegistrationService {
     /**
      * Calculate ticket expiration date based on type
      */
-    private LocalDateTime calculateExpireDate(TicketType ticketType) {
-        LocalDateTime now = LocalDateTime.now();
+    private LocalDateTime calculateExpireDate(TicketType ticketType, LocalDateTime startDate) {
+        LocalDateTime now = (startDate != null) ? startDate : LocalDateTime.now();
 
         if (ticketType == TicketType.MONTH) {
             return now.plusMonths(1);
@@ -291,8 +291,7 @@ public class TicketRegistrationService {
 
         // Ticket type validation
         if (req.getTicketType() != TicketType.MONTH
-                && req.getTicketType() != TicketType.QUARTER
-        ) {
+                && req.getTicketType() != TicketType.QUARTER) {
             throw new ServiceException("Invalid ticket type: " + req.getTicketType(), 400);
         }
 

@@ -33,6 +33,12 @@ public class TicketEntity extends BaseEntity {
     @Column(name = "expire_at", nullable = false)
     private LocalDateTime expireAt;
 
+    @Column(name = "start_date", nullable = false)
+    private LocalDateTime startDate;
+
+    @Column(name = "phone_number", nullable = false)
+    private String phoneNumber;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status")
     private TicketStatus status; // 'ACTIVE','DEAD'
@@ -43,13 +49,13 @@ public class TicketEntity extends BaseEntity {
         dto.setVehicle(entity.getVehicle());
         dto.setRegisterAt(entity.getRegisterAt());
         dto.setExpireAt(entity.getExpireAt());
+        dto.setStartDate(entity.getStartDate());
         dto.setStatus(entity.getStatus());
-        dto.setCreatedAt(entity.getCreatedAt());
         dto.setTicketType(entity.getTicketType());
+        dto.setPhoneNumber(entity.getPhoneNumber());
         if (entity.getCustomer() != null) {
             dto.setCustomerId(entity.getCustomer().getId());
             dto.setUsername(entity.getCustomer().getUsername());
-            dto.setPhoneNumber(entity.getCustomer().getPhoneNumber());
         }
         if (entity.getVehicle() != null) {
             dto.setPlateNumber(entity.getVehicle().getPlateNumber());

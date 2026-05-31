@@ -1,5 +1,6 @@
 package vio.barie.core.dto.ticket;
 
+import cn.hutool.core.date.DateTime;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -17,16 +18,12 @@ public class AdminMonthlyTicketRegistrationRequest {
     @NotBlank(message = "Customer name required")
     private String name;
 
-    private Integer groupId = 0;
-
     @NotBlank(message = "Phone number required")
     @Pattern(regexp = "^0\\d{9}$", message = "Invalid phone format (must be 10 digits starting with 0)")
-    private String customerPhone;
+    private String phoneNumber;
 
     @Email(message = "Invalid email format")
     private String customerEmail;
-
-    private String customerZaloId;
 
     @NotNull(message = "Ticket type required")
     private TicketType ticketType;
@@ -42,8 +39,9 @@ public class AdminMonthlyTicketRegistrationRequest {
     @Pattern(regexp = "^(NORMAL|DIPLOMATIC|OFFICIAL)$", message = "Invalid plate type")
     private String plateType;
 
+    @NotNull(message = "Start date required")
+    private LocalDateTime startDate;
+
     private String notes;
 
-
-    private TicketStatus status;
 }

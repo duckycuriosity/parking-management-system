@@ -141,11 +141,13 @@ public class TicketService {
                     .id(entity.getId())
                     .ticketType(entity.getTicketType())
                     .registerAt(entity.getRegisterAt())
+                    .startDate(entity.getStartDate())
                     .expireAt(entity.getExpireAt())
                     .plateNumber(entity.getVehicle() != null ? entity.getVehicle().getPlateNumber() : null)
                     .vehicleType(entity.getVehicle() != null ? entity.getVehicle().getVehicleType() : null)
                     .username(entity.getCustomer() != null ? entity.getCustomer().getUsername() : null)
                     .phoneNumber(entity.getCustomer() != null ? entity.getCustomer().getPhoneNumber() : null)
+                    .customerId(entity.getCustomer() != null ? entity.getCustomer().getId() : null)
                     .status(calculateDynamicStatus(entity.getRegisterAt(), entity.getExpireAt()))
                     .build();
         });

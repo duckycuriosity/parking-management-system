@@ -25,6 +25,7 @@ public class TicketRegistrationResponseDTO {
 
     private LocalDateTime registeredAt;
     private LocalDateTime expireAt;
+    private LocalDateTime startDate;
 
     private String message;
     private String notes;

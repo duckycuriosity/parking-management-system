@@ -27,19 +27,19 @@ public class TicketController {
     private final TicketService ticketService;
     private final TicketSummaryCacheService summaryCacheService;
 
-    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).ONLY_ORG_EDIT())")
-    @PostMapping("/register")
-    public Result<TicketEntity> register(@RequestBody TicketRegisterRequest req) {
-        TicketEntity data = ticketService.registerTicket(req);
-        return Result.ok("Thành công!", data);
-    }
+//    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).ONLY_ORG_EDIT())")
+//    @PostMapping("/register")
+//    public Result<TicketEntity> register(@RequestBody TicketRegisterRequest req) {
+//        TicketEntity data = ticketService.registerTicket(req);
+//        return Result.ok("Thành công!", data);
+//    }
 
-    //    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).ONLY_ORG_EDIT())")
-    @PostMapping("/create")
-    public Result<TicketDTO> create(@RequestBody TicketCreateRequest req) {
-        TicketDTO data = ticketService.createTicket(req);
-        return Result.ok("Tạo vé thành công!", data);
-    }
+//    //    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).ONLY_ORG_EDIT())")
+//    @PostMapping("/create")
+//    public Result<TicketDTO> create(@RequestBody TicketCreateRequest req) {
+//        TicketDTO data = ticketService.createTicket(req);
+//        return Result.ok("Tạo vé thành công!", data);
+//    }
 
     //    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")
     @GetMapping("/summary")
