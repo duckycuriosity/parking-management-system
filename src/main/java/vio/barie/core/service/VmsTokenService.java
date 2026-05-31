@@ -6,8 +6,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import vio.barie.core.config.errorException.ClientException;
 import vio.barie.core.dto.vms.VmsAuthRequestDTO;
@@ -15,13 +17,12 @@ import vio.barie.core.dto.vms.VmsAuthResponseDTO;
 import vio.barie.core.entity.VmsTokenEntity;
 import vio.barie.core.repository.VmsTokenRepository;
 
+import java.util.List;
 import java.util.function.Function;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
-
 @Slf4j
 public class VmsTokenService {
     private final VmsTokenRepository tokenRepository;
@@ -43,6 +44,9 @@ public class VmsTokenService {
     @Value("${vms.core.password}")
     private String password;
 
+
+    private String dynamicCookie = "";
+
     public VmsTokenService(
             VmsTokenRepository tokenRepository,
             @Qualifier("vmsRestClient") RestClient restClient,
@@ -51,6 +55,11 @@ public class VmsTokenService {
         this.tokenRepository = tokenRepository;
         this.restClient = restClient;
         this.objectMapper = objectMapper;
+    }
+
+
+    public String getDynamicCookie() {
+        return this.dynamicCookie;
     }
 
     public synchronized String getValidToken() {
@@ -79,14 +88,21 @@ public class VmsTokenService {
         String token = getValidToken();
         try {
             return tokenBasedAction.apply(token);
-        } catch (ClientException ex) {
-            if (ex.getStatusCode() == 401 || ex.getStatusCode() == 403) {
-                log.warn("Third-party token is invalid or expired. Login again and retry once");
+        } catch (RestClientResponseException ex) {
+
+            if (ex.getStatusCode().value() == 401 || ex.getStatusCode().value() == 403) {
+                log.warn("Token or cookie denied. Logging in again automatically...");
                 String newToken = forceRefreshToken();
                 return tokenBasedAction.apply(newToken);
             }
             throw ex;
-
+        } catch (ClientException ex) {
+            if (ex.getStatusCode() == 401 || ex.getStatusCode() == 403) {
+                log.warn("Token denied (ClientException). Logging back in automatically...");
+                String newToken = forceRefreshToken();
+                return tokenBasedAction.apply(newToken);
+            }
+            throw ex;
         }
     }
 
@@ -97,27 +113,33 @@ public class VmsTokenService {
             requestBody.setPassword(password);
             var requestJson = objectMapper.writeValueAsString(requestBody);
 
-            var response = restClient.post()
+            var responseEntity = restClient.post()
                     .uri(vmsBaseUrl + loginEndpoint)
-                    .header(org.springframework.http.HttpHeaders.CONTENT_TYPE, "text/plain;charset=UTF-8")
+
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .header(HttpHeaders.ACCEPT, "*/*")
                     .body(requestJson)
                     .retrieve()
-                    .body(VmsAuthResponseDTO.class);
+                    .toEntity(VmsAuthResponseDTO.class);
 
-            if (response != null && response.getToken() != null && !response.getToken().isBlank()) {
-                tokenEntity.setAccessToken(response.getToken());
-                // chỉ save khi có token
+            VmsAuthResponseDTO responseBody = responseEntity.getBody();
+
+            List<String> cookies = responseEntity.getHeaders().get(HttpHeaders.SET_COOKIE);
+            if (cookies != null && !cookies.isEmpty()) {
+                this.dynamicCookie = cookies.get(0).split(";")[0];
+                log.info("Receive new cookies from VMS: {}", this.dynamicCookie);
+            }
+
+            if (responseBody != null && responseBody.getToken() != null && !responseBody.getToken().isBlank()) {
+                tokenEntity.setAccessToken(responseBody.getToken());
                 tokenRepository.save(tokenEntity);
                 log.info("Successfully login and updated third-party token");
             } else {
                 throw new RuntimeException("Login succeeded but token is null in response");
             }
-        } catch (JsonProcessingException | RuntimeException e) {
+        } catch (Exception e) {
             log.error("Failed to login to 3rd party system", e);
             throw new RuntimeException("Cannot get authentication token from 3rd party", e);
         }
     }
-
-
 }

@@ -45,5 +45,5 @@ public class AdminMonthlyTicketRegistrationRequest {
     private String notes;
 
 
-    private TicketStatus status;
+//    private TicketStatus status;
 }

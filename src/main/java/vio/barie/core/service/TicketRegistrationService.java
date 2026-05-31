@@ -127,8 +127,8 @@ public class TicketRegistrationService {
         ticket.setRegisterAt(now);
         ticket.setExpireAt(expireAt);
         ticket.setStatus(TicketStatus.DEAD); // Ticket dead cho đến khi người dùng thanh toán
-        ticket.setStatus(req.getStatus() != null ? req.getStatus() : TicketStatus.DEAD);
-
+//        ticket.setStatus(req.getStatus() != null ? req.getStatus() : TicketStatus.DEAD);
+//
         TicketEntity savedTicket = ticketRepository.save(ticket);
 
         if (savedTicket.getStatus() == TicketStatus.ACTIVE) {
@@ -149,8 +149,8 @@ public class TicketRegistrationService {
         // 8️⃣ Build and return response
         TicketRegistrationResponseDTO response = TicketRegistrationResponseDTO.builder()
                 .ticketId(savedTicket.getId())
-                .ticketType(req.getTicketType().name())
-                .ticketStatus(savedTicket.getStatus().name())
+                .ticketType(req.getTicketType())
+                .ticketStatus(savedTicket.getStatus())
                 .registeredAt(savedTicket.getRegisterAt())
                 .expireAt(savedTicket.getExpireAt())
                 .customerId(customer.map(ParkingCustomerEntity::getId).orElse(null))

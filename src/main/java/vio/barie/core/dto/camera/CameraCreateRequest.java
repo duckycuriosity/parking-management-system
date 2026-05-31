@@ -1,5 +1,6 @@
 package vio.barie.core.dto.camera;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
@@ -10,7 +11,6 @@ public class CameraCreateRequest {
 
     @NotBlank
     private String type = "stream-software";
-
-    @NotBlank
     private String url;
+    private JsonNode extra;
 }

@@ -2,6 +2,8 @@ package vio.barie.core.dto.ticket;
 
 import lombok.Builder;
 import lombok.Data;
+import vio.barie.core.common.TicketStatus;
+import vio.barie.core.common.TicketType;
 
 import java.time.LocalDateTime;
 
@@ -10,8 +12,8 @@ import java.time.LocalDateTime;
 public class TicketRegistrationResponseDTO {
 
     private Long ticketId;
-    private String ticketType; // "MONTH" or "QUARTER"
-    private String ticketStatus; // "ACTIVE", "DEAD"
+    private TicketType ticketType; // "MONTH" or "QUARTER"
+    private TicketStatus ticketStatus; // "ACTIVE", "DEAD"
 
     private Long customerId;
     private String customerName;
