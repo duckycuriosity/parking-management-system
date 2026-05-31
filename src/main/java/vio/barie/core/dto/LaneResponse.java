@@ -4,6 +4,8 @@ import lombok.Data;
 import vio.barie.core.common.BaseStatus;
 import vio.barie.core.utils.DirectionType;
 
+import java.util.List;
+
 @Data
 public class LaneResponse {
     private Long id;
@@ -14,6 +16,7 @@ public class LaneResponse {
     private BaseStatus status;
     private Long parkingLotId;
     private java.time.LocalDateTime createdAt;
-    private java.util.List<Long> cameraIds;
-    private java.util.List<Long> parkingDeviceIds;
+    private List<Long> cameraIds;
+    private List<Long> parkingDeviceIds;
+    private List<String> parkingDeviceCodes;
 }

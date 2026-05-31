@@ -12,6 +12,8 @@ import vio.barie.core.common.BaseStatus;
 @NoArgsConstructor
 public class CameraResponse {
     private Long id;
+    private String plateNumber;
+    private String vehicleType;
     private Long aiCameraId;
     private String name;
     private String url;
@@ -20,6 +22,7 @@ public class CameraResponse {
     private JsonNode extra;
     private Long lane_id;
     private String parkingLotName;
+    private String laneName;
     private String description;
     private BaseStatus status;
     private DateTime created_date;

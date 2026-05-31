@@ -19,8 +19,9 @@ public class TicketEntity extends BaseEntity {
     @Column(name = "ticket_type")
     private TicketType ticketType;
 
-    @Column(name = "customer_id")
-    private Long customerId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id")
+    private ParkingCustomerEntity customer;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_id")
@@ -45,7 +46,15 @@ public class TicketEntity extends BaseEntity {
         dto.setStatus(entity.getStatus());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setTicketType(entity.getTicketType());
-        dto.setCustomerId(entity.getCustomerId());
+        if (entity.getCustomer() != null) {
+            dto.setCustomerId(entity.getCustomer().getId());
+            dto.setUsername(entity.getCustomer().getUsername());
+            dto.setPhoneNumber(entity.getCustomer().getPhoneNumber());
+        }
+        if (entity.getVehicle() != null) {
+            dto.setPlateNumber(entity.getVehicle().getPlateNumber());
+            dto.setVehicleType(entity.getVehicle().getVehicleType());
+        }
         return dto;
     }
 }

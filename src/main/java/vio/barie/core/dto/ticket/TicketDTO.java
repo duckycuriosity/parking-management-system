@@ -26,4 +26,8 @@ public class TicketDTO {
     private LocalDateTime createdAt;
     private TicketType ticketType;
     private Long customerId;
+    private String plateNumber;
+    private String vehicleType;
+    private String username;
+    private String phoneNumber;
 }

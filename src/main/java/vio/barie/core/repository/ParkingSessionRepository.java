@@ -52,18 +52,18 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "LEFT JOIN s.vehicle v " +
             "LEFT JOIN s.entryLane el " +
             "LEFT JOIN s.exitLane xl " +
-            "LEFT JOIN FETCH s.entryCustomer ec " +
+            "LEFT JOIN s.entryCustomer ec " +
             "LEFT JOIN TicketEntity t ON s.ticketId = t.id " +
-            "LEFT JOIN ParkingCustomerEntity c ON t.customerId = c.id " +
+            "LEFT JOIN t.customer c " +
             "WHERE s.parkingLot.id = :parkingLotId " +
-            "AND (:searchKey = '' " +
-            "     OR LOWER(ec.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) " +
-            "     OR LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%'))) " +
+            "AND (:searchKey IS NULL OR :searchKey = '' OR " +
+            "     LOWER(ec.username) LIKE CONCAT('%', :searchKey, '%') OR " +
+            "     LOWER(v.plateNumber) LIKE CONCAT('%', :searchKey, '%')) " +
             "AND (:sessionType IS NULL OR s.sessionType = :sessionType) " +
-            "AND (:typeVehicle = '' OR UPPER(v.vehicleType) = UPPER(:typeVehicle)) " +
+            "AND (:typeVehicle IS NULL OR v.vehicleType = :typeVehicle) " +
             "AND (:entryLaneId IS NULL OR el.id = :entryLaneId) " +
             "AND (:exitLaneId IS NULL OR xl.id = :exitLaneId) " +
-            "AND (:statusInOut = '' " +
+            "AND (:statusInOut IS NULL OR :statusInOut = '' " +
             "     OR (:statusInOut = 'IN' AND s.exitTime IS NULL) " +
             "     OR (:statusInOut = 'OUT' AND s.exitTime IS NOT NULL)) " +
             "ORDER BY s.entryTime DESC")
@@ -81,17 +81,18 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "LEFT JOIN s.vehicle v " +
             "LEFT JOIN s.entryLane el " +
             "LEFT JOIN s.exitLane xl " +
-            "LEFT JOIN FETCH s.entryCustomer ec " +
+            "LEFT JOIN s.entryCustomer ec " +
             "LEFT JOIN TicketEntity t ON s.ticketId = t.id " +
-            "LEFT JOIN ParkingCustomerEntity c ON t.customerId = c.id " +
-            "WHERE (:searchKey = '' " +
-            "     OR LOWER(ec.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) " +
-            "     OR LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%'))) " +
+            "LEFT JOIN t.customer c " +
+            "WHERE " +
+            "(:searchKey IS NULL OR :searchKey = '' OR (" +
+            "     LOWER(ec.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) " +
+            "     OR LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')))) " +
             "AND (:sessionType IS NULL OR s.sessionType = :sessionType) " +
-            "AND (:typeVehicle = '' OR UPPER(v.vehicleType) = UPPER(:typeVehicle)) " +
+            "AND (:typeVehicle IS NULL OR v.vehicleType = :typeVehicle) " +
             "AND (:entryLaneId IS NULL OR el.id = :entryLaneId) " +
             "AND (:exitLaneId IS NULL OR xl.id = :exitLaneId) " +
-            "AND (:statusInOut = '' " +
+            "AND (:statusInOut IS NULL OR :statusInOut = '' " +
             "     OR (:statusInOut = 'IN' AND s.exitTime IS NULL) " +
             "     OR (:statusInOut = 'OUT' AND s.exitTime IS NOT NULL)) " +
             "ORDER BY s.entryTime DESC")

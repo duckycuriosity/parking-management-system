@@ -11,11 +11,13 @@ import vio.barie.core.dto.TicketCreateRequest;
 import vio.barie.core.dto.ticket.TicketDTO;
 import vio.barie.core.dto.ticket.TicketPaginationRequest;
 import vio.barie.core.dto.ticket.TicketRegisterRequest;
+import vio.barie.core.entity.ParkingCustomerEntity;
 import vio.barie.core.entity.PaymentEntity;
 import vio.barie.core.entity.VehicleEntity;
 import vio.barie.core.entity.TicketEntity;
 import vio.barie.core.repository.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,6 +28,7 @@ public class TicketService {
     private final TicketRepository ticketRepo;
     private final PaymentRepository paymentRepo;
     private final TicketPaymentRepository ticketPaymentRepo;
+    private final ParkingCustomerRepository customerRepo;
 
     @Transactional
     public TicketEntity registerTicket(TicketRegisterRequest req) {
@@ -75,7 +78,11 @@ public class TicketService {
                 .orElseThrow(() -> new ServiceException("Not found vehicle", 404));
         TicketEntity ticket = new TicketEntity();
         ticket.setVehicle(vehicle);
-        ticket.setCustomerId(req.getCustomerId());
+        if (req.getCustomerId() != null) {
+            ParkingCustomerEntity customer = customerRepo.findById(req.getCustomerId())
+                    .orElseThrow(() -> new ServiceException("Not found customer", 404));
+            ticket.setCustomer(customer);
+        }
         ticket.setTicketType(req.getTicketType());
         ticket.setRegisterAt(req.getRegisterAt());
         ticket.setExpireAt(req.getExpireAt());
@@ -112,15 +119,47 @@ public class TicketService {
         ticketRepo.delete(ticket);
     }
 
+    @Transactional(readOnly = true)
     public Page<TicketDTO> list(TicketPaginationRequest req) {
-        // Tạo pageable
+
         Pageable pageable = PageRequest.of(
                 req.getPage(),
                 req.getSize(),
-                Sort.by(Sort.Direction.fromString(req.getSortDirection()), req.getSortBy()));
-        // Tạo specification từ request
-        Specification<TicketEntity> spec = TicketSpecifications.buildPaginationSpecification(req.getPlateNumber(),
-                req.getStatus());
-        return ticketRepo.findAll(spec, pageable).map(TicketEntity::convertToDTO);
+                Sort.by(Sort.Direction.fromString(req.getSortDirection()), req.getSortBy())
+        );
+        String statusFilter = (req.getStatus() != null) ? req.getStatus().name() : null;
+
+        Page<TicketEntity> ticketPage = ticketRepo.searchTickets(
+                req.getSearchKey(),
+                statusFilter,
+                pageable
+        );
+
+
+        return ticketPage.map(entity -> {
+            return TicketDTO.builder()
+                    .id(entity.getId())
+                    .ticketType(entity.getTicketType())
+                    .registerAt(entity.getRegisterAt())
+                    .expireAt(entity.getExpireAt())
+                    .plateNumber(entity.getVehicle() != null ? entity.getVehicle().getPlateNumber() : null)
+                    .vehicleType(entity.getVehicle() != null ? entity.getVehicle().getVehicleType() : null)
+                    .username(entity.getCustomer() != null ? entity.getCustomer().getUsername() : null)
+                    .phoneNumber(entity.getCustomer() != null ? entity.getCustomer().getPhoneNumber() : null)
+                    .status(calculateDynamicStatus(entity.getRegisterAt(), entity.getExpireAt()))
+                    .build();
+        });
     }
+
+    private TicketStatus calculateDynamicStatus(LocalDateTime registerAt, LocalDateTime expireAt) {
+        LocalDateTime now = LocalDateTime.now();
+        if (expireAt != null && now.isAfter(expireAt)) {
+            return TicketStatus.INACTIVE;
+        } else if (registerAt != null && expireAt != null && !now.isBefore(registerAt) && !now.isAfter(expireAt)) {
+            return TicketStatus.ACTIVE;
+        }
+        return TicketStatus.DEAD;
+    }
+
+
 }

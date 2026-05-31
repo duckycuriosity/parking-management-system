@@ -48,6 +48,7 @@ public class TicketRegistrationService {
     private final PaymentRepository paymentRepository;
     private final PaymentService paymentService;
     private final CalculatorService calculatorService;
+    private final TicketSummaryCacheService summaryCacheService;
 
     /**
      * Admin đăng ký vé tháng/quý cho khách hàng
@@ -121,20 +122,34 @@ public class TicketRegistrationService {
 
         TicketEntity ticket = new TicketEntity();
         ticket.setVehicle(savedVehicle);
-        ticket.setCustomerId(customer.map(ParkingCustomerEntity::getId).orElse(0L));
-        ticket.setTicketType(TicketType.valueOf(req.getTicketType()));
+        ticket.setCustomer(customer.orElse(null));
+        ticket.setTicketType(req.getTicketType());
         ticket.setRegisterAt(now);
         ticket.setExpireAt(expireAt);
         ticket.setStatus(TicketStatus.DEAD); // Ticket dead cho đến khi người dùng thanh toán
+        ticket.setStatus(req.getStatus() != null ? req.getStatus() : TicketStatus.DEAD);
 
         TicketEntity savedTicket = ticketRepository.save(ticket);
+
+        if (savedTicket.getStatus() == TicketStatus.ACTIVE) {
+            summaryCacheService.increment("total");
+            summaryCacheService.increment("active");
+
+            // nếu vé mới đăng ký mà có hạn < 5 ngày (ít xảy ra nhưng vẫn nên check)
+            if (savedTicket.getExpireAt().isBefore(LocalDateTime.now().plusDays(5))) {
+                summaryCacheService.increment("expiring_soon");
+            }
+        } else if (savedTicket.getStatus() == TicketStatus.INACTIVE) {
+            summaryCacheService.increment("total");
+            summaryCacheService.increment("expired");
+        }
         log.info("Ticket created successfully: ticketId={}, expireAt={}",
                 savedTicket.getId(), expireAt);
 
         // 8️⃣ Build and return response
         TicketRegistrationResponseDTO response = TicketRegistrationResponseDTO.builder()
                 .ticketId(savedTicket.getId())
-                .ticketType(req.getTicketType())
+                .ticketType(req.getTicketType().name())
                 .ticketStatus(savedTicket.getStatus().name())
                 .registeredAt(savedTicket.getRegisterAt())
                 .expireAt(savedTicket.getExpireAt())
@@ -242,15 +257,14 @@ public class TicketRegistrationService {
     /**
      * Calculate ticket expiration date based on type
      */
-    private LocalDateTime calculateExpireDate(String ticketType) {
+    private LocalDateTime calculateExpireDate(TicketType ticketType) {
         LocalDateTime now = LocalDateTime.now();
 
-        if ("MONTH".equals(ticketType)) {
+        if (ticketType == TicketType.MONTH) {
             return now.plusMonths(1);
-        } else if ("QUARTER".equals(ticketType)) {
+        } else if (ticketType == TicketType.QUARTER) {
             return now.plusMonths(3);
         }
-
         // Default: 1 month
         return now.plusMonths(1);
     }
@@ -276,7 +290,9 @@ public class TicketRegistrationService {
         }
 
         // Ticket type validation
-        if (!"MONTH".equals(req.getTicketType()) && !"QUARTER".equals(req.getTicketType())) {
+        if (req.getTicketType() != TicketType.MONTH
+                && req.getTicketType() != TicketType.QUARTER
+        ) {
             throw new ServiceException("Invalid ticket type: " + req.getTicketType(), 400);
         }
 

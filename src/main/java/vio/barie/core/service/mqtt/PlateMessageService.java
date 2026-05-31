@@ -113,8 +113,8 @@ public class PlateMessageService {
                 return;
             }
 
-            ParkingCustomerEntity customer = parkingCustomerRepository
-                    .findCustomerById(ticket.get().getCustomerId());
+            ParkingCustomerEntity customer = ticket.get().getCustomer();
+                  
             if (customer == null) {
                 parkingMessageService.publishErrorWhenHandlingEvent(
                         "Customer not found for ticket", cameraUUID, DetectionType.PLATE,

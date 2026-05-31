@@ -2,7 +2,11 @@ package vio.barie.core.service;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import vio.barie.core.config.exception.BusinessException;
 import vio.barie.core.dto.BarrierCameraAssignmentRequest;
 import vio.barie.core.dto.LaneCreateRequest;
 import vio.barie.core.dto.LaneResponse;
@@ -12,7 +16,6 @@ import vio.barie.core.entity.BarrierEntity;
 import vio.barie.core.entity.CameraEntity;
 import vio.barie.core.entity.LaneEntity;
 import vio.barie.core.entity.ParkingLotEntity;
-import vio.barie.core.exception.BusinessException;
 import vio.barie.core.mapper.LaneMapper;
 import vio.barie.core.repository.BarrierCameraRepository;
 import vio.barie.core.repository.BarrierRepository;
@@ -22,7 +25,9 @@ import vio.barie.core.repository.CameraRepository;
 import vio.barie.core.repository.ParkingDeviceRepository;
 import vio.barie.core.entity.ParkingDeviceEntity;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -69,15 +74,45 @@ public class LaneService {
         return laneMapper.toResponse(saved);
     }
 
-    public List<LaneResponse> findAll() {
-        return laneMapper.toResponseList(laneRepository.findAllWithParkingLot());
+    public Page<LaneResponse> findAll(Pageable pageable) {
+        Page<LaneEntity> lanePage = laneRepository.findAllWithParkingLot(pageable);
+        List<LaneResponse> responses = laneMapper.toResponseList(lanePage.getContent());
+
+        List<Long> laneIds = responses.stream()
+                .map(LaneResponse::getId)
+                .collect(Collectors.toList());
+        if (!laneIds.isEmpty()) {
+
+            List<ParkingDeviceEntity> devices = parkingDeviceRepository.findByLaneIdIn(laneIds);
+
+
+            Map<Long, List<String>> deviceCodesMap = devices.stream()
+                    .collect(Collectors.groupingBy(
+                            d -> d.getLane().getId(), // Key là laneId
+                            Collectors.mapping(ParkingDeviceEntity::getDeviceId, Collectors.toList()) // Value là list device_id
+                    ));
+
+
+            for (LaneResponse res : responses) {
+                if (res.getParkingDeviceIds() != null && !res.getParkingDeviceIds().isEmpty()) {
+                    List<String> deviceCodes = parkingDeviceRepository.findDeviceIdsByIds(res.getParkingDeviceIds());
+                    res.setParkingDeviceCodes(deviceCodes);
+                }
+            }
+        }
+        return new PageImpl<>(responses, pageable, lanePage.getTotalElements());
     }
 
 
     public LaneResponse findById(Long id) {
         LaneEntity entity = laneRepository.findByIdWithParkingLot(id)
                 .orElseThrow(() -> new BusinessException("Lane not found", "LANE_NOT_FOUND", 404));
-        return laneMapper.toResponse(entity);
+        LaneResponse response = laneMapper.toResponse(entity);
+        if (response.getParkingDeviceIds() != null && !response.getParkingDeviceIds().isEmpty()) {
+            List<String> deviceCodes = parkingDeviceRepository.findDeviceIdsByIds(response.getParkingDeviceIds());
+            response.setParkingDeviceCodes(deviceCodes);
+        }
+        return response;
     }
 
     public List<LaneResponse> findLanesByParkingLotId(Long parkingLotId) {

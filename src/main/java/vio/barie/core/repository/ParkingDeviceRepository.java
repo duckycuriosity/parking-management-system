@@ -17,11 +17,16 @@ public interface ParkingDeviceRepository extends JpaRepository<ParkingDeviceEnti
 
     List<ParkingDeviceEntity> findByLane_Id(Long laneId);
 
+    List<ParkingDeviceEntity> findByLaneIdIn(List<Long> laneIds);
+
     List<ParkingDeviceEntity> findByStatus(OperatingStatus status);
 
     List<ParkingDeviceEntity> findByLastSeenBeforeAndStatus(
             LocalDateTime time,
             OperatingStatus status);
+
+    @Query("SELECT p.deviceId FROM ParkingDeviceEntity p WHERE p.id IN :ids")
+    List<String> findDeviceIdsByIds(@Param("ids") List<Long> ids);
 
     @Query(value = "SELECT " +
             "pd.id AS deviceId, pd.device_id AS deviceCode, pd.status AS deviceStatus, pd.firmware_version AS firmwareVersion, " +
@@ -36,4 +41,6 @@ public interface ParkingDeviceRepository extends JpaRepository<ParkingDeviceEnti
             "LEFT JOIN camera c ON c.id = bc.camera_id " +
             "WHERE pd.lane_id = :laneId", nativeQuery = true)
     List<DeviceLaneRepository> findAllDeviceDetailsByLaneId(@Param("laneId") Long laneId);
+
+
 }
