@@ -25,7 +25,7 @@ public class ProfileController {
             @RequestParam(value = "groupId", defaultValue = "0") Integer groupId,
             @RequestParam("image") MultipartFile image) throws IOException {
 
-        return Result.ok("Profile created successfully", profileService.create(name, groupId, image));
+        return Result.ok("Profile created successfully", profileService.create(name, groupId, image, ""));
     }
 
     @GetMapping

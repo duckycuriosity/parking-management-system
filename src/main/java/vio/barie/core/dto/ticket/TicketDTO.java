@@ -31,4 +31,6 @@ public class TicketDTO {
     private String vehicleType;
     private String username;
     private String phoneNumber;
+    private String customerImageUrl;
+    private String notes;
 }

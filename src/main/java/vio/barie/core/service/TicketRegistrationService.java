@@ -81,7 +81,8 @@ public class TicketRegistrationService {
         AiProfileResponse profile = profileService.create(
                 req.getName(),
                 0, // groupId = 0 (default)
-                faceImage);
+                faceImage,
+                req.getCustomerEmail());
         log.info("Face registered successfully: profileId={}, uuid={}",
                 profile.getId(), profile.getUuid());
 
@@ -136,6 +137,7 @@ public class TicketRegistrationService {
         ticket.setStartDate(req.getStartDate());
         ticket.setExpireAt(expireAt);
         ticket.setPhoneNumber(req.getPhoneNumber());
+        ticket.setNotes(req.getNotes());
         ticket.setStatus(TicketStatus.DEAD); // Ticket dead cho đến khi người dùng thanh toán
 
         TicketEntity savedTicket = ticketRepository.save(ticket);
@@ -165,12 +167,15 @@ public class TicketRegistrationService {
                 .startDate(savedTicket.getStartDate())
                 .customerId(customer.map(ParkingCustomerEntity::getId).orElse(null))
                 .customerName(customer.map(ParkingCustomerEntity::getUsername).orElse(null))
-                .customerPhone(customer.map(ParkingCustomerEntity::getPhoneNumber).orElse(null))
                 .vehicleId(vehicle.getId())
                 .plateNumber(vehicle.getPlateNumber())
                 .vehicleType(vehicle.getVehicleType())
                 .profileId(profile.getId())
                 .notes(req.getNotes())
+                .customerImageUrl(customer.map(ParkingCustomerEntity::getImageUrl).orElse(null))
+                .email(customer.map(ParkingCustomerEntity::getEmail).orElse(""))
+                .phoneNumber(savedTicket.getPhoneNumber())
+                .notes(savedTicket.getNotes())
                 .message("Monthly ticket registered successfully. Ticket is now active.")
                 .build();
 
@@ -274,7 +279,7 @@ public class TicketRegistrationService {
                 .ticketStatus(ticket.getStatus().name())
                 .customerId(customer != null ? customer.getId() : null)
                 .customerName(customer != null ? customer.getUsername() : null)
-                .customerPhone(customer != null ? customer.getPhoneNumber() : ticket.getPhoneNumber())
+//                .customerPhone(customer != null ? customer.getPhoneNumber() : ticket.getPhoneNumber())
                 .profileId(customer.getAiProfileId())
                 .vehicleId(vehicle.getId())
                 .plateNumber(vehicle.getPlateNumber())
@@ -283,6 +288,7 @@ public class TicketRegistrationService {
                 .registeredAt(ticket.getRegisterAt())
                 .expireAt(ticket.getExpireAt())
                 .notes(req.getNotes())
+                .phoneNumber(ticket.getPhoneNumber())
                 .message("Thay đổi vé tháng thành công. Tiến hành thanh toán để kích hoạt vé.")
                 .build();
     }

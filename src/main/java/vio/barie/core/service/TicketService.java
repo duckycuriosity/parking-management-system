@@ -11,6 +11,7 @@ import vio.barie.core.dto.TicketCreateRequest;
 import vio.barie.core.dto.ticket.TicketDTO;
 import vio.barie.core.dto.ticket.TicketPaginationRequest;
 import vio.barie.core.dto.ticket.TicketRegisterRequest;
+import vio.barie.core.dto.ticket.TicketRegistrationResponseDTO;
 import vio.barie.core.entity.ParkingCustomerEntity;
 import vio.barie.core.entity.PaymentEntity;
 import vio.barie.core.entity.VehicleEntity;
@@ -120,7 +121,7 @@ public class TicketService {
     }
 
     @Transactional(readOnly = true)
-    public Page<TicketDTO> list(TicketPaginationRequest req) {
+    public Page<TicketRegistrationResponseDTO> list(TicketPaginationRequest req) {
 
         Pageable pageable = PageRequest.of(
                 req.getPage(),
@@ -129,28 +130,14 @@ public class TicketService {
         );
         String statusFilter = (req.getStatus() != null) ? req.getStatus().name() : null;
 
-        Page<TicketEntity> ticketPage = ticketRepo.searchTickets(
+        Page<TicketRegistrationResponseDTO> ticketPage = ticketRepo.searchTickets(
                 req.getSearchKey(),
                 statusFilter,
                 pageable
         );
 
 
-        return ticketPage.map(entity -> {
-            return TicketDTO.builder()
-                    .id(entity.getId())
-                    .ticketType(entity.getTicketType())
-                    .registerAt(entity.getRegisterAt())
-                    .startDate(entity.getStartDate())
-                    .expireAt(entity.getExpireAt())
-                    .plateNumber(entity.getVehicle() != null ? entity.getVehicle().getPlateNumber() : null)
-                    .vehicleType(entity.getVehicle() != null ? entity.getVehicle().getVehicleType() : null)
-                    .username(entity.getCustomer() != null ? entity.getCustomer().getUsername() : null)
-                    .phoneNumber(entity.getPhoneNumber())
-                    .customerId(entity.getCustomer() != null ? entity.getCustomer().getId() : null)
-                    .status(entity.getStatus())
-                    .build();
-        });
+        return ticketPage;
     }
 
     private TicketStatus calculateDynamicStatus(LocalDateTime registerAt, LocalDateTime expireAt) {

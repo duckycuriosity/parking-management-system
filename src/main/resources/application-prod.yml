@@ -92,6 +92,8 @@ ai:
   face:
     base-url: http://host.docker.internal:8088
     cookie-key: uO50EwSqoolz1OzU
+    face-image-url: http://lab.viotech.com.vn:8088/api/FaceImage/
+
 
 vms:
   core:

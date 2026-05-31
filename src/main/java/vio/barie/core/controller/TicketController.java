@@ -7,10 +7,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import vio.barie.core.dto.Result;
 import vio.barie.core.dto.TicketCreateRequest;
-import vio.barie.core.dto.ticket.TicketDTO;
-import vio.barie.core.dto.ticket.TicketPaginationRequest;
-import vio.barie.core.dto.ticket.TicketRegisterRequest;
-import vio.barie.core.dto.ticket.TicketSummaryResponse;
+import vio.barie.core.dto.ticket.*;
 import vio.barie.core.entity.TicketEntity;
 import org.springframework.data.domain.*;
 import vio.barie.core.service.TicketService;
@@ -51,7 +48,7 @@ public class TicketController {
 
     //    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")
     @GetMapping("/all")
-    public Result<Page<TicketDTO>> getAll(
+    public Result<Page<TicketRegistrationResponseDTO>> getAll(
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "10") int size,
             @RequestParam(name = "sortBy", defaultValue = "createdAt", required = false) String sortBy,
@@ -68,7 +65,7 @@ public class TicketController {
                 .searchKey(searchKey)
                 .status(status)
                 .build();
-        Page<TicketDTO> data = ticketService.list(req);
+        Page<TicketRegistrationResponseDTO> data = ticketService.list(req);
         return Result.ok("Lấy danh sách vé thành công!", data);
     }
 
@@ -88,11 +85,11 @@ public class TicketController {
 
     @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")
     @PostMapping("/list")
-    public Result<Page<TicketDTO>> list(@Valid @RequestBody(required = false) TicketPaginationRequest paginationRequest) {
+    public Result<Page<TicketRegistrationResponseDTO>> list(@Valid @RequestBody(required = false) TicketPaginationRequest paginationRequest) {
         if (paginationRequest == null) {
             paginationRequest = TicketPaginationRequest.builder().build();
         }
-        Page<TicketDTO> data = ticketService.list(paginationRequest);
+        Page<TicketRegistrationResponseDTO> data = ticketService.list(paginationRequest);
         return Result.ok(data);
     }
 

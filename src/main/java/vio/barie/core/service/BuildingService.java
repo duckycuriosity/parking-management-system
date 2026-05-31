@@ -9,6 +9,7 @@ import vio.barie.core.dto.BuildingResponse;
 import vio.barie.core.entity.BuildingEntity;
 import vio.barie.core.mapper.BuildingMapper;
 import vio.barie.core.repository.BuildingRepository;
+import vio.barie.core.repository.ParkingSessionRepository;
 
 import java.util.List;
 
@@ -18,6 +19,7 @@ public class BuildingService {
 
     private final BuildingRepository buildingRepository;
     private final BuildingMapper buildingMapper;
+    private final ParkingSessionRepository parkingSessionRepository;
 
     @Transactional
     public BuildingResponse create(BuildingCreateRequest request) {
@@ -53,6 +55,15 @@ public class BuildingService {
     public void delete(Long id) {
         BuildingEntity entity = buildingRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Building not found", "BUILDING_NOT_FOUND", 404));
+
+        if (parkingSessionRepository.existsByParkingLot_Building_Id(id)) {
+            throw new BusinessException(
+                    "Cannot delete building because it still has parking session history",
+                    "BUILDING_HAS_PARKING_SESSIONS",
+                    409
+            );
+        }
+
         buildingRepository.delete(entity);
     }
 }

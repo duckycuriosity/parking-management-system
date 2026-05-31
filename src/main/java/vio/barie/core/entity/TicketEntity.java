@@ -43,6 +43,9 @@ public class TicketEntity extends BaseEntity {
     @Column(name = "status")
     private TicketStatus status; // 'ACTIVE','DEAD'
 
+    @Column(name = "notes")
+    private String notes;
+
     public static TicketDTO convertToDTO(TicketEntity entity) {
         TicketDTO dto = new TicketDTO();
         dto.setId(entity.getId());
@@ -53,9 +56,11 @@ public class TicketEntity extends BaseEntity {
         dto.setStatus(entity.getStatus());
         dto.setTicketType(entity.getTicketType());
         dto.setPhoneNumber(entity.getPhoneNumber());
+        dto.setNotes(entity.getNotes());
         if (entity.getCustomer() != null) {
             dto.setCustomerId(entity.getCustomer().getId());
             dto.setUsername(entity.getCustomer().getUsername());
+            dto.setCustomerImageUrl(entity.getCustomer().getImageUrl());
         }
         if (entity.getVehicle() != null) {
             dto.setPlateNumber(entity.getVehicle().getPlateNumber());

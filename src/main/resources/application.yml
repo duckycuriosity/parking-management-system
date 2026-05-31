@@ -31,6 +31,7 @@ ai:
   face:
     base-url: http://192.168.168.30:8088
     cookie-key: uO50EwSqoolz1OzU
+    face-image-url: http://192.168.168.30:8088/api/FaceImage/
 logging:
   level:
     org.flywaydb: DEBUG

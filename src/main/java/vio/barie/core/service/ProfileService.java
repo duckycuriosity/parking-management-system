@@ -2,6 +2,7 @@ package vio.barie.core.service;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import vio.barie.core.ai.AiProfileGateway;
@@ -19,12 +20,16 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class ProfileService {
+
+    @Value("${ai.face.face-image-url:http://192.168.168.30:8088/api/FaceImage/}")
+    private String customerFaceImageUrl;
+
     private final ParkingCustomerRepository parkingCustomerRepository;
     private final ProfileMapper profileMapper;
     private final AiFaceApiClient aiFaceApiClient;
 
     @Transactional
-    public AiProfileResponse create(String name, Integer groupId, MultipartFile image)
+    public AiProfileResponse create(String name, Integer groupId, MultipartFile image, String email)
             throws IOException {
 
         // BƯỚC 1: Crop face
@@ -46,8 +51,9 @@ public class ProfileService {
         // Verify
         AiProfileResponse finalProfile = aiFaceApiClient.getProfile(profileId);
 
-  
         ParkingCustomerEntity entity = profileMapper.toEntity(finalProfile);
+        entity.setImageUrl(customerFaceImageUrl + profileId);
+        entity.setEmail(email);
         parkingCustomerRepository.save(entity);
 
         return finalProfile;
@@ -63,7 +69,7 @@ public class ProfileService {
 
     @Transactional
     public AiProfileResponse update(Integer id, String name, Integer groupId,
-                                    MultipartFile image) throws IOException {
+            MultipartFile image) throws IOException {
         // Nếu có ảnh mới → crop và gắn lại
         if (image != null && !image.isEmpty()) {
             String faceId = aiFaceApiClient.faceCrop(image);
