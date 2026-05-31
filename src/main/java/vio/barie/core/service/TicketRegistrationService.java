@@ -18,6 +18,7 @@ import vio.barie.core.dto.payment.CreatePaymentResponse;
 import vio.barie.core.dto.payment.PaymentInquiryResponse;
 import vio.barie.core.dto.payment.SePayTransaction;
 import vio.barie.core.dto.ticket.AdminMonthlyTicketRegistrationRequest;
+import vio.barie.core.dto.ticket.RenewTicketRequest;
 import vio.barie.core.dto.ticket.TicketDTO;
 import vio.barie.core.dto.ticket.TicketRegistrationResponseDTO;
 import vio.barie.core.entity.ParkingCustomerEntity;
@@ -236,6 +237,43 @@ public class TicketRegistrationService {
         return ticketRepository.findById(ticketId)
                 .map(TicketEntity::convertToDTO)
                 .orElse(null);
+    }
+
+    @Transactional
+    public TicketRegistrationResponseDTO renewMonthlyTicket(RenewTicketRequest req) {
+        TicketEntity ticket = ticketRepository.findById(req.getId())
+                .orElseThrow(() -> new ServiceException(
+                        "Không tìm thấy vé cho id: " + req.getId()
+                                + ". Vui lòng dùng API đăng ký mới.", 404));
+
+        // Đánh dấu vé là DEAD
+        ticket.setStatus(TicketStatus.DEAD);
+        ticket.setRegisterAt(req.getStartDate());
+        ticket.setExpireAt(calculateExpireDate(req.getTicketType(),req.getStartDate()));
+        ticket.setStatus(TicketStatus.DEAD); // DEAD cho đến khi thanh toán
+        ticketRepository.save(ticket);
+
+
+        ticketRepository.save(ticket);
+        log.info("[renewMonthlyTicket] Vé mới id={} tạo thành công, expireAt={}", ticket.getId(), ticket.getExpireAt());
+
+        ParkingCustomerEntity customer = ticket.getCustomer();
+        VehicleEntity vehicle = ticket.getVehicle();
+        return TicketRegistrationResponseDTO.builder()
+                .ticketId(ticket.getId())
+                .ticketType(req.getTicketType().name())
+                .ticketStatus(ticket.getStatus().name())
+                .customerId(customer != null ? customer.getId() : null)
+                .customerName(customer != null ? customer.getUsername() : null)
+                .customerPhone(customer != null ? customer.getPhoneNumber() : null)
+                .vehicleId(vehicle.getId())
+                .plateNumber(vehicle.getPlateNumber())
+                .vehicleType(vehicle.getVehicleType())
+                .registeredAt(ticket.getRegisterAt())
+                .expireAt(ticket.getExpireAt())
+                .notes(req.getNotes())
+                .message("Gia hạn thành công. Tiến hành thanh toán để kích hoạt vé.")
+                .build();
     }
 
     /**

@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import vio.barie.core.dto.Result;
 import vio.barie.core.dto.ticket.AdminMonthlyTicketRegistrationRequest;
+import vio.barie.core.dto.ticket.RenewTicketRequest;
 import vio.barie.core.dto.ticket.TicketDTO;
 import vio.barie.core.dto.ticket.TicketRegistrationResponseDTO;
 import vio.barie.core.service.TicketRegistrationService;
@@ -64,6 +65,16 @@ public class AdminTicketRegistrationController {
                                         request.getName(), ex.getMessage(), ex);
                         throw ex;
                 }
+        }
+
+        @PostMapping("/renew")
+        @ResponseStatus(HttpStatus.CREATED)
+        @Operation(summary = "Renew monthly ticket for existing customer",
+                description = "Gia hạn vé cho khách hàng đã đăng ký. Vé cũ bị đánh dấu DEAD, vé mới tạo với trạng thái DEAD cho đến khi thanh toán.")
+        public Result<TicketRegistrationResponseDTO> renewMonthlyTicket(
+                @Valid @RequestBody RenewTicketRequest request) {
+            TicketRegistrationResponseDTO response = ticketRegistrationService.renewMonthlyTicket(request);
+            return Result.ok("Gia hạn vé thành công", response);
         }
 
         @GetMapping("/qrcode/{ticketId}")
