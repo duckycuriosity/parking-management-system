@@ -436,8 +436,7 @@ public class DetectionMatchingService {
 
     private TicketEntity findValidMonthlyTicket(Long vehicleId) {
         // chỉ lấy ra vé gửi xe
-        return ticketRepository.findByVehicleIdAndStatus(vehicleId, TicketStatus.ACTIVE.name())
-
+        return ticketRepository.findByVehicleIdAndStatus(vehicleId, TicketStatus.ACTIVE)
                 // .filter(t -> t.getExpireAt() != null &&
                 // t.getExpireAt().isAfter(LocalDateTime.now()))
                 .orElse(null);

@@ -42,12 +42,13 @@ public class TicketService {
         }
 
         // lấy ra ticket của phương tiện này hoặc tạo ticket mới
-        TicketEntity ticket = ticketRepo.findByVehicleIdAndStatus(vehicle.getId(), "ACTIVE").orElseGet(() -> {
-            TicketEntity newTicket = new TicketEntity();
-            newTicket.setVehicle(vehicle);
-            newTicket.setRegisterAt(req.getRegisterAt());
-            return newTicket;
-        });
+        TicketEntity ticket = ticketRepo.findByVehicleIdAndStatus(vehicle.getId(), TicketStatus.ACTIVE)
+                .orElseGet(() -> {
+                    TicketEntity newTicket = new TicketEntity();
+                    newTicket.setVehicle(vehicle);
+                    newTicket.setRegisterAt(req.getRegisterAt());
+                    return newTicket;
+                });
 
         // 1 là ticket hết hạn , 2 là ticket mới hẳn
         if (ticket.getExpireAt() == null || ticket.getExpireAt().isBefore(req.getRegisterAt())) {
@@ -81,11 +82,7 @@ public class TicketService {
 
         // mặc định trạng thái DEAD
         if (req.getStatus() != null) {
-            try {
-                ticket.setStatus((req.getStatus()));
-            } catch (IllegalArgumentException e) {
-                ticket.setStatus(TicketStatus.DEAD);
-            }
+            ticket.setStatus(req.getStatus());
         } else {
             ticket.setStatus(TicketStatus.DEAD);
         }
@@ -105,10 +102,8 @@ public class TicketService {
         TicketEntity entity = ticketRepo.findById(id)
                 .orElseThrow(() -> new ServiceException("Không tìm thấy dữ liệu của ticket này", 404));
 
-
         return TicketEntity.convertToDTO(entity);
     }
-
 
     @Transactional
     public void deleteTicketById(Long id) {
@@ -122,10 +117,10 @@ public class TicketService {
         Pageable pageable = PageRequest.of(
                 req.getPage(),
                 req.getSize(),
-                Sort.by(Sort.Direction.fromString(req.getSortDirection()), req.getSortBy())
-        );
+                Sort.by(Sort.Direction.fromString(req.getSortDirection()), req.getSortBy()));
         // Tạo specification từ request
-        Specification<TicketEntity> spec = TicketSpecifications.buildPaginationSpecification(req.getPlateNumber(), req.getStatus());
+        Specification<TicketEntity> spec = TicketSpecifications.buildPaginationSpecification(req.getPlateNumber(),
+                req.getStatus());
         return ticketRepo.findAll(spec, pageable).map(TicketEntity::convertToDTO);
     }
 }
