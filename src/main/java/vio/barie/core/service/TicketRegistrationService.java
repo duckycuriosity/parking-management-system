@@ -249,7 +249,7 @@ public class TicketRegistrationService {
 
     @Transactional
     public TicketRegistrationResponseDTO renewMonthlyTicket(RenewTicketRequest req) {
-        if (!req.getStartDate().isBefore(LocalDateTime.now())) throw new ServiceException("Thời gian ko được là quá khứ!");
+        if (req.getStartDate().isBefore(LocalDateTime.now())) throw new ServiceException("Thời gian ko được là quá khứ!");
 
         TicketEntity ticket = ticketRepository.findById(req.getId())
                 .orElseThrow(() -> new ServiceException(
