@@ -146,7 +146,7 @@ public class TicketService {
                     .plateNumber(entity.getVehicle() != null ? entity.getVehicle().getPlateNumber() : null)
                     .vehicleType(entity.getVehicle() != null ? entity.getVehicle().getVehicleType() : null)
                     .username(entity.getCustomer() != null ? entity.getCustomer().getUsername() : null)
-                    .phoneNumber(entity.getCustomer() != null ? entity.getCustomer().getPhoneNumber() : null)
+                    .phoneNumber(entity.getPhoneNumber())
                     .customerId(entity.getCustomer() != null ? entity.getCustomer().getId() : null)
                     .status(entity.getStatus())
                     .build();
