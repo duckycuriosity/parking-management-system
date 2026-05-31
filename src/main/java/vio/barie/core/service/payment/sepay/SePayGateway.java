@@ -102,10 +102,10 @@ public class SePayGateway implements PaymentGateway {
         }
 
         // (1) Idempotency
-        if (paymentRepository.existsBySepayTxId(payload.getId())) {
-            log.info("SePay webhook: tx id={} đã xử lý, bỏ qua", payload.getId());
-            return;
-        }
+//        if (paymentRepository.existsBySepayTxId(payload.getId())) {
+//            log.info("SePay webhook: tx id={} đã xử lý, bỏ qua", payload.getId());
+//            return;
+//        }
 
         // (2) Chỉ xử lý tiền vào
         if (!"in".equalsIgnoreCase(payload.getTransferType())) {
@@ -126,19 +126,19 @@ public class SePayGateway implements PaymentGateway {
                 .orElseThrow(() -> new ServiceException(
                         "SePay webhook: không tìm thấy payment invoiceNo=" + invoiceNo, 404));
 
-        if (payment.getAmount() != null && payload.getTransferAmount() != null
-                && payment.getAmount().compareTo(payload.getTransferAmount()) != 0) {
-            log.warn("SePay webhook: lệch số tiền invoice={} expected={} actual={}",
-                    invoiceNo, payment.getAmount(), payload.getTransferAmount());
-            payment.setStatus(PaymentType.FRAUD.name());
-            payment.setResultMessage("Amount mismatch: expected="
-                    + payment.getAmount() + " actual=" + payload.getTransferAmount());
-            payment.setSepayTxId(payload.getId());
-            payment.setGateway(payload.getGateway());
-            payment.setReferenceCode(payload.getReferenceCode());
-            paymentRepository.save(payment);
-            return;
-        }
+//        if (payment.getAmount() != null && payload.getTransferAmount() != null
+//                && payment.getAmount().compareTo(payload.getTransferAmount()) != 0) {
+//            log.warn("SePay webhook: lệch số tiền invoice={} expected={} actual={}",
+//                    invoiceNo, payment.getAmount(), payload.getTransferAmount());
+//            payment.setStatus(PaymentType.FRAUD.name());
+//            payment.setResultMessage("Amount mismatch: expected="
+//                    + payment.getAmount() + " actual=" + payload.getTransferAmount());
+//            payment.setSepayTxId(payload.getId());
+//            payment.setGateway(payload.getGateway());
+//            payment.setReferenceCode(payload.getReferenceCode());
+//            paymentRepository.save(payment);
+//            return;
+//        }
 
         if (PaymentType.PAID.name().equals(payment.getStatus())) {
             log.info("SePay webhook: invoice {} đã PAID, chỉ gán sepay_tx_id và bỏ qua nghiệp vụ",

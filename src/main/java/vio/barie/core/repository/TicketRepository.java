@@ -7,11 +7,13 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import vio.barie.core.entity.TicketEntity;
+import vio.barie.core.common.TicketStatus;
+import vio.barie.core.dto.ticket.TicketRegistrationResponseDTO;
 
 import java.util.Optional;
 
 public interface TicketRepository extends JpaRepository<TicketEntity, Long>, JpaSpecificationExecutor<TicketEntity> {
-    Optional<TicketEntity> findByVehicleIdAndStatus(Long vehicleId, String status);
+    Optional<TicketEntity> findByVehicleIdAndStatus(Long vehicleId, TicketStatus status);
 
     Optional<TicketEntity> findById(Long Id);
 
@@ -22,34 +24,51 @@ public interface TicketRepository extends JpaRepository<TicketEntity, Long>, Jpa
     Optional<TicketEntity> findTicketByVehicleId(Long vehicleId);
 
     @Query(value = """
-            SELECT t FROM TicketEntity t 
-            LEFT JOIN FETCH t.vehicle v 
-            LEFT JOIN FETCH t.customer c 
-            WHERE (:searchKey IS NULL OR :searchKey = '' OR 
-                   LOWER(c.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) OR 
-                   LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')) OR 
-                   LOWER(c.phoneNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')))
-            AND (:status IS NULL OR :status = '' OR 
-                 (:status = 'ACTIVE' AND CURRENT_TIMESTAMP BETWEEN t.registerAt AND t.expireAt) OR 
-                 (:status = 'INACTIVE' AND CURRENT_TIMESTAMP > t.expireAt))
-            """,
-            countQuery = """
-                    SELECT COUNT(t) FROM TicketEntity t 
-                    LEFT JOIN t.vehicle v 
-                    LEFT JOIN t.customer c 
-                    WHERE (:searchKey IS NULL OR :searchKey = '' OR 
-                           LOWER(c.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) OR 
-                           LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')) OR 
-                           LOWER(c.phoneNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')))
-                    AND (:status IS NULL OR :status = '' OR 
-                         (:status = 'ACTIVE' AND CURRENT_TIMESTAMP BETWEEN t.registerAt AND t.expireAt) OR 
-                         (:status = 'INACTIVE' AND CURRENT_TIMESTAMP > t.expireAt))
-                    """)
-    Page<TicketEntity> searchTickets(
+                SELECT new vio.barie.core.dto.ticket.TicketRegistrationResponseDTO(
+                    t.id,
+                    CONCAT(t.ticketType, ''),
+                    CONCAT(t.status, ''),
+                    c.id,
+                    c.username,
+                    v.id,
+                    v.plateNumber,
+                    v.vehicleType,
+                    c.aiProfileId,
+                    c.imageUrl,
+                    t.registerAt,
+                    t.expireAt,
+                    t.startDate,
+                    null,
+                    t.notes,
+                    c.email,
+                    t.phoneNumber
+                )
+            FROM TicketEntity t
+            LEFT JOIN t.vehicle v
+            LEFT JOIN t.customer c
+            WHERE (:searchKey IS NULL OR :searchKey = '' OR
+                  LOWER(c.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) OR
+                  LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')) OR
+                  LOWER(c.phoneNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')))
+            AND (:status IS NULL OR :status = '' OR
+                (:status = 'ACTIVE' AND CURRENT_TIMESTAMP BETWEEN t.registerAt AND t.expireAt) OR
+                (:status = 'INACTIVE' AND CURRENT_TIMESTAMP > t.expireAt))
+            """, countQuery = """
+            SELECT COUNT(t) FROM TicketEntity t
+            LEFT JOIN t.vehicle v
+            LEFT JOIN t.customer c
+            WHERE (:searchKey IS NULL OR :searchKey = '' OR
+                  LOWER(c.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) OR
+                  LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')) OR
+                  LOWER(c.phoneNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')))
+            AND (:status IS NULL OR :status = '' OR
+                (:status = 'ACTIVE' AND CURRENT_TIMESTAMP BETWEEN t.registerAt AND t.expireAt) OR
+                (:status = 'INACTIVE' AND CURRENT_TIMESTAMP > t.expireAt))
+            """)
+    Page<TicketRegistrationResponseDTO> searchTickets(
             @Param("searchKey") String searchKey,
             @Param("status") String status,
-            Pageable pageable
-    );
+            Pageable pageable);
 
     // 1. tổng số vé (Bỏ qua DEAD)
     @Query("SELECT COUNT(t) FROM TicketEntity t WHERE t.status IN ('ACTIVE', 'INACTIVE')")

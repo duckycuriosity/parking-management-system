@@ -17,7 +17,7 @@ public class ParkingCustomerEntity extends BaseEntity {
     private String aiIdentityId;
 
     @Column(name = "ai_profile_id", nullable = false, length = 100)
-    private int aiProfileId;
+    private Integer aiProfileId;
 
     @Column(name = "zalo_id", length = 100)
     private String zaloId;
@@ -27,4 +27,10 @@ public class ParkingCustomerEntity extends BaseEntity {
 
     @Column(name = "phone_number", length = 20)
     private String phoneNumber;
+
+    @Column(name = "image_url", length = 255)
+    private String imageUrl;
+
+    @Column(name = "email", nullable = false)
+    private String email;
 }

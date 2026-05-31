@@ -11,6 +11,7 @@ import vio.barie.core.dto.TicketCreateRequest;
 import vio.barie.core.dto.ticket.TicketDTO;
 import vio.barie.core.dto.ticket.TicketPaginationRequest;
 import vio.barie.core.dto.ticket.TicketRegisterRequest;
+import vio.barie.core.dto.ticket.TicketRegistrationResponseDTO;
 import vio.barie.core.entity.ParkingCustomerEntity;
 import vio.barie.core.entity.PaymentEntity;
 import vio.barie.core.entity.VehicleEntity;
@@ -45,12 +46,13 @@ public class TicketService {
         }
 
         // lấy ra ticket của phương tiện này hoặc tạo ticket mới
-        TicketEntity ticket = ticketRepo.findByVehicleIdAndStatus(vehicle.getId(), "ACTIVE").orElseGet(() -> {
-            TicketEntity newTicket = new TicketEntity();
-            newTicket.setVehicle(vehicle);
-            newTicket.setRegisterAt(req.getRegisterAt());
-            return newTicket;
-        });
+        TicketEntity ticket = ticketRepo.findByVehicleIdAndStatus(vehicle.getId(), TicketStatus.ACTIVE)
+                .orElseGet(() -> {
+                    TicketEntity newTicket = new TicketEntity();
+                    newTicket.setVehicle(vehicle);
+                    newTicket.setRegisterAt(req.getRegisterAt());
+                    return newTicket;
+                });
 
         // 1 là ticket hết hạn , 2 là ticket mới hẳn
         if (ticket.getExpireAt() == null || ticket.getExpireAt().isBefore(req.getRegisterAt())) {
@@ -62,7 +64,7 @@ public class TicketService {
         } else if (req.getType().equals("MONTH")) {
             ticket.setExpireAt(ticket.getExpireAt().plusMonths(req.getDuration()));
         } else {
-            throw new ServiceException("Đơn vị thời gian không hợp lệ! Chỉ có thể là 'DAY', 'MONTH'", 404);
+            throw new ServiceException("Đơn vị thời gian không hợp lệ! Chỉ có thể là 'DAY', 'MONTH', 'QUARTER'", 404);
         }
 
         ticket.setStatus(TicketStatus.ACTIVE);
@@ -87,9 +89,11 @@ public class TicketService {
         ticket.setExpireAt(req.getExpireAt());
 
         // mặc định trạng thái DEAD
-
-        ticket.setStatus(TicketStatus.DEAD);
-
+        if (req.getStatus() != null) {
+            ticket.setStatus(req.getStatus());
+        } else {
+            ticket.setStatus(TicketStatus.DEAD);
+        }
         ticket = ticketRepo.save(ticket);
         return TicketEntity.convertToDTO(ticket);
     }
@@ -106,10 +110,8 @@ public class TicketService {
         TicketEntity entity = ticketRepo.findById(id)
                 .orElseThrow(() -> new ServiceException("Không tìm thấy dữ liệu của ticket này", 404));
 
-
         return TicketEntity.convertToDTO(entity);
     }
-
 
     @Transactional
     public void deleteTicketById(Long id) {
@@ -119,7 +121,7 @@ public class TicketService {
     }
 
     @Transactional(readOnly = true)
-    public Page<TicketDTO> list(TicketPaginationRequest req) {
+    public Page<TicketRegistrationResponseDTO> list(TicketPaginationRequest req) {
 
         Pageable pageable = PageRequest.of(
                 req.getPage(),
@@ -128,38 +130,25 @@ public class TicketService {
         );
         String statusFilter = (req.getStatus() != null) ? req.getStatus().name() : null;
 
-        Page<TicketEntity> ticketPage = ticketRepo.searchTickets(
+        Page<TicketRegistrationResponseDTO> ticketPage = ticketRepo.searchTickets(
                 req.getSearchKey(),
                 statusFilter,
                 pageable
         );
 
 
-        return ticketPage.map(entity -> {
-            return TicketDTO.builder()
-                    .id(entity.getId())
-                    .ticketType(entity.getTicketType())
-                    .registerAt(entity.getRegisterAt())
-                    .expireAt(entity.getExpireAt())
-                    .plateNumber(entity.getVehicle() != null ? entity.getVehicle().getPlateNumber() : null)
-                    .vehicleType(entity.getVehicle() != null ? entity.getVehicle().getVehicleType() : null)
-                    .username(entity.getCustomer() != null ? entity.getCustomer().getUsername() : null)
-                    .phoneNumber(entity.getCustomer() != null ? entity.getCustomer().getPhoneNumber() : null)
-//                    .status(calculateDynamicStatus(entity.getRegisterAt(), entity.getExpireAt()))
-                    .status(entity.getStatus())
-                    .build();
-        });
+        return ticketPage;
     }
 
-//    private TicketStatus calculateDynamicStatus(LocalDateTime registerAt, LocalDateTime expireAt) {
-//        LocalDateTime now = LocalDateTime.now();
-//        if (expireAt != null && now.isAfter(expireAt)) {
-//            return TicketStatus.INACTIVE;
-//        } else if (registerAt != null && expireAt != null && !now.isBefore(registerAt) && !now.isAfter(expireAt)) {
-//            return TicketStatus.ACTIVE;
-//        }
-//        return TicketStatus.DEAD;
-//    }
+    private TicketStatus calculateDynamicStatus(LocalDateTime registerAt, LocalDateTime expireAt) {
+        LocalDateTime now = LocalDateTime.now();
+        if (expireAt != null && now.isAfter(expireAt)) {
+            return TicketStatus.INACTIVE;
+        } else if (registerAt != null && expireAt != null && !now.isBefore(registerAt) && !now.isAfter(expireAt)) {
+            return TicketStatus.ACTIVE;
+        }
+        return TicketStatus.DEAD;
+    }
 
 
 }
