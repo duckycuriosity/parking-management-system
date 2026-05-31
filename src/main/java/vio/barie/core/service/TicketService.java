@@ -45,12 +45,13 @@ public class TicketService {
         }
 
         // lấy ra ticket của phương tiện này hoặc tạo ticket mới
-        TicketEntity ticket = ticketRepo.findByVehicleIdAndStatus(vehicle.getId(), "ACTIVE").orElseGet(() -> {
-            TicketEntity newTicket = new TicketEntity();
-            newTicket.setVehicle(vehicle);
-            newTicket.setRegisterAt(req.getRegisterAt());
-            return newTicket;
-        });
+        TicketEntity ticket = ticketRepo.findByVehicleIdAndStatus(vehicle.getId(), TicketStatus.ACTIVE)
+                .orElseGet(() -> {
+                    TicketEntity newTicket = new TicketEntity();
+                    newTicket.setVehicle(vehicle);
+                    newTicket.setRegisterAt(req.getRegisterAt());
+                    return newTicket;
+                });
 
         // 1 là ticket hết hạn , 2 là ticket mới hẳn
         if (ticket.getExpireAt() == null || ticket.getExpireAt().isBefore(req.getRegisterAt())) {
@@ -62,7 +63,7 @@ public class TicketService {
         } else if (req.getType().equals("MONTH")) {
             ticket.setExpireAt(ticket.getExpireAt().plusMonths(req.getDuration()));
         } else {
-            throw new ServiceException("Đơn vị thời gian không hợp lệ! Chỉ có thể là 'DAY', 'MONTH'", 404);
+            throw new ServiceException("Đơn vị thời gian không hợp lệ! Chỉ có thể là 'DAY', 'MONTH', 'QUARTER'", 404);
         }
 
         ticket.setStatus(TicketStatus.ACTIVE);
@@ -108,10 +109,8 @@ public class TicketService {
         TicketEntity entity = ticketRepo.findById(id)
                 .orElseThrow(() -> new ServiceException("Không tìm thấy dữ liệu của ticket này", 404));
 
-
         return TicketEntity.convertToDTO(entity);
     }
-
 
     @Transactional
     public void deleteTicketById(Long id) {
