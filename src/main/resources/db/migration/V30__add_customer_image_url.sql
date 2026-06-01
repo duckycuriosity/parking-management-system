@@ -1,0 +1,1 @@
+ALTER TABLE parking_customer ADD COLUMN IF NOT EXISTS image_url VARCHAR(255);

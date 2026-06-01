@@ -7,19 +7,19 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import vio.barie.core.dto.DeviceLaneResponse;
 import vio.barie.core.dto.Result;
-import vio.barie.core.service.DeviceLandService;
+import vio.barie.core.service.DeviceLaneService;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/devices")
 @RequiredArgsConstructor
-public class DeviceLandController {
-    private final DeviceLandService deviceLandService;
+public class DeviceLaneController {
+    private final DeviceLaneService deviceLaneService;
 
     @GetMapping("/lane/{laneId}")
     public Result<List<DeviceLaneResponse>> getAllDeviceByLaneId(@PathVariable Long laneId) {
-        List<DeviceLaneResponse> data = deviceLandService.getAllDeviceByLaneId(laneId);
+        List<DeviceLaneResponse> data = deviceLaneService.getAllDeviceByLaneId(laneId);
         return Result.ok("Thành công", data);
     }
 

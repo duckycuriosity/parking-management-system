@@ -1,9 +1,16 @@
 package vio.barie.core.dto.ticket;
 
+import cn.hutool.core.date.DateTime;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.Data;
+import org.springframework.format.annotation.DateTimeFormat;
+import vio.barie.core.common.TicketStatus;
+import vio.barie.core.common.TicketType;
+
+import java.time.LocalDateTime;
 
 @Data
 public class AdminMonthlyTicketRegistrationRequest {
@@ -11,20 +18,15 @@ public class AdminMonthlyTicketRegistrationRequest {
     @NotBlank(message = "Customer name required")
     private String name;
 
-    private Integer groupId = 0;
-
     @NotBlank(message = "Phone number required")
     @Pattern(regexp = "^0\\d{9}$", message = "Invalid phone format (must be 10 digits starting with 0)")
-    private String customerPhone;
+    private String phoneNumber;
 
     @Email(message = "Invalid email format")
     private String customerEmail;
 
-    private String customerZaloId;
-
-    @NotBlank(message = "Ticket type required")
-    @Pattern(regexp = "^(MONTH|QUARTER)$", message = "Ticket type must be MONTH or QUARTER")
-    private String ticketType;
+    @NotNull(message = "Ticket type required")
+    private TicketType ticketType;
 
     @NotBlank(message = "Plate number required")
     private String vehiclePlateNumber;
@@ -37,5 +39,9 @@ public class AdminMonthlyTicketRegistrationRequest {
     @Pattern(regexp = "^(NORMAL|DIPLOMATIC|OFFICIAL)$", message = "Invalid plate type")
     private String plateType;
 
+    @NotNull(message = "Start date required")
+    private LocalDateTime startDate;
+
     private String notes;
+
 }

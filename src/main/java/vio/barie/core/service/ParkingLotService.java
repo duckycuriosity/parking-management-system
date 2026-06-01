@@ -3,11 +3,11 @@ package vio.barie.core.service;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import vio.barie.core.config.exception.BusinessException;
 import vio.barie.core.dto.ParkingLotCreateRequest;
 import vio.barie.core.dto.ParkingLotResponse;
 import vio.barie.core.entity.BuildingEntity;
 import vio.barie.core.entity.ParkingLotEntity;
-import vio.barie.core.exception.BusinessException;
 import vio.barie.core.mapper.ParkingLotMapper;
 import vio.barie.core.repository.BuildingRepository;
 import vio.barie.core.repository.ParkingLotRepository;
@@ -30,8 +30,11 @@ public class ParkingLotService {
         ParkingLotEntity entity = parkingLotMapper.toEntity(request);
         entity.setBuilding(building);
 
+        entity.setDescription(request.getDescription());
+        entity.setStatus(request.getStatus());
         ParkingLotEntity saved = parkingLotRepository.save(entity);
         return parkingLotMapper.toResponse(saved);
+
     }
 
     public List<ParkingLotResponse> findAll() {
@@ -43,7 +46,7 @@ public class ParkingLotService {
                 .orElseThrow(() -> new BusinessException("Parking lot not found", "PARKING_LOT_NOT_FOUND", 404));
         return parkingLotMapper.toResponse(entity);
     }
-    
+
     @Transactional
     public ParkingLotResponse update(Long id, ParkingLotCreateRequest request) {
         ParkingLotEntity entity = parkingLotRepository.findById(id)
@@ -54,7 +57,8 @@ public class ParkingLotService {
 
         entity.setName(request.getName());
         entity.setBuilding(building);
-
+        entity.setDescription(request.getDescription());
+        entity.setStatus(request.getStatus());
         ParkingLotEntity saved = parkingLotRepository.save(entity);
         return parkingLotMapper.toResponse(saved);
     }

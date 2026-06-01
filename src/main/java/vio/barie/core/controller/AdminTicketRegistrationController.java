@@ -1,5 +1,6 @@
 package vio.barie.core.controller;
 
+import cn.hutool.json.JSONObject;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -12,6 +13,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import vio.barie.core.dto.Result;
 import vio.barie.core.dto.ticket.AdminMonthlyTicketRegistrationRequest;
+import vio.barie.core.dto.ticket.RenewTicketRequest;
+import vio.barie.core.dto.ticket.TicketDTO;
 import vio.barie.core.dto.ticket.TicketRegistrationResponseDTO;
 import vio.barie.core.service.TicketRegistrationService;
 
@@ -64,12 +67,31 @@ public class AdminTicketRegistrationController {
                 }
         }
 
+        @PostMapping("/renew")
+        @ResponseStatus(HttpStatus.CREATED)
+        @Operation(summary = "Renew monthly ticket for existing customer",
+                description = "Gia hạn vé cho khách hàng đã đăng ký. Vé cũ bị đánh dấu DEAD, vé mới tạo với trạng thái DEAD cho đến khi thanh toán.")
+        public Result<TicketRegistrationResponseDTO> renewMonthlyTicket(
+                @Valid @RequestBody RenewTicketRequest request) {
+            TicketRegistrationResponseDTO response = ticketRegistrationService.renewMonthlyTicket(request);
+            return Result.ok("Gia hạn vé thành công", response);
+        }
+
         @GetMapping("/qrcode/{ticketId}")
-        public Result<String> getTicketRegistrationQrcode(@PathVariable Long ticketId) {
-                String qr = ticketRegistrationService.getTicketPayment(ticketId);
+        public Result<JSONObject> getTicketRegistrationQrcode(@PathVariable Long ticketId) {
+                JSONObject qr = ticketRegistrationService.getTicketPayment(ticketId);
                 return new Result<>(
                         200,
                         "qrcode",
                         qr);
+        }
+
+        @GetMapping("/getLatestStatus/{ticketId}")
+        public Result<TicketDTO> getLatestStatus(@PathVariable Long ticketId) {
+            TicketDTO ticketDTO = ticketRegistrationService.getLatestStatus(ticketId);
+            return new Result<>(
+                    200,
+                    "latest ticket status",
+                    ticketDTO);
         }
 }

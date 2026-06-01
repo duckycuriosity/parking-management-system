@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
+import vio.barie.core.common.BaseStatus;
 import vio.barie.core.dto.camera.CameraCreateRequest;
 import vio.barie.core.dto.camera.CameraResponse;
 import org.springframework.stereotype.Service;
@@ -34,6 +36,7 @@ public class CameraService {
         this.objectMapper = objectMapper;
     }
 
+    @Transactional
     public CameraResponse createCamera(CameraCreateRequest clientBody) {
 
         CameraEntity camera = new CameraEntity();
@@ -59,16 +62,69 @@ public class CameraService {
         camera.setName(aiCamera.path("name").asText());
         camera.setUuid(aiCamera.path("uuid").asText());
         camera.setUrl(aiCamera.path("url").asText());
-        camera.setType(aiCamera.path("type").asText());
+        String typeStr = aiCamera.path("type").asText();
+        if (!typeStr.isBlank()) {
+            try {
+                camera.setType(BaseStatus.valueOf(typeStr.toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid camera type from AI system: " + typeStr);
+            }
+        }
+        String statusStr = aiCamera.path("status").asText();
+        if (!statusStr.isBlank()) {
+            try {
+                camera.setStatus(BaseStatus.valueOf(statusStr.toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                camera.setStatus(BaseStatus.ACTIVE);
+            }
+        } else {
+            // Mặc định lúc tạo mới vào DB thường là ACTIVE
+            camera.setStatus(BaseStatus.ACTIVE);
+        }
         CameraEntity saved = cameraRepository.save(camera);
 
         return cameraMapper.toResponse(saved);
     }
 
-    public List<CameraResponse> getCameraList() {
-        List<CameraEntity> entities = cameraRepository.findAll();
-        return cameraMapper.toResponseList(entities);
 
+    public List<CameraResponse> getCameraList(String searchKey) {
+        List<CameraEntity> entities;
+        if (searchKey != null && !searchKey.trim().isEmpty()) {
+            entities = cameraRepository.searchByParkingLotNameWithRelations(searchKey.trim());
+        } else {
+            entities = cameraRepository.findAllWithRelations();
+        }
+        return cameraMapper.toResponseList(entities);
+    }
+
+    public CameraResponse getCameraById(Long id) {
+        CameraEntity entity = cameraRepository.findByIdWithRelations(id)
+                .orElseThrow(() -> new RuntimeException("Camera not found with ID: " + id));
+        return cameraMapper.toResponse(entity);
+    }
+
+    @Transactional
+    public CameraResponse updateCamera(Long id, CameraCreateRequest request) {
+        CameraEntity entity = cameraRepository.findByIdWithRelations(id)
+                .orElseThrow(() -> new RuntimeException("Camera not found with ID: " + id));
+
+        if (request.getName() != null) {
+            entity.setName(request.getName());
+        }
+        if (request.getUrl() != null) {
+            entity.setUrl(request.getUrl());
+        }
+
+        CameraEntity updated = cameraRepository.save(entity);
+        return cameraMapper.toResponse(updated);
+    }
+
+    @Transactional
+    public void deleteCamera(Long id) {
+        if (!cameraRepository.existsById(id)) {
+            throw new RuntimeException("Camera not found with ID: " + id);
+        }
+        cameraRepository.deleteById(id);
     }
 
 }

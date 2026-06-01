@@ -45,6 +45,7 @@ public class ProfileMessageService {
 
             if (cameraUUID == null) {
                 logger.warn("ProfileHandler: face event has no profileId — cameraId={}", cameraCode);
+                parkingMessageService.publishErrorWhenHandlingEvent("Camera UUID is missing in event", "", DetectionType.FACE);
                 return;
             }
 
@@ -86,22 +87,28 @@ public class ProfileMessageService {
             pd.setType(DetectionType.FACE);
             pd.setProfileId(profileId);
 
-            if (barrier.map(BarrierEntity::getDirection).orElse("").equals(DirectionType.ENTRY.toString().toLowerCase())) {
+            DirectionType barrierDirection = barrier.map(BarrierEntity::getDirection).orElse(null);
+
+            if (barrierDirection == DirectionType.ENTRY) {
                 pd.setEntryLaneId(laneId);
                 pd.setEntryBarrierId(barrier.map(BarrierEntity::getBarrierId).orElse(null));
                 pd.setEntryCameraId(cameraInLane.getId());
                 pd.setDirectionType(DirectionType.ENTRY);
-            } else if (barrier.map(BarrierEntity::getDirection).orElse("").equals(DirectionType.EXIT.toString().toLowerCase())) {
+            } else if (barrierDirection == DirectionType.EXIT) {
                 pd.setExitBarrierId(barrier.map(BarrierEntity::getBarrierId).orElse(null));
                 pd.setExitCameraId(cameraInLane.getId());
                 pd.setExitLaneId(laneId);
                 pd.setDirectionType(DirectionType.EXIT);
+            } else {
+                logger.warn("ProfileHandler: unknown barrier direction — cameraId={} direction={} event={}", cameraUUID, barrierDirection, event);
+                parkingMessageService.publishErrorWhenHandlingEvent("Unknown barrier direction", cameraUUID, DetectionType.FACE);
+                return;
             }
             pd.setTimestampMs(System.currentTimeMillis());
 
             aiEventBuffer.addFaceEvent(pd);
         } catch (Exception ex) {
-            log.error("ProfileMessageService: failed to handle profile event — payload={} error={}", event,
+            logger.error("ProfileMessageService: failed to handle profile event — payload={} error={}", event,
                     ex.getMessage(), ex);
             parkingMessageService.publishErrorWhenHandlingEvent(ex.getMessage(), "", DetectionType.FACE);
         }

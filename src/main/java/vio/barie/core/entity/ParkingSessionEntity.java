@@ -3,7 +3,10 @@ package vio.barie.core.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+
 import java.time.LocalDateTime;
+
+import vio.barie.core.common.SessionType;
 import vio.barie.core.entity.base.BaseEntity;
 
 @Entity
@@ -50,7 +53,8 @@ public class ParkingSessionEntity extends BaseEntity {
 
     @Column(name = "ticket_id")
     private Long ticketId;
-
+    
+    @Enumerated(EnumType.STRING)
     @Column(name = "session_type", nullable = false)
-    private String sessionType; // 'MONTHLY', 'QUARTERLY', 'YEARLY', 'DAILY'
+    private SessionType sessionType; // 'DAY', 'MONTH', 'QUARTER'
 }

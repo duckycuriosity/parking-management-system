@@ -1,7 +1,8 @@
 spring:
-  redis:
-    host: host.docker.internal
-    port: 6379
+  data:
+    redis:
+      host: ${REDIS_HOST:192.168.168.30}
+      port: ${REDIS_PORT:6379}
   security:
     oauth2:
       resourceserver:
@@ -65,6 +66,21 @@ megapay:
   callback-url: http://localhost:8080/api/payment/callback
   notify-url: http://localhost:8080/api/payment/ipn
   req-domain: http://localhost:8080
+  qr-expire-minutes: 15
+
+sepay:
+  api-base-url: https://userapi.sepay.vn/v2
+  api-token: JVLR8UBMXMNK9OIDAVW0H9ME6KYFRDCXLZTI0RA53MIZ2DUCYQ78CVFSWYZYNPFT                                # Bearer token (gọi SePay API: inquiry, reconciliation, stats)
+  webhook-api-key: viotechapikey
+  bank-account: 0843233326
+  bank-brand: MBBank
+  qr-base-url: https://qr.sepay.vn/img
+  qr-expire-minutes: 15
+  invoice-prefix: viotech
+  reconciliation-interval-ms: 300000
+
+payment:
+  method: sepay
 
 ai:
   core:
@@ -76,6 +92,8 @@ ai:
   face:
     base-url: http://host.docker.internal:8088
     cookie-key: uO50EwSqoolz1OzU
+    face-image-url: http://lab.viotech.com.vn:8088/api/FaceImage/
+
 
 vms:
   core:

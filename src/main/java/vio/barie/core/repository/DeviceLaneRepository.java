@@ -1,5 +1,7 @@
 package vio.barie.core.repository;
 
+import java.time.LocalDateTime;
+
 public interface DeviceLaneRepository {
     // Device info
     Long getDeviceId();
@@ -9,6 +11,10 @@ public interface DeviceLaneRepository {
     String getDeviceStatus();
 
     String getFirmwareVersion();
+
+    LocalDateTime getLastSeen();
+
+    String getLocation();
 
     // Barrier info
     Long getBarrierLocalId();
@@ -29,4 +35,5 @@ public interface DeviceLaneRepository {
     String getCameraType();
 
     String getCameraRole();
+
 }

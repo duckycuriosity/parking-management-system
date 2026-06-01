@@ -24,8 +24,6 @@ public class WebSocketMessageHandler extends TextWebSocketHandler {
     private final ObjectMapper objectMapper;
     private final VmsWebSocketReconnectService reconnectService;
     private final vio.barie.core.service.VmsService vmsService;
-    private final ProfileHandler profileHandler;
-    private final PlateHandler plateHandler;
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -78,13 +76,13 @@ public class WebSocketMessageHandler extends TextWebSocketHandler {
         }
         if (isProfileWsMsg(event)) {
             try {
-                profileHandler.handle(data);
+//                profileHandler.handle(data);
             } catch (Exception ex) {
                 log.warn("ProfileHandler failed: {}", ex.getMessage());
             }
         } else if (isPlateWsMsg(event)) {
             try {
-                plateHandler.handle(data);
+//                plateHandler.handle(data);
             } catch (Exception ex) {
                 log.warn("PlateHandler failed: {}", ex.getMessage());
             }

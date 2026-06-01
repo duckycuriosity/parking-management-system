@@ -3,6 +3,8 @@ package vio.barie.core.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import vio.barie.core.common.TicketStatus;
+import vio.barie.core.common.TicketType;
 import vio.barie.core.dto.ticket.TicketDTO;
 import vio.barie.core.entity.base.BaseEntity;
 
@@ -13,12 +15,13 @@ import java.time.LocalDateTime;
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class TicketEntity extends BaseEntity {
-
+    @Enumerated(EnumType.STRING)
     @Column(name = "ticket_type")
-    private String ticketType;
+    private TicketType ticketType;
 
-    @Column(name = "customer_id")
-    private Long customerId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id")
+    private ParkingCustomerEntity customer;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_id")
@@ -30,8 +33,18 @@ public class TicketEntity extends BaseEntity {
     @Column(name = "expire_at", nullable = false)
     private LocalDateTime expireAt;
 
+    @Column(name = "start_date", nullable = false)
+    private LocalDateTime startDate;
+
+    @Column(name = "phone_number", nullable = false)
+    private String phoneNumber;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "status")
-    private String status; // 'ACTIVE','DEAD'
+    private TicketStatus status; // 'ACTIVE','DEAD'
+
+    @Column(name = "notes")
+    private String notes;
 
     public static TicketDTO convertToDTO(TicketEntity entity) {
         TicketDTO dto = new TicketDTO();
@@ -39,10 +52,20 @@ public class TicketEntity extends BaseEntity {
         dto.setVehicle(entity.getVehicle());
         dto.setRegisterAt(entity.getRegisterAt());
         dto.setExpireAt(entity.getExpireAt());
+        dto.setStartDate(entity.getStartDate());
         dto.setStatus(entity.getStatus());
-        dto.setCreatedAt(entity.getCreatedAt());
         dto.setTicketType(entity.getTicketType());
-        dto.setCustomerId(entity.getCustomerId());
+        dto.setPhoneNumber(entity.getPhoneNumber());
+        dto.setNotes(entity.getNotes());
+        if (entity.getCustomer() != null) {
+            dto.setCustomerId(entity.getCustomer().getId());
+            dto.setUsername(entity.getCustomer().getUsername());
+            dto.setCustomerImageUrl(entity.getCustomer().getImageUrl());
+        }
+        if (entity.getVehicle() != null) {
+            dto.setPlateNumber(entity.getVehicle().getPlateNumber());
+            dto.setVehicleType(entity.getVehicle().getVehicleType());
+        }
         return dto;
     }
 }

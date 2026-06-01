@@ -42,21 +42,21 @@ public class BuildingController {
     }
 
     @GetMapping("/{id}")
-    public Result<BuildingResponse> findById(@PathVariable Long id) {
+    public Result<BuildingResponse> findById(@PathVariable("id") Long id) {
         return Result.ok("Building fetched successfully",
                 buildingService.findById(id));
     }
 
     @PutMapping("/{id}")
     public Result<BuildingResponse> update(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @Valid @RequestBody BuildingCreateRequest request) {
         return Result.ok("Building updated successfully",
                 buildingService.update(id, request));
     }
 
     @DeleteMapping("/{id}")
-    public Result<String> delete(@PathVariable Long id) {
+    public Result<String> delete(@PathVariable("id") Long id) {
         buildingService.delete(id);
         return Result.ok("Building deleted successfully", null);
     }

@@ -18,8 +18,4 @@ public class CreatePaymentResponse {
     private String paymentLink;
     private String qrCode;
     private String merchantToken;
-
-    public boolean isSuccess() {
-        return "00_000".equals(resultCd);
-    }
 }
