@@ -62,6 +62,7 @@ public class BuildingService {
                     "BUILDING_HAS_PARKING_SESSIONS",
                     409
             );
+
         }
 
         buildingRepository.delete(entity);

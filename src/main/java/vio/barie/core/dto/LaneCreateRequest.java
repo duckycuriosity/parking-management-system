@@ -20,7 +20,7 @@ public class LaneCreateRequest {
 
     @Size(max = 2000, message = "Description must not exceed 2000 characters")
     private String description;
-    
+
     @NotNull(message = "Lane status is required")
     private BaseStatus status;
 
