@@ -94,6 +94,7 @@ public class TicketService {
 //        } else {
 //            ticket.setStatus(TicketStatus.DEAD);
 //        }
+        ticket.setStatus(TicketStatus.DEAD);
         ticket = ticketRepo.save(ticket);
         return TicketEntity.convertToDTO(ticket);
     }

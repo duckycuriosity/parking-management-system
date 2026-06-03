@@ -13,11 +13,14 @@ public class TicketSummaryCacheService {
     private static final String PREFIX = "ticket:summary:";
     private final StringRedisTemplate redisTemplate;
 
-    public void syncAllCounters(long total, long active, long expired, long expiringSoon) {
+    public void syncAllCounters(long total, long active, long expired, long expiringSoon, long dead) {
         redisTemplate.opsForValue().set(PREFIX + "total", String.valueOf(total));
         redisTemplate.opsForValue().set(PREFIX + "active", String.valueOf(active));
         redisTemplate.opsForValue().set(PREFIX + "expired", String.valueOf(expired));
         redisTemplate.opsForValue().set(PREFIX + "expiring_soon", String.valueOf(expiringSoon));
+        redisTemplate.opsForValue().set(PREFIX + "dead", String.valueOf(dead));
+        log.info("Synced ticket summary counters: total={}, active={}, expired={}, expiringSoon={}, dead={}",
+                total, active, expired, expiringSoon, dead);
     }
 
     public TicketSummaryResponse getSummary() {
@@ -26,6 +29,7 @@ public class TicketSummaryCacheService {
                 .active(getLong("active"))
                 .expired(getLong("expired"))
                 .expiringSoon(getLong("expiring_soon"))
+                .dead(getLong("dead"))
                 .build();
     }
 
@@ -44,6 +48,7 @@ public class TicketSummaryCacheService {
         try {
             return Long.parseLong(val);
         } catch (NumberFormatException e) {
+            log.warn("Invalid cache value for key={}: {}", key, val);
             return 0L;
         }
     }

@@ -145,7 +145,7 @@ public class BarrierService {
 
 
     @Transactional
-    public void updateBarrier(String barrierId, BarrierUpdateRequest request) {
+    public BarrierDetailResponse updateBarrier(String barrierId, BarrierUpdateRequest request) {
 
 
         BarrierEntity barrier = barrierRepository.findByBarrierId(barrierId)
@@ -154,7 +154,7 @@ public class BarrierService {
         barrier.setDirection(request.getDirection());
         barrier.setDescription(request.getDescription());
 
-        ParkingDeviceEntity device = parkingDeviceRepository.findById(request.getParkingDeviceId())
+        ParkingDeviceEntity device = parkingDeviceRepository.findByDeviceId(request.getDeviceName())
                 .orElseThrow(() -> new BusinessException("Invalid control device", "DEVICE_NOT_FOUND", 400));
 
         LaneEntity lane = laneRepository.findById(request.getLaneId())
@@ -191,6 +191,22 @@ public class BarrierService {
         if (!newMappings.isEmpty()) {
             barrierCameraRepository.saveAll(newMappings);
         }
+        List<Long> cameraIdsToUpdateLane = new ArrayList<>();
+        if (request.getFaceCameraId() != null) {
+            cameraIdsToUpdateLane.add(request.getFaceCameraId());
+        }
+        if (request.getPlateCameraId() != null) {
+            cameraIdsToUpdateLane.add(request.getPlateCameraId());
+        }
+
+        if (!cameraIdsToUpdateLane.isEmpty()) {
+            List<CameraEntity> cameras = cameraRepository.findAllById(cameraIdsToUpdateLane);
+            for (CameraEntity cam : cameras) {
+                cam.setLane(lane);
+            }
+            cameraRepository.saveAll(cameras);
+        }
+        return getBarrierDetailById(barrierId);
     }
 
     @Transactional
