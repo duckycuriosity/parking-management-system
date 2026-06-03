@@ -89,11 +89,12 @@ public class TicketService {
         ticket.setExpireAt(req.getExpireAt());
 
         // mặc định trạng thái DEAD
-        if (req.getStatus() != null) {
-            ticket.setStatus(req.getStatus());
-        } else {
-            ticket.setStatus(TicketStatus.DEAD);
-        }
+//        if (req.getStatus() != null) {
+//            ticket.setStatus(req.getStatus());
+//        } else {
+//            ticket.setStatus(TicketStatus.DEAD);
+//        }
+        ticket.setStatus(TicketStatus.DEAD);
         ticket = ticketRepo.save(ticket);
         return TicketEntity.convertToDTO(ticket);
     }
