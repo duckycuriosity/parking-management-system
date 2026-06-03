@@ -2,7 +2,9 @@ package vio.barie.core.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import vio.barie.core.dto.ReportLinkResponse;
 import vio.barie.core.dto.Result;
+import vio.barie.core.dto.StreamResponse;
 import vio.barie.core.dto.camera.CameraCreateRequest;
 import vio.barie.core.dto.camera.CameraResponse;
 import vio.barie.core.service.CameraService;
@@ -22,6 +24,11 @@ public class CameraController {
                 createdCamera);
     }
 
+    @PostMapping("/sync")
+    public Result<List<CameraResponse>> syncCameras() {
+        List<CameraResponse> syncedList = cameraService.syncCamerasFromVms();
+        return Result.ok("Synchronized cameras from VMS successfully", syncedList);
+    }
 
     @GetMapping
     public Result<List<CameraResponse>> getCameraList(@RequestParam(name = "searchKey", required = false) String searchKey) {
@@ -47,6 +54,18 @@ public class CameraController {
     public Result<CameraResponse> deleteCamera(@PathVariable Long id) {
         cameraService.deleteCamera(id);
         return Result.ok("Camera deleted successfully", null);
+    }
+
+    @GetMapping("/{id}/stream")
+    public Result<StreamResponse> getLiveStream(@PathVariable("id") Long internalCameraId) {
+        StreamResponse response = cameraService.startLiveStream(internalCameraId);
+        return Result.ok("Get camera stream successfully", response);
+    }
+
+    @GetMapping("/{id}/report-link")
+    public Result<ReportLinkResponse> getReportLink(@PathVariable("id") Integer identityId) {
+        ReportLinkResponse response = cameraService.getReportLink(identityId);
+        return Result.ok("Get report link successfully", response);
     }
 
 }

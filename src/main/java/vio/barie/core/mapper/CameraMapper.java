@@ -20,7 +20,9 @@ public class CameraMapper {
                 throw new RuntimeException("Invalid type: " + request.getType());
             }
         }
-        entity.setUrl(request.getUrl());
+        if (request.getUrl() != null) {
+            entity.setUrl(request.getUrl());
+        }
         return entity;
     }
 
