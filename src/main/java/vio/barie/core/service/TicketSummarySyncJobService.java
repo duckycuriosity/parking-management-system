@@ -6,6 +6,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import vio.barie.core.repository.TicketRepository;
 
 import java.time.LocalDateTime;
@@ -30,8 +31,13 @@ public class TicketSummarySyncJobService implements ApplicationRunner {
 
     // chạy ngầm mỗi 10 phút một lần để xử lý vé "Sắp hết hạn" và "Hết hạn" theo thời gian thực
     @Scheduled(cron = "0 */10 * * * *")
+    @Transactional
     public void scheduledSync() {
         log.debug("[TicketSummary] Đồng bộ lại Cache chống trôi số ngầm...");
+        int updated = ticketRepo.bulkUpdateExpiredTickets(LocalDateTime.now());
+        if (updated > 0) {
+            log.info("[TicketSummary] Đã chuyển {} vé ACTIVE → INACTIVE", updated);
+        }
         syncCache();
     }
 
@@ -42,7 +48,7 @@ public class TicketSummarySyncJobService implements ApplicationRunner {
         long active = ticketRepo.countActiveTickets();
         long expired = ticketRepo.countExpiredTickets();
         long expiringSoon = ticketRepo.countExpiringSoonTickets(in5Days);
-
-        summaryCacheService.syncAllCounters(total, active, expired, expiringSoon);
+        long dead = ticketRepo.countDeadTickets();
+        summaryCacheService.syncAllCounters(total, active, expired, expiringSoon, dead);
     }
 }

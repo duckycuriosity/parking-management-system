@@ -31,13 +31,12 @@ public class BarrierController {
     }
 
     @PutMapping("/{barrierId}")
-    public Result<Void> updateBarrier(
+    public Result<BarrierDetailResponse> updateBarrier(
             @PathVariable String barrierId,
             @Valid @RequestBody BarrierUpdateRequest request) {
 
-        barrierService.updateBarrier(barrierId, request);
-
-        return Result.ok("Barrier information updated successfully.", null);
+        BarrierDetailResponse response = barrierService.updateBarrier(barrierId, request);
+        return Result.ok("Barrier information updated successfully.", response);
     }
 
     @DeleteMapping("/{barrierId}")

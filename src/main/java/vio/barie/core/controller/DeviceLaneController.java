@@ -23,4 +23,10 @@ public class DeviceLaneController {
         return Result.ok("Thành công", data);
     }
 
+    @GetMapping("/all")
+    public Result<List<DeviceLaneResponse>> getAllDevice() {
+        List<DeviceLaneResponse> data = deviceLaneService.getAllDevice();
+        return Result.ok("Get All Device Successfully", data);
+    }
+
 }

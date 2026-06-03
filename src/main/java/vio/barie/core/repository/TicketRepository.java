@@ -4,12 +4,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import vio.barie.core.entity.TicketEntity;
 import vio.barie.core.common.TicketStatus;
 import vio.barie.core.dto.ticket.TicketRegistrationResponseDTO;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 public interface TicketRepository extends JpaRepository<TicketEntity, Long>, JpaSpecificationExecutor<TicketEntity> {
@@ -85,4 +87,13 @@ public interface TicketRepository extends JpaRepository<TicketEntity, Long>, Jpa
     // 4. vé sắp hết hạn (ACTIVE, còn hạn, nhưng ngày hết hạn <= 5 ngày tới)
     @Query("SELECT COUNT(t) FROM TicketEntity t WHERE t.status = 'ACTIVE' AND t.expireAt >= CURRENT_TIMESTAMP AND t.expireAt <= :in5Days")
     long countExpiringSoonTickets(@Param("in5Days") java.time.LocalDateTime in5Days);
+
+    // 5. vé chưa thanh toán
+    @Query("SELECT COUNT(t) FROM TicketEntity t WHERE t.status = 'DEAD'")
+    long countDeadTickets();
+
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE TicketEntity t SET t.status = 'INACTIVE' WHERE t.status = 'ACTIVE' AND t.expireAt < :now")
+    int bulkUpdateExpiredTickets(@Param("now") LocalDateTime now);
+
 }

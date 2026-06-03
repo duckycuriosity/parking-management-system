@@ -12,9 +12,9 @@ spring:
     url: jdbc:postgresql://192.168.168.30:5434/barie
     username: barie_dev
     password: n7FuKNTV@@
-#    url: jdbc:postgresql://192.168.168.30:5434/barie
-#    username: barie_dev
-#    password: n7FuKNTV@@
+    #    url: jdbc:postgresql://192.168.168.30:5434/barie
+    #    username: barie_dev
+    #    password: n7FuKNTV@@
     driver-class-name: org.postgresql.Driver
     hikari:
       pool-name: HikariDev
@@ -24,10 +24,6 @@ spring:
       max-lifetime: 1800000
       connection-timeout: 20000
 
-  data:
-    redis:
-      host: ${REDIS_HOST:192.168.168.30}
-      port: ${REDIS_PORT:6379}
 
 logging:
   level:
@@ -125,6 +121,8 @@ vms:
     data-count: 150
   ws:
     enabled: true
+    internal-ws-host: ws://192.160.160.30:8012
+    public-ws-host: ws://192.160.160.30:8012
     url: "ws://192.168.168.30:8012/ws/Notify"
     reconnect-delay-ms: 3000
     cookie: key=uO50EwSqoolz1OzU

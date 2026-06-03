@@ -1,5 +1,6 @@
 package vio.barie.core.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import vio.barie.core.utils.DirectionType;
@@ -11,7 +12,8 @@ public class BarrierUpdateRequest {
 
     @NotNull(message = "Please choose the control device")
     private Long parkingDeviceId;
-
+    @NotBlank(message = "Please choose the control device")
+    private String deviceName;
     @NotNull(message = "Please select your assigned lane.")
     private Long laneId;
 

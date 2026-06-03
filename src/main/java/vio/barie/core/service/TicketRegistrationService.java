@@ -89,7 +89,7 @@ public class TicketRegistrationService {
         Optional<ParkingCustomerEntity> customer = parkingCustomerRepository.findByAiProfileId(profile.getId());
         if (customer.isEmpty()) {
             log.error("Customer not found after creation: name={}, phone={}", req.getName(), req.getPhoneNumber());
-            throw new ServiceException("Customer not found after creation", 500);
+            throw new ServiceException("Customer not found after creation", 400);
         }
 
         // Tìm xe theo biển số
@@ -142,20 +142,8 @@ public class TicketRegistrationService {
 
         TicketEntity savedTicket = ticketRepository.save(ticket);
 
-        if (savedTicket.getStatus() == TicketStatus.ACTIVE) {
-            summaryCacheService.increment("total");
-            summaryCacheService.increment("active");
-
-            // nếu vé mới đăng ký mà có hạn < 5 ngày (ít xảy ra nhưng vẫn nên check)
-            if (savedTicket.getExpireAt().isBefore(LocalDateTime.now().plusDays(5))) {
-                summaryCacheService.increment("expiring_soon");
-            }
-        } else if (savedTicket.getStatus() == TicketStatus.INACTIVE) {
-            summaryCacheService.increment("total");
-            summaryCacheService.increment("expired");
-        }
-        log.info("Ticket created successfully: ticketId={}, expireAt={}",
-                savedTicket.getId(), expireAt);
+        summaryCacheService.increment("dead");
+        log.info("Ticket created with DEAD status: ticketId={}, expireAt={}", savedTicket.getId(), expireAt);
 
         // 8️⃣ Build and return response
         TicketRegistrationResponseDTO response = TicketRegistrationResponseDTO.builder()
@@ -190,7 +178,8 @@ public class TicketRegistrationService {
                 () -> new ServiceException("Không tìm ticket tương ", 404));
 
         // chỉ cho phép gọi mã này nếu
-        if (ticket.getStatus().equals(TicketStatus.ACTIVE.name())) {
+        if (ticket.getStatus() == TicketStatus.ACTIVE) {
+            log.info("Ticket id={} đã ACTIVE, không cần thanh toán", ticketId);
             return null;
         }
 
@@ -209,7 +198,7 @@ public class TicketRegistrationService {
                 qr.getPayType(),
                 "Phi dang ki ve gui xe",
                 ticket.getId()
-        // ticket.getCustomerId()
+                // ticket.getCustomerId()
         );
         JSONObject result = new JSONObject();
         result.set("qr", qr.getPaymentLink());
@@ -254,22 +243,45 @@ public class TicketRegistrationService {
 
     @Transactional
     public TicketRegistrationResponseDTO renewMonthlyTicket(RenewTicketRequest req) {
-        if (req.getStartDate().isBefore(LocalDateTime.now())) throw new ServiceException("Thời gian ko được là quá khứ!");
+        if (req.getStartDate().isBefore(LocalDateTime.now()))
+            throw new ServiceException("Thời gian ko được là quá khứ!");
 
         TicketEntity ticket = ticketRepository.findById(req.getId())
                 .orElseThrow(() -> new ServiceException(
                         "Không tìm thấy vé cho id: " + req.getId()
                                 + ". Vui lòng dùng API đăng ký mới.", 404));
 
+        TicketStatus oldStatus = ticket.getStatus();
+        LocalDateTime oldExpireAt = ticket.getExpireAt();
         // Đánh dấu vé là DEAD
         ticket.setStartDate(req.getStartDate());
         ticket.setRegisterAt(req.getStartDate());
-        ticket.setExpireAt(calculateExpireDate(req.getTicketType(),req.getStartDate()));
+        ticket.setExpireAt(calculateExpireDate(req.getTicketType(), req.getStartDate()));
         ticket.setStatus(TicketStatus.DEAD); // DEAD cho đến khi thanh toán
 
 
         ticketRepository.save(ticket);
         log.info("[renewMonthlyTicket] Vé mới id={} tạo thành công, expireAt={}", ticket.getId(), ticket.getExpireAt());
+
+        //  Cập nhật cache dựa trên oldStatus
+        if (oldStatus == TicketStatus.ACTIVE) {
+            summaryCacheService.decrement("active");
+            summaryCacheService.decrement("total");
+            //  dùng oldExpireAt để check, không dùng expireAt mới
+            if (oldExpireAt != null && oldExpireAt.isBefore(LocalDateTime.now().plusDays(5))) {
+                summaryCacheService.decrement("expiring_soon");
+            }
+            // ACTIVE → DEAD: increment dead
+            summaryCacheService.increment("dead");
+
+        } else if (oldStatus == TicketStatus.INACTIVE) {
+            summaryCacheService.decrement("expired");
+            summaryCacheService.decrement("total");
+            // INACTIVE → DEAD: increment dead
+            summaryCacheService.increment("dead");
+
+        }
+      
 
         ParkingCustomerEntity customer = ticket.getCustomer();
         VehicleEntity vehicle = ticket.getVehicle();
