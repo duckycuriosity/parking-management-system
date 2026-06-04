@@ -39,7 +39,7 @@ public class BarrierController {
         return Result.ok("Barrier information updated successfully.", response);
     }
 
-    @DeleteMapping("/{barrierId}")
+    @DeleteMapping("reset/{barrierId}")
     public Result<Void> resetBarrier(@PathVariable String barrierId) {
 
         barrierService.resetBarrierConfiguration(barrierId);

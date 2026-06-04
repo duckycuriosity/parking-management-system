@@ -72,6 +72,7 @@ public class DeviceLaneService {
                     .deviceId(firstDeviceRow.getDeviceCode())
                     .status(parseEnum(OperatingStatus.class, firstDeviceRow.getDeviceStatus()))
                     .firmwareVersion(firstDeviceRow.getFirmwareVersion())
+                    .laneId(firstDeviceRow.getLaneId())
                     .lastSeen(firstDeviceRow.getLastSeen())
                     .location(firstDeviceRow.getLocation())
                     .barriers(barrierInfos)
@@ -131,6 +132,7 @@ public class DeviceLaneService {
                     .status(parseEnum(OperatingStatus.class, firstDeviceRow.getDeviceStatus()))
                     .firmwareVersion(firstDeviceRow.getFirmwareVersion())
                     .lastSeen(firstDeviceRow.getLastSeen())
+                    .laneId(firstDeviceRow.getLaneId())
                     .location(firstDeviceRow.getLocation())
                     .barriers(barrierInfos)
                     .build());

@@ -14,6 +14,8 @@ public interface DeviceLaneRepository {
 
     LocalDateTime getLastSeen();
 
+    Long getLaneId();
+
     String getLocation();
 
     // Barrier info

@@ -22,4 +22,7 @@ public interface LaneRepository extends JpaRepository<LaneEntity, Long> {
     @Query(value = "SELECT l FROM LaneEntity l JOIN FETCH l.parkingLot",
             countQuery = "SELECT count(l) FROM LaneEntity l")
     Page<LaneEntity> findAllWithParkingLot(Pageable pageable);
+
+    boolean existsByParkingLot_Building_Id(Long buildingId);
+
 }

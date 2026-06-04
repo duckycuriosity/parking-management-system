@@ -11,6 +11,6 @@ import java.util.List;
 
 public interface ParkingLotRepository extends JpaRepository<ParkingLotEntity, Long> {
     List<ParkingLotEntity> findByBuildingId(Long buildingId);
-    
 
+    boolean existsByBuildingId(Long buildingId);
 }

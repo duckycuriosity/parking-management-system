@@ -9,6 +9,8 @@ import vio.barie.core.dto.BuildingResponse;
 import vio.barie.core.entity.BuildingEntity;
 import vio.barie.core.mapper.BuildingMapper;
 import vio.barie.core.repository.BuildingRepository;
+import vio.barie.core.repository.LaneRepository;
+import vio.barie.core.repository.ParkingLotRepository;
 import vio.barie.core.repository.ParkingSessionRepository;
 
 import java.util.List;
@@ -20,6 +22,8 @@ public class BuildingService {
     private final BuildingRepository buildingRepository;
     private final BuildingMapper buildingMapper;
     private final ParkingSessionRepository parkingSessionRepository;
+    private final ParkingLotRepository parkingLotRepository;
+    private final LaneRepository laneRepository;
 
     @Transactional
     public BuildingResponse create(BuildingCreateRequest request) {
@@ -56,13 +60,26 @@ public class BuildingService {
         BuildingEntity entity = buildingRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Building not found", "BUILDING_NOT_FOUND", 404));
 
+        if (laneRepository.existsByParkingLot_Building_Id(id)) {
+            throw new BusinessException(
+                    "Không thể xóa tòa nhà vì đang có làn xe trực thuộc cấu hình hệ thống. Vui lòng xóa hoặc gỡ làn xe trước!",
+                    "BUILDING_HAS_LANES",
+                    409
+            );
+        }
+        if (parkingLotRepository.existsByBuildingId(id)) {
+            throw new BusinessException(
+                    "Không thể xóa tòa nhà vì đang chứa bãi đỗ xe hoạt động. Vui lòng gỡ bỏ bãi đỗ xe trước!",
+                    "BUILDING_HAS_PARKING_LOTS",
+                    409
+            );
+        }
         if (parkingSessionRepository.existsByParkingLot_Building_Id(id)) {
             throw new BusinessException(
-                    "Cannot delete building because it still has parking session history",
+                    "Không thể xóa tòa nhà này vì hệ thống đang lưu trữ dữ liệu lịch sử các phiên gửi xe liên quan!",
                     "BUILDING_HAS_PARKING_SESSIONS",
                     409
             );
-
         }
 
         buildingRepository.delete(entity);

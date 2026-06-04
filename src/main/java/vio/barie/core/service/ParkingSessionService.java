@@ -94,7 +94,10 @@ public class ParkingSessionService {
         InOutStatus finalStatus = (entity.getExitTime() == null) ? InOutStatus.IN : InOutStatus.OUT;
         String finalExitLaneName = (entity.getExitTime() == null) ? null : exitName;
         String displayLand = (entity.getExitTime() == null) ? entryName : entryName + " -> " + exitName;
-
+        String buildingNameStr = null;
+        if (entity.getParkingLot() != null && entity.getParkingLot().getBuilding() != null) {
+            buildingNameStr = entity.getParkingLot().getBuilding().getName();
+        }
 
         return ParkingSessionDetailResponse.builder()
                 .sessionId(entity.getId())
@@ -109,6 +112,7 @@ public class ParkingSessionService {
                 .land(displayLand)
                 .statusInOut(finalStatus) // truyền enum
                 .exitLaneName(finalExitLaneName)
+                .buildingName(buildingNameStr)
                 .build();
     }
 
