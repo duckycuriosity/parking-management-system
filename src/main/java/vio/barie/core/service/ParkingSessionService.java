@@ -10,10 +10,15 @@ import vio.barie.core.common.InOutStatus;
 import vio.barie.core.common.SessionType;
 import vio.barie.core.dto.ActivitySessionResponse;
 import vio.barie.core.dto.ParkingSessionDetailResponse;
+import vio.barie.core.entity.PaymentEntity;
 import vio.barie.core.entity.ParkingSessionEntity;
+import vio.barie.core.repository.PaymentRepository;
 import vio.barie.core.repository.ParkingSessionRepository;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 
 @Service
@@ -21,6 +26,7 @@ import java.util.List;
 public class ParkingSessionService {
 
     private final ParkingSessionRepository parkingSessionRepository;
+    private final PaymentRepository paymentRepository;
 
     public List<ActivitySessionResponse> getTop10ActivitiesByLane(Long laneId) {
         Page<ActivitySessionResponse> page = parkingSessionRepository.getActivityHistoryByLaneId(laneId, PageRequest.of(0, 10));
@@ -55,7 +61,8 @@ public class ParkingSessionService {
                 formatString(searchKey), parseTicketType(sessionType), formatString(typeVehicle),
                 entryLaneId, exitLaneId, formatString(statusInOut), pageable);
 
-        return entityPage.map(this::mapToDetailResponse);
+        Map<Long, PaymentEntity> paymentMap = fetchPaymentMap(entityPage.getContent());
+        return entityPage.map(entity -> mapToDetailResponse(entity, paymentMap.get(entity.getId())));
     }
 
 
@@ -68,23 +75,39 @@ public class ParkingSessionService {
                 parkingLotId, formatString(searchKey), parseTicketType(sessionType), formatString(typeVehicle),
                 entryLaneId, exitLaneId, formatString(statusInOut), pageable);
 
-        return entityPage.map(this::mapToDetailResponse);
+        Map<Long, PaymentEntity> paymentMap = fetchPaymentMap(entityPage.getContent());
+        return entityPage.map(entity -> mapToDetailResponse(entity, paymentMap.get(entity.getId())));
+    }
+
+    private Map<Long, PaymentEntity> fetchPaymentMap(List<ParkingSessionEntity> sessions) {
+        List<Long> sessionIds = sessions.stream()
+                .map(ParkingSessionEntity::getId)
+                .collect(Collectors.toList());
+        if (sessionIds.isEmpty()) return Collections.emptyMap();
+
+        return paymentRepository.findLatestBySessionIds(sessionIds).stream()
+                .filter(p -> p.getCallbackContext() != null && p.getCallbackContext().getLong("sessionId") != null)
+                .collect(Collectors.toMap(
+                        p -> p.getCallbackContext().getLong("sessionId"),
+                        p -> p,
+                        (a, b) -> a
+                ));
     }
 
     private String formatString(String input) {
         return (input != null && !input.trim().isEmpty()) ? input.trim().toUpperCase() : null;
     }
 
-    private ParkingSessionDetailResponse mapToDetailResponse(ParkingSessionEntity entity) {
+    private ParkingSessionDetailResponse mapToDetailResponse(ParkingSessionEntity entity, PaymentEntity payment) {
         SessionType sessionType = entity.getSessionType();
         String formattedFee = "0 đ";
 
-        if (sessionType != null) {
-            if (sessionType == SessionType.DAY) {
-                formattedFee = "Vé lượt";
-            } else if (sessionType == SessionType.MONTH || sessionType == SessionType.QUARTER) {
-                formattedFee = "Miễn phí";
-            }
+        if (sessionType == SessionType.MONTH || sessionType == SessionType.QUARTER) {
+            formattedFee = "Miễn phí";
+        } else if (payment != null && payment.getAmount() != null) {
+            formattedFee = String.format("%,.0f đ", payment.getAmount());
+        } else {
+            formattedFee = "Chưa thanh toán";
         }
 
         String entryName = entity.getEntryLane() != null ? entity.getEntryLane().getName() : "N/A";
