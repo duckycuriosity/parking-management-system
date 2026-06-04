@@ -82,4 +82,14 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
             LIMIT 1
             """, nativeQuery = true)
     Optional<PaymentEntity> findLatestByTikcetId(@Param("ticketId") String ticketId);
+
+    @Query(value = """
+            SELECT DISTINCT ON ((callback_context->>'sessionId')::bigint) *
+            FROM payment
+            WHERE callback_type = 'SESSION'
+            AND status = 'PAID'
+            AND (callback_context->>'sessionId')::bigint IN (:sessionIds)
+            ORDER BY (callback_context->>'sessionId')::bigint, created_at DESC
+            """, nativeQuery = true)
+    List<PaymentEntity> findLatestBySessionIds(@Param("sessionIds") List<Long> sessionIds);
 }
