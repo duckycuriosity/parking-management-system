@@ -26,5 +26,6 @@ public class ParkingSessionDetailResponse {
     private String typeVehicle;
     private String fee;
     private String land;
+    private String buildingName;
     private InOutStatus statusInOut;
 }

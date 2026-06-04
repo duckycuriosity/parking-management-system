@@ -27,4 +27,7 @@ public class BarrierCameraEntity extends BaseEntity {
 
     @Column(name = "priority")
     private Integer priority;
+    @Column(name = "description", length = 255)
+    private String description;
+
 }

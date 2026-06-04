@@ -47,6 +47,11 @@ public class ParkingLotService {
         return parkingLotMapper.toResponse(entity);
     }
 
+    public List<ParkingLotResponse> findByBuildingId(Long buildingId) {
+        List<ParkingLotEntity> entities = parkingLotRepository.findByBuildingId(buildingId);
+        return parkingLotMapper.toResponseList(entities);
+    }
+
     @Transactional
     public ParkingLotResponse update(Long id, ParkingLotCreateRequest request) {
         ParkingLotEntity entity = parkingLotRepository.findById(id)

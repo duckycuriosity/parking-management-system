@@ -2,11 +2,14 @@ package vio.barie.core.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import vio.barie.core.common.BarrierActionType;
 import vio.barie.core.dto.BarrierDetailResponse;
 import vio.barie.core.dto.BarrierUpdateRequest;
 import vio.barie.core.dto.Result;
 import vio.barie.core.service.BarrierService;
+import vio.barie.core.service.mqtt.ParkingMessageService;
 
 import java.util.List;
 
@@ -15,8 +18,18 @@ import java.util.List;
 @RequiredArgsConstructor
 public class BarrierController {
     private final BarrierService barrierService;
+    private final ParkingMessageService parkingMessageService;
 
-    @GetMapping("/details")
+    @PostMapping("/{barrierId}/control")
+    public ResponseEntity<?> controlBarrier(
+            @PathVariable String barrierId,
+            @RequestParam BarrierActionType action) {
+
+        parkingMessageService.publishLockUnlockCommand(barrierId, action);
+        return ResponseEntity.ok("Control command successfully sent.");
+    }
+
+    @GetMapping("/all")
     public Result<List<BarrierDetailResponse>> getAllBarrierDetails() {
         List<BarrierDetailResponse> response = barrierService.getAllBarrierDetails();
         return Result.ok("Get a detailed list of successful barrier installations.", response);
@@ -39,12 +52,13 @@ public class BarrierController {
         return Result.ok("Barrier information updated successfully.", response);
     }
 
-    @DeleteMapping("/{barrierId}")
+    @DeleteMapping("reset/{barrierId}")
     public Result<Void> resetBarrier(@PathVariable String barrierId) {
 
         barrierService.resetBarrierConfiguration(barrierId);
 
         return Result.ok("Reset the barrier successfully to default.", null);
     }
+
 
 }

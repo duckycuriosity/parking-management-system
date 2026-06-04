@@ -35,7 +35,11 @@ public class ParkingLotController {
     public Result<ParkingLotResponse> findById(@PathVariable Long id) {
         return Result.ok("Parking lot fetched", parkingLotService.findById(id));
     }
-    
+
+    @GetMapping("building/{buildingId}")
+    public Result<List<ParkingLotResponse>> findByBuildingId(@PathVariable Long buildingId) {
+        return Result.ok("Parking lots fetched by building", parkingLotService.findByBuildingId(buildingId));
+    }
 
     @PutMapping("/{id}")
     public Result<ParkingLotResponse> update(@PathVariable Long id,

@@ -51,7 +51,7 @@ public interface TicketRepository extends JpaRepository<TicketEntity, Long>, Jpa
             WHERE (:searchKey IS NULL OR :searchKey = '' OR
                   LOWER(c.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) OR
                   LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')) OR
-                  LOWER(c.phoneNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')))
+                  LOWER(t.phoneNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')))
             AND (:status IS NULL OR :status = '' OR
                 (:status = 'ACTIVE' AND CURRENT_TIMESTAMP BETWEEN t.registerAt AND t.expireAt) OR
                 (:status = 'INACTIVE' AND CURRENT_TIMESTAMP > t.expireAt))
@@ -62,7 +62,7 @@ public interface TicketRepository extends JpaRepository<TicketEntity, Long>, Jpa
             WHERE (:searchKey IS NULL OR :searchKey = '' OR
                   LOWER(c.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) OR
                   LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')) OR
-                  LOWER(c.phoneNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')))
+                  LOWER(t.phoneNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')))
             AND (:status IS NULL OR :status = '' OR
                 (:status = 'ACTIVE' AND CURRENT_TIMESTAMP BETWEEN t.registerAt AND t.expireAt) OR
                 (:status = 'INACTIVE' AND CURRENT_TIMESTAMP > t.expireAt))

@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import vio.barie.core.common.BarrierActionType;
 import vio.barie.core.entity.base.BaseEntity;
 import vio.barie.core.utils.DirectionType;
 
@@ -59,4 +60,8 @@ public class BarrierEntity extends BaseEntity {
     public void preUpdate() {
         setUpdatedAt(LocalDateTime.now());
     }
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "action")
+    private BarrierActionType action;
 }

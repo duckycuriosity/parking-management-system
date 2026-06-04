@@ -169,28 +169,40 @@ public class BarrierService {
 
         barrierCameraRepository.deleteByBarrierIdQuery(barrierId);
 
-        List<BarrierCameraEntity> newMappings = new ArrayList<>();
-        if (request.getFaceCameraId() != null) {
-            BarrierCameraEntity faceCam = new BarrierCameraEntity();
-            faceCam.setBarrierId(barrierId);
-            faceCam.setCameraId(request.getFaceCameraId());
-            faceCam.setRole("FACE");
-            faceCam.setPriority(0); // Set default hoặc lấy từ request tùy bạn
-            newMappings.add(faceCam);
-        }
+        List<BarrierCameraEntity> existingMappings = barrierCameraRepository.findByBarrierId(barrierId);
+        BarrierCameraEntity faceCam = existingMappings.stream()
+                .filter(m -> "FACE".equalsIgnoreCase(m.getRole()))
+                .findFirst()
+                .orElseGet(() -> {
+                    BarrierCameraEntity newMapping = new BarrierCameraEntity();
+                    newMapping.setBarrierId(barrierId);
+                    newMapping.setRole("FACE");
+                    newMapping.setPriority(0);
+                    return newMapping;
+                });
 
-        if (request.getPlateCameraId() != null) {
-            BarrierCameraEntity plateCam = new BarrierCameraEntity();
-            plateCam.setBarrierId(barrierId);
-            plateCam.setCameraId(request.getPlateCameraId());
-            plateCam.setRole("PLATE");
-            plateCam.setPriority(0);
-            newMappings.add(plateCam);
-        }
+        // Cập nhật ID (nếu request truyền null, nó sẽ update null -> ngắt liên kết)
+        faceCam.setCameraId(request.getFaceCameraId());
+        faceCam.setDescription(request.getDescription());
+        barrierCameraRepository.save(faceCam);
 
-        if (!newMappings.isEmpty()) {
-            barrierCameraRepository.saveAll(newMappings);
-        }
+        BarrierCameraEntity plateCam = existingMappings.stream()
+                .filter(m -> "PLATE".equalsIgnoreCase(m.getRole()))
+                .findFirst()
+                .orElseGet(() -> {
+                    BarrierCameraEntity newMapping = new BarrierCameraEntity();
+                    newMapping.setBarrierId(barrierId);
+                    newMapping.setRole("PLATE");
+                    newMapping.setPriority(0);
+                    return newMapping;
+                });
+
+        // Cập nhật ID (nếu request truyền null, nó sẽ update null -> ngắt liên kết)
+        plateCam.setCameraId(request.getPlateCameraId());
+        plateCam.setDescription(request.getDescription());
+        barrierCameraRepository.save(plateCam);
+
+
         List<Long> cameraIdsToUpdateLane = new ArrayList<>();
         if (request.getFaceCameraId() != null) {
             cameraIdsToUpdateLane.add(request.getFaceCameraId());
@@ -215,7 +227,17 @@ public class BarrierService {
         BarrierEntity barrier = barrierRepository.findByBarrierId(barrierId)
                 .orElseThrow(() -> new BusinessException("Barrier id not found: " + barrierId, "BARRIER_NOT_FOUND", 404));
 
-        barrierCameraRepository.deleteByBarrierIdQuery(barrierId);
+        List<BarrierCameraEntity> mappings = barrierCameraRepository.findByBarrierId(barrierId);
+        for (BarrierCameraEntity mapping : mappings) {
+            mapping.setCameraId(null);
+            mapping.setDescription(null);
+        }
+        barrierCameraRepository.saveAll(mappings);
+//        if (barrier.getParkingDevice() != null) {
+//            ParkingDeviceEntity device = barrier.getParkingDevice();
+//            device.setLane(null);
+//            parkingDeviceRepository.save(device);
+//        }
 
         barrier.setDirection(null);
         barrier.setDescription(null);

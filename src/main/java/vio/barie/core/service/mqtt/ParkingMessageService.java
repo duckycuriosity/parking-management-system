@@ -8,7 +8,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import vio.barie.core.common.BarrierActionType;
 import vio.barie.core.common.OperatingStatus;
+import vio.barie.core.dto.LockCmdCommandResponse;
 import vio.barie.core.dto.parking.OpenCmdCommand;
 import vio.barie.core.dto.parking.PaymentConfirmedCommand;
 import vio.barie.core.dto.parking.PaymentSuccessCommand;
@@ -184,10 +186,10 @@ public class ParkingMessageService {
 
             if ("cash".equals(method)) {
                 PaymentSuccessCommand result = handleCashPayment(msg);
-                if (result != null){
+                if (result != null) {
                     publishPaymentSuccess(result);
                 } else {
-                    log.error("ParkingMessageService.handlePayment type CASH failed on topic: {}, jsonNode: {} !",topic,json);
+                    log.error("ParkingMessageService.handlePayment type CASH failed on topic: {}, jsonNode: {} !", topic, json);
                 }
             }
 
@@ -443,6 +445,34 @@ public class ParkingMessageService {
                 .build();
 
         publish(deviceId, cmd);
+    }
+
+    public void publishLockUnlockCommand(String barrierId, BarrierActionType action) {
+        // tìm barrier trong DB để cập nhật trạng thái
+        BarrierEntity barrier = barrierRepository.findByBarrierId(barrierId).orElse(null);
+        if (barrier == null) {
+            log.warn("publishLockUnlockCommand: Barrier not found in DB with barrierId={}", barrierId);
+            return;
+        }
+        // cập nhật trạng thái action mới (LOCK/UNLOCK) vào DB
+        barrier.setAction(action);
+        barrierRepository.save(barrier);
+        log.info("The DB memory state has been updated to {} cho barrierId={}", action, barrierId);
+        // lấy deviceId để build topic và publish lệnh xuống thiết bị phần cứng
+        ParkingDeviceEntity device = barrier.getParkingDevice();
+        if (device == null || device.getDeviceId() == null) {
+            log.warn("publishLockUnlockCommand: Barrier chưa được gán vào Device nào — barrierId={}", barrierId);
+            return;
+        }
+        String deviceId = device.getDeviceId();
+        // gửi đi MQTT
+        LockCmdCommandResponse cmd = LockCmdCommandResponse.builder()
+                .barrierId(barrierId)
+                .action(action)
+                .build();
+
+        publish(deviceId, cmd);
+        log.info("Đã gửi lệnh MQTT {} tới barrierId={} (Device={})", action, barrierId, deviceId);
     }
 
     public void publishDisplayMsg() {
