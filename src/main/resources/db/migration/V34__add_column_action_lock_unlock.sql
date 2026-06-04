@@ -1,0 +1,2 @@
+ALTER TABLE public.barriers
+    ADD COLUMN IF NOT EXISTS action VARCHAR(20);
