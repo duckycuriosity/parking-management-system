@@ -176,7 +176,8 @@ public class TicketRegistrationService {
     public JSONObject getTicketPayment(Long ticketId) {
         getLatestStatus(ticketId);
 
-        TicketEntity ticket = ticketRepository.findById(ticketId).orElseThrow(
+        TicketEntity ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(
                 () -> new ServiceException("Không tìm ticket tương ", 404));
 
         // chỉ cho phép gọi mã này nếu
@@ -218,7 +219,6 @@ public class TicketRegistrationService {
                 .orElse(null);
         if (payment == null) {
             log.info("getLatestStatus: không có payment nào cho ticketId={}", ticketId);
-            throw new ServiceException("Không tìm thấy vé tháng tương ứng!",404);
         }
 
         // nếu còn PENDING, thử check SePay xem tiền đã về chưa
