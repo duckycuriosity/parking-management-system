@@ -8,6 +8,9 @@ mqtt:
   publish-cmd-topic-suffix: "/cmd"
   receive-ai-event: aibox/face/#
 
+server:
+  port: 1081
+
 spring:
   profiles:
     active: dev

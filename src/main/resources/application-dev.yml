@@ -67,9 +67,9 @@ megapay:
   windowType: 0
   endpoint: https://sandbox.megapay.vn/pg_was/createlink.do
   inquiry-endpoint: https://sandbox.megapay.vn/pg_was/order/trxStatusInvoiceNo.do
-  callback-url: http://localhost:8080/api/payment/callback
-  notify-url: http://localhost:8080/api/payment/ipn
-  req-domain: http://localhost:8080
+  callback-url: http://localhost:1081/api/payment/callback
+  notify-url: http://localhost:1081/api/payment/ipn
+  req-domain: http://localhost:1081
   qr-expire-minutes: 15
 
 sepay:
