@@ -33,4 +33,10 @@ public class CalculatorService {
                 .orElseThrow(() -> new ServiceException("Chưa cấu hình giá theo đơn vị thời gian này: " + ticketEntity.getTicketType(), 500));
         return BigDecimal.valueOf(rule.getPrice());
     }
+
+    public TicketType getPricingType(BigDecimal amount) {
+        PricingRuleEntity rule = pricingRuleRepository.findByPrice(amount)
+                .orElseThrow(() -> new ServiceException("Chưa cấu hình giá theo đơn vị giá tiền này: " + amount, 500));
+        return TicketType.valueOf(rule.getType());
+    }
 }
