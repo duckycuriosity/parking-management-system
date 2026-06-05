@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
 import vio.barie.core.repository.PaymentRepository;
 import vio.barie.core.repository.TicketRepository;
+import vio.barie.core.service.CalculatorService;
 import vio.barie.core.service.mqtt.ParkingMessageService;
 import vio.barie.core.service.payment.common.PaymentGateway;
 import vio.barie.core.service.payment.megapay.MegaPayGateway;
@@ -24,12 +25,13 @@ public class PaymentConfig {
     private final MegaPayConfig megaPayConfig;
     private final SePayConfig sePayConfig;
     private final ParkingMessageService ioTService;
+    private final CalculatorService calculatorService;
 
     @Bean
     public PaymentGateway paymentGateway() {
         return switch (method) {
             case "megapay" -> new MegaPayGateway(paymentRepository,ticketRepository,megaPayConfig,ioTService);
-            case "sepay"   -> new SePayGateway(paymentRepository,ticketRepository,sePayConfig,ioTService);
+            case "sepay"   -> new SePayGateway(paymentRepository,ticketRepository,sePayConfig,ioTService,calculatorService);
             default -> throw new IllegalArgumentException("Unknown gateway: " + method);
         };
     }
