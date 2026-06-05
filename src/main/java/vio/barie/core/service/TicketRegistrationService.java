@@ -219,10 +219,8 @@ public class TicketRegistrationService {
                 .orElse(null);
         if (payment == null) {
             log.info("getLatestStatus: không có payment nào cho ticketId={}", ticketId);
-        }
-
-        // nếu còn PENDING, thử check SePay xem tiền đã về chưa
-        if (PaymentType.PENDING.name().equals(payment.getStatus())) {
+        } else if (PaymentType.PENDING.name().equals(payment.getStatus())) {
+            // nếu còn PENDING, thử check SePay xem tiền đã về chưa
             try {
                 PaymentInquiryResponse inquiryResponse = paymentService.inquiryByInvoiceNo(payment.getInvoiceNo());
                 if (inquiryResponse != null) {
