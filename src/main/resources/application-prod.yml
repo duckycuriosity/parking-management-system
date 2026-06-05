@@ -117,8 +117,8 @@ vms:
     data-count: 150
   ws:
     enabled: true
-    internal-ws-host: ws://192.160.160.30:8012
-    public-ws-host: ws://192.160.160.30:8012
+    internal-ws-host: ws://host.docker.internal:8012
+    public-ws-host: ws://host.docker.internal:8012
     url: "ws://host.docker.internal:8012/ws/Notify"
     reconnect-delay-ms: 3000
     cookie: key=uO50EwSqoolz1OzU
