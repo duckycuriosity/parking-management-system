@@ -71,6 +71,10 @@ public class ParkingMessageService {
             device.setHasDisplay(json.path("has_display").asBoolean());
             device.setLastSeen(LocalDateTime.now());
 
+            // ===== FIX: Dùng biến mới savedDevice =====
+            ParkingDeviceEntity savedDevice = deviceRepository.save(device);
+            log.debug("Device saved first: id={} deviceId={}", savedDevice.getId(), deviceId);
+
             json.path("barriers").forEach(barrier -> {
                 BarrierEntity saveBarrier = new BarrierEntity();
                 saveBarrier.setBarrierId(barrier.path("barrier_id").asText());
@@ -85,22 +89,25 @@ public class ParkingMessageService {
                 }
                 saveBarrier.setDescription(barrier.path("description").asText());
                 saveBarrier.setModbusAddr(barrier.path("modbus_addr").asInt());
-                saveBarrier.setParkingDevice(device);
+
+                saveBarrier.setParkingDevice(savedDevice);
+
                 BarrierEntity existing = barrierRepository.findByBarrierId(saveBarrier.getBarrierId()).orElse(null);
                 if (existing != null) {
-                    // Khi thiết bị connect, nó lấy dữ liệu từ JSON đẩy đè vào DB
                     existing.setDirection(saveBarrier.getDirection());
                     existing.setDescription(saveBarrier.getDescription());
                     existing.setModbusAddr(saveBarrier.getModbusAddr());
-                    existing.setParkingDevice(device);
+                    existing.setParkingDevice(savedDevice);
                     barrierRepository.save(existing);
                 } else {
                     barrierRepository.save(saveBarrier);
                 }
             });
 
-            deviceRepository.save(device);
+            // Cập nhật lại device nếu cần
+            deviceRepository.save(savedDevice);
             log.info("Device connected: {}", deviceId);
+
         } catch (Exception ex) {
             log.error("ParkingMessageService.handleConnect failed topic={}: {}", topic, ex.getMessage(), ex);
         }
