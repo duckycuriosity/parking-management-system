@@ -53,6 +53,7 @@ public class ParkingMessageService {
     private String suffix;
     @Value("${mqtt.publish-error-topic-suffix}")
     private String error;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public void handleConnect(String topic, JsonNode json) {
         try {
@@ -484,7 +485,7 @@ public class ParkingMessageService {
     private void publish(String deviceId, Object payload) {
         try {
             String topic = prefix + "/" + deviceId + suffix;
-            String json = JSONUtil.toJsonStr(payload);
+            String json = mapper.writeValueAsString(payload);
             mqttPublisher.publish(topic, json);
             log.info("Published cmd to topic={}", topic);
         } catch (Exception e) {
