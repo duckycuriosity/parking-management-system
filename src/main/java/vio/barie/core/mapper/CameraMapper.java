@@ -13,13 +13,13 @@ public class CameraMapper {
     public CameraEntity toEntity(CameraCreateRequest request) {
         CameraEntity entity = new CameraEntity();
         entity.setName(request.getName());
-        if (request.getType() != null && !request.getType().isBlank()) {
-            try {
-                entity.setType(BaseStatus.valueOf(request.getType().toUpperCase()));
-            } catch (IllegalArgumentException e) {
-                throw new RuntimeException("Invalid type: " + request.getType());
-            }
-        }
+//        if (request.getType() != null && !request.getType().isBlank()) {
+//            try {
+//                entity.setType(BaseStatus.valueOf(request.getType().toUpperCase()));
+//            } catch (IllegalArgumentException e) {
+//                throw new RuntimeException("Invalid type: " + request.getType());
+//            }
+//        }
         if (request.getUrl() != null) {
             entity.setUrl(request.getUrl());
         }

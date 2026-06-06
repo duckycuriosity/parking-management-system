@@ -69,6 +69,7 @@ public class DeviceLaneService {
                             .url(row.getCameraUrl())
                             .type(parseEnum(BaseStatus.class, row.getCameraType()))
                             .role(parseEnum(DetectionType.class, row.getCameraRole()))
+                            .uuid(row.getUuid())
                             .build())
                     .distinct()
                     .collect(Collectors.toList());

@@ -36,7 +36,7 @@ public interface ParkingDeviceRepository extends JpaRepository<ParkingDeviceEnti
             "pd.last_seen AS lastSeen, " +
             "pd.lane_id AS laneId, l.type AS typeLane, l.location AS location, " +
             "b.id AS barrierLocalId, b.barrier_id AS barrierId, b.description AS barrierDescription, b.direction AS direction, " +
-            "c.id AS cameraId, c.name AS cameraName, c.url AS cameraUrl, c.type AS cameraType, bc.role AS cameraRole " +
+            "c.id AS cameraId, c.name AS cameraName, c.url AS cameraUrl, c.type AS cameraType, c.uuid AS uuid, bc.role AS cameraRole " +
             "FROM parking_devices pd " +
             "LEFT JOIN lane l ON l.id = pd.lane_id " +
             "LEFT JOIN barriers b ON b.parking_device_id = pd.id " +
@@ -50,7 +50,7 @@ public interface ParkingDeviceRepository extends JpaRepository<ParkingDeviceEnti
             "pd.last_seen AS lastSeen, " +
             "pd.lane_id AS laneId, l.type AS typeLane, l.location AS location, " +
             "b.id AS barrierLocalId, b.barrier_id AS barrierId, b.description AS barrierDescription, b.direction AS direction, " +
-            "c.id AS cameraId, c.name AS cameraName, c.url AS cameraUrl, c.type AS cameraType, bc.role AS cameraRole " +
+            "c.id AS cameraId, c.name AS cameraName, c.url AS cameraUrl, c.type AS cameraType,  c.uuid AS uuid, bc.role AS cameraRole " +
             "FROM parking_devices pd " +
             "LEFT JOIN lane l ON l.id = pd.lane_id " +
             "LEFT JOIN barriers b ON b.parking_device_id = pd.id " +
