@@ -275,7 +275,7 @@ public class DetectionMatchingService {
                     ticketRepository.save(ticket);
                 }
                 TicketEntity expireTicket = findExpireTicket(vehicle.getId());
-                if (expireTicket != null && expireTicket.getExpireAt() != null) {
+                if (expireTicket != null && expireTicket.getExpireAt() != null && expireTicket.getExpireAt().isAfter(openSession.getEntryTime())) {
                     amount = calculatorService.calculate(expireTicket.getExpireAt(), LocalDateTime.now());
                 } else {
                     amount = calculatorService.calculate(openSession.getEntryTime(), LocalDateTime.now());
