@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 import vio.barie.core.entity.BarrierCameraEntity;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface BarrierCameraRepository extends JpaRepository<BarrierCameraEntity, Long> {
@@ -21,7 +22,5 @@ public interface BarrierCameraRepository extends JpaRepository<BarrierCameraEnti
 
     List<BarrierCameraEntity> findByBarrierIdIn(List<String> barrierIds);
 
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("DELETE FROM BarrierCameraEntity bc WHERE bc.barrierId = :barrierId")
-    void deleteByBarrierIdQuery(@Param("barrierId") String barrierId);
+    Optional<BarrierCameraEntity> findFirstByCameraIdAndBarrierIdNot(Long cameraId, String barrierId);
 }

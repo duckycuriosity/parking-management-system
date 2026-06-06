@@ -19,8 +19,7 @@ public class DeviceLaneController {
 
     @GetMapping("/lane/{laneId}")
     public Result<List<DeviceLaneResponse>> getAllDeviceByLaneId(@PathVariable Long laneId) {
-        List<DeviceLaneResponse> data = deviceLaneService.getAllDeviceByLaneId(laneId);
-        return Result.ok("Thành công", data);
+        return deviceLaneService.getAllDeviceByLaneId(laneId);
     }
 
     @GetMapping("/all")

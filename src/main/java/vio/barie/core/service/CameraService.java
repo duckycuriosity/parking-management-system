@@ -168,10 +168,10 @@ public class CameraService {
         cameraRepository.deleteById(id);
     }
 
-    public StreamResponse startLiveStream(Long internalCameraId) {
-        // Lấy thông tin Camera trong hệ thống của bạn
-        CameraEntity entity = cameraRepository.findByIdWithRelations(internalCameraId)
-                .orElseThrow(() -> new RuntimeException("Camera not found with ID: " + internalCameraId));
+    public StreamResponse startLiveStream(String cameraUUID) {
+        // Lấy thông tin Camera trong hệ thống
+        CameraEntity entity = cameraRepository.findCameraByUUID(cameraUUID)
+                .orElseThrow(() -> new RuntimeException("Camera not found with ID: " + cameraUUID));
 
         //  Tạo Request gửi VMS bằng aiCameraId
         VmsLiveStreamRequest vmsRequest = new VmsLiveStreamRequest();

@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import vio.barie.core.entity.LaneEntity;
 import vio.barie.core.entity.ParkingDeviceEntity;
 import vio.barie.core.entity.SysUserEntity;
+import vio.barie.core.utils.DirectionType;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,8 +17,11 @@ public interface LaneRepository extends JpaRepository<LaneEntity, Long> {
     @Query("SELECT l FROM LaneEntity l JOIN FETCH l.parkingLot WHERE l.id = :id")
     Optional<LaneEntity> findByIdWithParkingLot(@Param("id") Long id);
 
-    @Query("SELECT l FROM LaneEntity l JOIN FETCH l.parkingLot p WHERE p.id = :parkingLotId")
-    List<LaneEntity> findAllByParkingLotId(@Param("parkingLotId") Long parkingLotId);
+    @Query("SELECT l FROM LaneEntity l " +
+            "JOIN FETCH l.parkingLot p " +
+            "WHERE p.id = :parkingLotId " +
+            "AND (:type IS NULL OR l.type = :type)")
+    List<LaneEntity> findAllByParkingLotId(@Param("parkingLotId") Long parkingLotId, @Param("type") DirectionType type);
 
     @Query(value = "SELECT l FROM LaneEntity l JOIN FETCH l.parkingLot",
             countQuery = "SELECT count(l) FROM LaneEntity l")

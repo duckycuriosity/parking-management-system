@@ -64,10 +64,10 @@ public class LaneController {
     }
 
     @GetMapping("/parking-lot/{parkingLotId}")
-    public Result<List<LaneResponse>> findLanesByParkingLotId(@PathVariable Long parkingLotId) {
+    public Result<List<LaneResponse>> findLanesByParkingLotId(@PathVariable Long parkingLotId, @RequestParam(name = "type", required = false) vio.barie.core.utils.DirectionType type) {
         return Result.ok(
                 "Fetched lanes by parking lot successfully",
-                laneService.findLanesByParkingLotId(parkingLotId)
+                laneService.findLanesByParkingLotId(parkingLotId, type)
         );
     }
 
