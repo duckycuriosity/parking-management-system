@@ -18,13 +18,13 @@ public class VehicleInfoCommand {
     private String type = "vehicle_info";
 
     @JsonProperty("session_id")
-    private String sessionId;
+    private String session_id;
 
     @JsonProperty("scenario_tag")
-    private String scenarioTag;
+    private String scenarion_tag;
 
     @JsonProperty("barrier_id")
-    private String barrierId;
+    private String barrier_id;
 
     @JsonProperty("direction")
     private String direction;           // "entry" | "exit"
@@ -33,40 +33,40 @@ public class VehicleInfoCommand {
     private String plate;
 
     @JsonProperty("ticket_type")
-    private String ticketType;          // "hourly" | "monthly"
+    private String ticket_type;          // "hourly" | "monthly"
 
     // ── Vé lượt (hourly) ─────────────────────────────────────────
     @JsonProperty("entry_time")
-    private String entryTime;
+    private String entry_time;
 
     @JsonProperty("exit_time")
-    private String exitTime;
+    private String exit_time;
 
     @JsonProperty("duration_minutes")
-    private Integer durationMinutes;
+    private Integer duration_minutes;
 
     @JsonProperty("amount_due")
-    private BigDecimal amountDue;
+    private BigDecimal amount_due;
 
     @JsonProperty("currency")
     private String currency;
 
     @JsonProperty("payment_methods")
-    private List<String> paymentMethods;
+    private List<String> payment_methods;
 
     @JsonProperty("qr_url")
-    private String qrUrl;
+    private String qr_url;
 
     @JsonProperty("qr_expires_at")
-    private String qrExpiresAt;
+    private String qr_expires_at;
 
     // ── Vé tháng (monthly) ───────────────────────────────────────
     @JsonProperty("open")
     private Boolean open;
 
     @JsonProperty("owner_name")
-    private String ownerName;
+    private String owner_name;
 
     @JsonProperty("valid_until")
-    private String validUntil;
+    private String valid_until;
 }

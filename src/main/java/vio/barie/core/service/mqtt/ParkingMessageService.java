@@ -313,14 +313,14 @@ public class ParkingMessageService {
         }
 
         VehicleInfoCommand cmd = VehicleInfoCommand.builder()
-                .sessionId("entry_auth_" + LocalDateTime.now())
-                .scenarioTag("entry_authorized")
-                .barrierId(barrierId)
+                .session_id("entry_auth_" + LocalDateTime.now())
+                .scenarion_tag("entry_authorized")
+                .barrier_id(barrierId)
                 .direction("entry")
                 .plate(plate)
-                .ticketType("free")
-                .entryTime(entryTime != null ? entryTime.format(DT_FMT) : null)
-                .amountDue(BigDecimal.valueOf(0))
+                .ticket_type("free")
+                .entry_time(entryTime != null ? entryTime.format(DT_FMT) : null)
+                .amount_due(BigDecimal.valueOf(0))
                 .currency("VND")
                 .open(false)
                 .build();
@@ -342,18 +342,18 @@ public class ParkingMessageService {
                 : 0;
 
         VehicleInfoCommand cmd = VehicleInfoCommand.builder()
-                .sessionId(String.valueOf(sessionId))
-                .barrierId(barrierId)
+                .session_id(String.valueOf(sessionId))
+                .barrier_id(barrierId)
                 .direction("exit")
                 .plate(plate)
-                .ticketType("hourly")
-                .entryTime(entryTime != null ? entryTime.format(DT_FMT) : null)
-                .exitTime(now)
-                .durationMinutes(durationMinutes)
-                .amountDue(amountDue)
+                .ticket_type("hourly")
+                .entry_time(entryTime != null ? entryTime.format(DT_FMT) : null)
+                .exit_time(now)
+                .duration_minutes(durationMinutes)
+                .amount_due(amountDue)
                 .currency("VND")
-                .paymentMethods(List.of("qr", "cash"))
-                .qrUrl(qrUrl)
+                .payment_methods(List.of("qr", "cash"))
+                .qr_url(qrUrl)
                 .build();
 
         publish(deviceId, cmd);
@@ -368,14 +368,14 @@ public class ParkingMessageService {
         }
 
         VehicleInfoCommand infoCmd = VehicleInfoCommand.builder()
-                .sessionId(String.valueOf(sessionId))
-                .barrierId(barrierId)
+                .session_id(String.valueOf(sessionId))
+                .barrier_id(barrierId)
                 .direction("exit")
                 .plate(plate)
-                .ticketType("monthly")
+                .ticket_type("monthly")
                 .open(true)
-                .ownerName(ownerName)
-                .validUntil(validUntil != null ? validUntil.format(DT_FMT) : null)
+                .owner_name(ownerName)
+                .valid_until(validUntil != null ? validUntil.format(DT_FMT) : null)
                 .build();
 
         publish(deviceId, infoCmd);
