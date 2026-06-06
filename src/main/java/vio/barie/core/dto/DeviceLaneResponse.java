@@ -24,6 +24,7 @@ public class DeviceLaneResponse {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime lastSeen;
     private Long laneId;
+    private String typeLane;
     private String location;
     private List<BarrierInfo> barriers;
 

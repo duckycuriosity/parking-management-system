@@ -10,7 +10,7 @@ public class CameraCreateRequest {
     private String name;
 
     @NotBlank
-    private String type = "stream-software";
+    private String type;
     private String url;
     private JsonNode extra;
 }

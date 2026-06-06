@@ -16,6 +16,8 @@ public interface DeviceLaneRepository {
 
     Long getLaneId();
 
+    String getTypeLane();
+
     String getLocation();
 
     // Barrier info

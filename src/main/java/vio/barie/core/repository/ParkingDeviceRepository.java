@@ -25,13 +25,16 @@ public interface ParkingDeviceRepository extends JpaRepository<ParkingDeviceEnti
             LocalDateTime time,
             OperatingStatus status);
 
+    @Query(value = "SELECT name FROM lane WHERE id = :laneId", nativeQuery = true)
+    Optional<String> findLaneNameById(@Param("laneId") Long laneId);
+
     @Query("SELECT p.deviceId FROM ParkingDeviceEntity p WHERE p.id IN :ids")
     List<String> findDeviceIdsByIds(@Param("ids") List<Long> ids);
 
     @Query(value = "SELECT " +
             "pd.id AS deviceId, pd.device_id AS deviceCode, pd.status AS deviceStatus, pd.firmware_version AS firmwareVersion, " +
             "pd.last_seen AS lastSeen, " +
-            "pd.lane_id AS laneId, l.location AS location, " +
+            "pd.lane_id AS laneId, l.type AS typeLane, l.location AS location, " +
             "b.id AS barrierLocalId, b.barrier_id AS barrierId, b.description AS barrierDescription, b.direction AS direction, " +
             "c.id AS cameraId, c.name AS cameraName, c.url AS cameraUrl, c.type AS cameraType, bc.role AS cameraRole " +
             "FROM parking_devices pd " +
@@ -45,7 +48,7 @@ public interface ParkingDeviceRepository extends JpaRepository<ParkingDeviceEnti
     @Query(value = "SELECT " +
             "pd.id AS deviceId, pd.device_id AS deviceCode, pd.status AS deviceStatus, pd.firmware_version AS firmwareVersion, " +
             "pd.last_seen AS lastSeen, " +
-            "pd.lane_id AS laneId, l.location AS location, " +
+            "pd.lane_id AS laneId, l.type AS typeLane, l.location AS location, " +
             "b.id AS barrierLocalId, b.barrier_id AS barrierId, b.description AS barrierDescription, b.direction AS direction, " +
             "c.id AS cameraId, c.name AS cameraName, c.url AS cameraUrl, c.type AS cameraType, bc.role AS cameraRole " +
             "FROM parking_devices pd " +
