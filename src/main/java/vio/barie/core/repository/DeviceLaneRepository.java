@@ -40,4 +40,6 @@ public interface DeviceLaneRepository {
 
     String getCameraRole();
 
+    String getUuid();
+
 }
