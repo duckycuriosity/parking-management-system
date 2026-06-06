@@ -441,7 +441,7 @@ public class ParkingMessageService {
                 .reason(reason)
                 .playSound(true)
                 .soundFile("welcome.mp3")
-                .autoCloseSeconds(5)
+                .autoCloseSeconds(30)
                 .build();
 
         publish(deviceId, cmd);
