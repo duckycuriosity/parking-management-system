@@ -13,6 +13,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import vio.barie.core.common.PaymentCallbackType;
 import vio.barie.core.common.PaymentType;
 import vio.barie.core.common.TicketStatus;
+import vio.barie.core.common.TicketType;
 import vio.barie.core.config.exception.ServiceException;
 import vio.barie.core.config.payment.SePayConfig;
 import vio.barie.core.dto.payment.*;
@@ -20,6 +21,7 @@ import vio.barie.core.entity.PaymentEntity;
 import vio.barie.core.entity.TicketEntity;
 import vio.barie.core.repository.PaymentRepository;
 import vio.barie.core.repository.TicketRepository;
+import vio.barie.core.service.CalculatorService;
 import vio.barie.core.service.mqtt.ParkingMessageService;
 import vio.barie.core.service.payment.common.PaymentGateway;
 
@@ -41,6 +43,7 @@ public class SePayGateway implements PaymentGateway {
     private final SePayConfig sepayConfig;
     private final RestClient restClient = RestClient.create();
     private final ParkingMessageService ioTService;
+    private final CalculatorService calculatorService;
 
     private static final DateTimeFormatter SEPAY_DATE_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -157,7 +160,6 @@ public class SePayGateway implements PaymentGateway {
                     invoiceNo);
         }
 
-
         payment.setStatus(PaymentType.PAID.name());
         payment.setPaidAt(parseSePayDate(payload.getTransactionDate()));
         payment.setSepayTxId(payload.getId());
@@ -180,7 +182,19 @@ public class SePayGateway implements PaymentGateway {
             JSONObject context = payment.getCallbackContext();
             TicketEntity ticket = ticketRepository.findById(context.getLong("ticketId"))
                     .orElseThrow(() -> new ServiceException("Không tìm thấy ticket tương ứng", 404));
-            ticket.setStatus(TicketStatus.ACTIVE);
+            TicketStatus currentStatus = ticket.getStatus();
+            if (currentStatus.equals(TicketStatus.DEAD) || currentStatus.equals(TicketStatus.INACTIVE)) {
+                ticket.setStatus(TicketStatus.ACTIVE);
+            } else if (currentStatus.equals(TicketStatus.ACTIVE)) {
+                // phát sinh 2 lần thanh toán cho một ticket
+                // fixme: phương hướng tạm thời hiện giờ là cộng dồn
+                TicketType ticketType = calculatorService.getPricingType(payment.getAmount());
+                if (ticketType == TicketType.MONTH) {
+                    ticket.setExpireAt(ticket.getExpireAt().plusMonths(1));
+                } else if (ticketType == TicketType.QUARTER) {
+                    ticket.setExpireAt(ticket.getExpireAt().plusDays(15));
+                }
+            }
             ticketRepository.save(ticket);
         } else {
             throw new ServiceException(

@@ -22,6 +22,6 @@ USER spring:spring
 
 ENV SPRING_PROFILES_ACTIVE=prod
 
-EXPOSE 8080
+EXPOSE 1081
 
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Dfile.encoding=UTF-8 -jar /app/app.jar"]

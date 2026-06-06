@@ -63,9 +63,9 @@ megapay:
   windowType: 0
   endpoint: https://sandbox.megapay.vn/pg_was/createlink.do
   inquiry-endpoint: https://sandbox.megapay.vn/pg_was/order/trxStatusInvoiceNo.do
-  callback-url: http://localhost:8080/api/payment/callback
-  notify-url: http://localhost:8080/api/payment/ipn
-  req-domain: http://localhost:8080
+  callback-url: http://localhost:1081/api/payment/callback
+  notify-url: http://localhost:1081/api/payment/ipn
+  req-domain: http://localhost:1081
   qr-expire-minutes: 15
 
 sepay:
@@ -117,8 +117,8 @@ vms:
     data-count: 150
   ws:
     enabled: true
-    internal-ws-host: ws://192.160.160.30:8012
-    public-ws-host: ws://192.160.160.30:8012
+    internal-ws-host: ws://host.docker.internal:8012
+    public-ws-host: ws://host.docker.internal:8012
     url: "ws://host.docker.internal:8012/ws/Notify"
     reconnect-delay-ms: 3000
     cookie: key=uO50EwSqoolz1OzU

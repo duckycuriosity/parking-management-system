@@ -8,7 +8,7 @@ on:
 env:
   IMAGE_NAME: barie-core
   CONTAINER_NAME: barie-core
-  APP_PORT: 8080
+  APP_PORT: 1081
 
 jobs:
   build-and-deploy:
@@ -42,7 +42,7 @@ jobs:
             --name ${{ env.CONTAINER_NAME }} \
             --restart unless-stopped \
             --add-host=host.docker.internal:host-gateway \
-            -p ${{ env.APP_PORT }}:8080 \
+            -p ${{ env.APP_PORT }}:1081 \
             ${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.TAG }}
 
       - name: Health check

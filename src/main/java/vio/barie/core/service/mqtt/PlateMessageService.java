@@ -38,6 +38,7 @@ public class PlateMessageService {
     private final DetectionMatchingService detectionMatchingService;
     private final UUID uuid = UUID.randomUUID();
 
+    @Transactional
     public void handle(JsonNode event) {
         try {
             Long cameraCode = event.path("cameraId").asLong();

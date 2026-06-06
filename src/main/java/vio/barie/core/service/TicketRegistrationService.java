@@ -174,13 +174,16 @@ public class TicketRegistrationService {
     }
 
     public JSONObject getTicketPayment(Long ticketId) {
-        TicketEntity ticket = ticketRepository.findById(ticketId).orElseThrow(
+        getLatestStatus(ticketId);
+
+        TicketEntity ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(
                 () -> new ServiceException("Không tìm ticket tương ", 404));
 
         // chỉ cho phép gọi mã này nếu
         if (ticket.getStatus() == TicketStatus.ACTIVE) {
             log.info("Ticket id={} đã ACTIVE, không cần thanh toán", ticketId);
-            return null;
+            throw new ServiceException("Vé đã thanh toán! Xin vui lòng không sinh giao dịch mới cho cái vé này.");
         }
 
         BigDecimal amount = calculatorService.getTicketPrice(ticket);
@@ -211,19 +214,13 @@ public class TicketRegistrationService {
     }
 
     public TicketDTO getLatestStatus(Long ticketId) {
-        if (ticketId == null)
-            return null;
-
         PaymentEntity payment = paymentRepository
                 .findLatestByTikcetId(String.valueOf(ticketId))
                 .orElse(null);
         if (payment == null) {
             log.info("getLatestStatus: không có payment nào cho ticketId={}", ticketId);
-            return null;
-        }
-
-        // Self-heal: nếu còn PENDING, thử check SePay xem tiền đã về chưa
-        if (PaymentType.PENDING.name().equals(payment.getStatus())) {
+        } else if (PaymentType.PENDING.name().equals(payment.getStatus())) {
+            // nếu còn PENDING, thử check SePay xem tiền đã về chưa
             try {
                 PaymentInquiryResponse inquiryResponse = paymentService.inquiryByInvoiceNo(payment.getInvoiceNo());
                 if (inquiryResponse != null) {
@@ -238,7 +235,7 @@ public class TicketRegistrationService {
         // Lấy trạng thái ticket hiện tại
         return ticketRepository.findById(ticketId)
                 .map(TicketEntity::convertToDTO)
-                .orElse(null);
+                .orElseThrow(() -> new ServiceException("Không tìm thấy vé tháng tương ứng!",404));
     }
 
     @Transactional
@@ -246,63 +243,56 @@ public class TicketRegistrationService {
         if (req.getStartDate().isBefore(LocalDateTime.now()))
             throw new ServiceException("Thời gian ko được là quá khứ!");
 
+        // update latest status first
+        getLatestStatus(req.getId());
+
         TicketEntity ticket = ticketRepository.findById(req.getId())
                 .orElseThrow(() -> new ServiceException(
                         "Không tìm thấy vé cho id: " + req.getId()
                                 + ". Vui lòng dùng API đăng ký mới.", 404));
 
-        TicketStatus oldStatus = ticket.getStatus();
-        LocalDateTime oldExpireAt = ticket.getExpireAt();
-        // Đánh dấu vé là DEAD
-        ticket.setStartDate(req.getStartDate());
-        ticket.setRegisterAt(req.getStartDate());
-        ticket.setExpireAt(calculateExpireDate(req.getTicketType(), req.getStartDate()));
-        ticket.setStatus(TicketStatus.DEAD); // DEAD cho đến khi thanh toán
+        TicketStatus currentStatus = ticket.getStatus();
 
+        if (currentStatus.equals(TicketStatus.ACTIVE)) {
+            throw new ServiceException("Vé hiện tại vẫn còn hiệu lực. Xin vui lòng thử lại sau khi vé hết hạn.");
+        } else if (currentStatus.equals(TicketStatus.DEAD) || currentStatus.equals(TicketStatus.INACTIVE)) {
+            ParkingCustomerEntity customer = ticket.getCustomer();
+            VehicleEntity vehicle = ticket.getVehicle();
 
-        ticketRepository.save(ticket);
-        log.info("[renewMonthlyTicket] Vé mới id={} tạo thành công, expireAt={}", ticket.getId(), ticket.getExpireAt());
+            TicketRegistrationResponseDTO result = TicketRegistrationResponseDTO.builder()
+                    .ticketId(ticket.getId())
+                    .ticketType(req.getTicketType().name())
+                    .ticketStatus(ticket.getStatus().name())
+                    .customerId(customer != null ? customer.getId() : null)
+                    .customerName(customer != null ? customer.getUsername() : null)
+                    .profileId(customer.getAiProfileId())
+                    .vehicleId(vehicle.getId())
+                    .plateNumber(vehicle.getPlateNumber())
+                    .vehicleType(vehicle.getVehicleType())
+                    .startDate(req.getStartDate())
+                    .registeredAt(ticket.getRegisterAt())
+                    .expireAt(ticket.getExpireAt())
+                    .notes(req.getNotes())
+                    .phoneNumber(ticket.getPhoneNumber())
+                    .build();
+            // vé DEAD => chua tung duoc thanh toan
+            // vé INACTIVE => ve het han
+            // chinh lai thoi gian
+            ticket.setStartDate(req.getStartDate());
+            ticket.setRegisterAt(req.getStartDate());
+            ticket.setExpireAt(calculateExpireDate(req.getTicketType(), req.getStartDate()));
 
-        //  Cập nhật cache dựa trên oldStatus
-        if (oldStatus == TicketStatus.ACTIVE) {
-            summaryCacheService.decrement("active");
-            summaryCacheService.decrement("total");
-            //  dùng oldExpireAt để check, không dùng expireAt mới
-            if (oldExpireAt != null && oldExpireAt.isBefore(LocalDateTime.now().plusDays(5))) {
-                summaryCacheService.decrement("expiring_soon");
-            }
-            // ACTIVE → DEAD: increment dead
-            summaryCacheService.increment("dead");
+            ticket = ticketRepository.save(ticket);
+            log.info("[renewMonthlyTicket] Vé mới id={} tạo thành công, expireAt={}", ticket.getId(), ticket.getExpireAt());
 
-        } else if (oldStatus == TicketStatus.INACTIVE) {
-            summaryCacheService.decrement("expired");
-            summaryCacheService.decrement("total");
-            // INACTIVE → DEAD: increment dead
-            summaryCacheService.increment("dead");
-
+            result.setStartDate(ticket.getStartDate());
+            result.setRegisteredAt(ticket.getRegisterAt());
+            result.setExpireAt(ticket.getExpireAt());
+            result.setMessage("Thay đổi vé tháng thành công. Tiến hành thanh toán để kích hoạt vé.");
+            return result;
+        } else {
+            throw new ServiceException("Status của vé nằm ngoài phạm vi hồ trợ của hệ thống: "+currentStatus,403);
         }
-      
-
-        ParkingCustomerEntity customer = ticket.getCustomer();
-        VehicleEntity vehicle = ticket.getVehicle();
-        return TicketRegistrationResponseDTO.builder()
-                .ticketId(ticket.getId())
-                .ticketType(req.getTicketType().name())
-                .ticketStatus(ticket.getStatus().name())
-                .customerId(customer != null ? customer.getId() : null)
-                .customerName(customer != null ? customer.getUsername() : null)
-//                .customerPhone(customer != null ? customer.getPhoneNumber() : ticket.getPhoneNumber())
-                .profileId(customer.getAiProfileId())
-                .vehicleId(vehicle.getId())
-                .plateNumber(vehicle.getPlateNumber())
-                .vehicleType(vehicle.getVehicleType())
-                .startDate(req.getStartDate())
-                .registeredAt(ticket.getRegisterAt())
-                .expireAt(ticket.getExpireAt())
-                .notes(req.getNotes())
-                .phoneNumber(ticket.getPhoneNumber())
-                .message("Thay đổi vé tháng thành công. Tiến hành thanh toán để kích hoạt vé.")
-                .build();
     }
 
     /**
