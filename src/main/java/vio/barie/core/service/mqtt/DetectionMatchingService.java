@@ -264,17 +264,22 @@ public class DetectionMatchingService {
                     openSession.getSessionType(), openSession.getTicketId());
 
             TicketEntity ticket = findValidMonthlyTicket(vehicle.getId());
-            BigDecimal amount = new BigDecimal(0);
+            BigDecimal amount;
             if (ticket != null && (ticket.getExpireAt().isAfter(exitTime) || ticket.getExpireAt().isEqual(exitTime))) {
                 ioTService.publishOpenForMonthlyTicket(barrierId, openSession.getId(), vehicle.getPlateNumber(),
                         "parking_customer_monthly", ticket.getExpireAt());
                 return;
-            } else if (ticket != null && ticket.getExpireAt().isBefore(exitTime)) {
-                // ve xe active nhung da het han
-                // todo: tao function de tinh tien cho truong hop nay
             } else {
-                // ko co ve xe
-                amount = calculatorService.calculate(openSession.getEntryTime(), LocalDateTime.now());
+                if (ticket != null) {
+                    ticket.setStatus(TicketStatus.INACTIVE);
+                    ticketRepository.save(ticket);
+                }
+                TicketEntity expireTicket = findExpireTicket(vehicle.getId());
+                if (expireTicket != null && expireTicket.getExpireAt() != null) {
+                    amount = calculatorService.calculate(expireTicket.getExpireAt(), LocalDateTime.now());
+                } else {
+                    amount = calculatorService.calculate(openSession.getEntryTime(), LocalDateTime.now());
+                }
             }
 
             // tao QR
@@ -439,6 +444,12 @@ public class DetectionMatchingService {
         return ticketRepository.findByVehicleIdAndStatus(vehicleId, TicketStatus.ACTIVE)
                 // .filter(t -> t.getExpireAt() != null &&
                 // t.getExpireAt().isAfter(LocalDateTime.now()))
+                .orElse(null);
+    }
+
+    private TicketEntity findExpireTicket(Long vehicleId) {
+        // chỉ lấy ra vé gửi xe
+        return ticketRepository.findFirstByVehicleIdOrderByExpireAtDesc(vehicleId)
                 .orElse(null);
     }
 }

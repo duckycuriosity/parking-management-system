@@ -25,7 +25,7 @@ public class CalculatorService {
                 .orElseThrow(() -> new ServiceException("Chưa cấu hình giá theo đơn vị thời gian này: " + TicketType.DAY.name(), 500));
         long minutes = Math.max(1, Duration.between(entryTime, exitTime).toMinutes());
         int days = (int) Math.ceil(minutes / (60.0 * 24));
-        return BigDecimal.valueOf(rule.getPrice() * days);
+        return BigDecimal.valueOf(rule.getPrice()).multiply(BigDecimal.valueOf(days));
     }
 
     public BigDecimal getTicketPrice(TicketEntity ticketEntity) {

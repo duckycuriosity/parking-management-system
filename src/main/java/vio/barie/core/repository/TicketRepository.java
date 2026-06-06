@@ -96,4 +96,6 @@ public interface TicketRepository extends JpaRepository<TicketEntity, Long>, Jpa
     @Query("UPDATE TicketEntity t SET t.status = 'INACTIVE' WHERE t.status = 'ACTIVE' AND t.expireAt < :now")
     int bulkUpdateExpiredTickets(@Param("now") LocalDateTime now);
 
+    Optional<TicketEntity> findFirstByVehicleIdOrderByExpireAtDesc(Long vehicleId);
+
 }
