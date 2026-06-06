@@ -16,7 +16,6 @@ public class BarrierUpdateRequest {
     private String deviceName;
     @NotNull(message = "Please select your assigned lane.")
     private Long laneId;
-
     @NotNull(message = "Vui lòng chọn chiều của Barie")
     private DirectionType direction;
 

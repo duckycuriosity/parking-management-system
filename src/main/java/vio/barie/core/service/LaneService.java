@@ -24,6 +24,7 @@ import vio.barie.core.repository.ParkingLotRepository;
 import vio.barie.core.repository.CameraRepository;
 import vio.barie.core.repository.ParkingDeviceRepository;
 import vio.barie.core.entity.ParkingDeviceEntity;
+import vio.barie.core.utils.DirectionType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -115,8 +116,8 @@ public class LaneService {
         return response;
     }
 
-    public List<LaneResponse> findLanesByParkingLotId(Long parkingLotId) {
-        List<LaneEntity> lanes = laneRepository.findAllByParkingLotId(parkingLotId);
+    public List<LaneResponse> findLanesByParkingLotId(Long parkingLotId, DirectionType type) {
+        List<LaneEntity> lanes = laneRepository.findAllByParkingLotId(parkingLotId, type);
         return laneMapper.toResponseList(lanes);
     }
 

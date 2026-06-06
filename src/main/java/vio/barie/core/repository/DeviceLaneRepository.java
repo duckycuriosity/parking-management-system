@@ -16,6 +16,8 @@ public interface DeviceLaneRepository {
 
     Long getLaneId();
 
+    String getTypeLane();
+
     String getLocation();
 
     // Barrier info
@@ -37,5 +39,7 @@ public interface DeviceLaneRepository {
     String getCameraType();
 
     String getCameraRole();
+
+    String getUuid();
 
 }

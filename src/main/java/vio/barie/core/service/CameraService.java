@@ -19,6 +19,7 @@ import vio.barie.core.mapper.CameraMapper;
 import vio.barie.core.repository.CameraRepository;
 
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -74,12 +75,24 @@ public class CameraService {
     public CameraResponse createCamera(CameraCreateRequest clientBody) {
 
         CameraEntity camera = new CameraEntity();
-        String rawResponse = aiRestClient.post()
-                .uri("/Camera")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(clientBody)
-                .retrieve()
-                .body(String.class);
+        Map<String, Object> aiPayload = new java.util.HashMap<>();
+        aiPayload.put("name", clientBody.getName());
+        aiPayload.put("url", clientBody.getUrl() != null ? clientBody.getUrl().trim() : "");
+        aiPayload.put("type", "ACTIVE");
+        aiPayload.put("extra", null);
+
+        String rawResponse;
+        try {
+            rawResponse = aiRestClient.post()
+                    .uri("/Camera")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(aiPayload)
+                    .retrieve()
+                    .body(String.class);
+        } catch (org.springframework.web.client.HttpClientErrorException.BadRequest ex) {
+            log.error("AI 8088 Bad Request - Details of the AI \u200B\u200Bresponse: {}", ex.getResponseBodyAsString());
+            throw new RuntimeException("The new AI system rejects data.: " + ex.getResponseBodyAsString());
+        }
 
         if (rawResponse == null || rawResponse.isBlank()) {
             throw new IllegalStateException("AI camera service returned empty response");
@@ -87,43 +100,21 @@ public class CameraService {
 
         JsonNode aiCamera;
         try {
-            aiCamera = objectMapper.readTree(rawResponse);
+            JsonNode rootNode = objectMapper.readTree(rawResponse);
+            // phòng hờ nếu AI trả về dạng mảng danh sách
+            aiCamera = rootNode.isArray() && rootNode.size() > 0 ? rootNode.get(0) : rootNode;
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to parse AI camera response: " + rawResponse, ex);
         }
 
         camera.setAiCameraId(aiCamera.path("id").asLong());
         camera.setName(aiCamera.path("name").asText());
-        camera.setUuid(aiCamera.path("uuid").asText());
-        String url = aiCamera.path("url").asText();
-        if (url == null || url.isBlank()) {
-            url = aiCamera.path("main").asText();
-            if (url == null || url.isBlank()) {
-                url = aiCamera.path("sub").asText();
-            }
-        }
-        camera.setUrl(url);
-        String typeStr = aiCamera.path("type").asText();
-        if (!typeStr.isBlank()) {
-            try {
-                camera.setType(BaseStatus.valueOf(typeStr.toUpperCase()));
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Invalid camera type from AI system: " + typeStr);
-            }
-        }
-        String statusStr = aiCamera.path("status").asText();
-        if (!statusStr.isBlank()) {
-            try {
-                camera.setStatus(BaseStatus.valueOf(statusStr.toUpperCase()));
-            } catch (IllegalArgumentException e) {
-                camera.setStatus(BaseStatus.ACTIVE);
-            }
-        } else {
-            // Mặc định lúc tạo mới vào DB thường là ACTIVE
-            camera.setStatus(BaseStatus.INACTIVE);
-        }
-        CameraEntity saved = cameraRepository.save(camera);
+        camera.setUuid(aiCamera.path("uuid").asText()); // Lấy UUID do AI sinh ra
+        camera.setUrl(aiCamera.path("url").asText());
+        camera.setType(BaseStatus.ACTIVE);
+        camera.setStatus(BaseStatus.ACTIVE);
 
+        CameraEntity saved = cameraRepository.save(camera);
         return cameraMapper.toResponse(saved);
     }
 
@@ -168,10 +159,10 @@ public class CameraService {
         cameraRepository.deleteById(id);
     }
 
-    public StreamResponse startLiveStream(Long internalCameraId) {
-        // Lấy thông tin Camera trong hệ thống của bạn
-        CameraEntity entity = cameraRepository.findByIdWithRelations(internalCameraId)
-                .orElseThrow(() -> new RuntimeException("Camera not found with ID: " + internalCameraId));
+    public StreamResponse startLiveStream(String cameraUUID) {
+        // Lấy thông tin Camera trong hệ thống
+        CameraEntity entity = cameraRepository.findCameraByUUID(cameraUUID)
+                .orElseThrow(() -> new RuntimeException("Camera not found with ID: " + cameraUUID));
 
         //  Tạo Request gửi VMS bằng aiCameraId
         VmsLiveStreamRequest vmsRequest = new VmsLiveStreamRequest();

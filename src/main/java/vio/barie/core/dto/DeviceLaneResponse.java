@@ -24,6 +24,7 @@ public class DeviceLaneResponse {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime lastSeen;
     private Long laneId;
+    private String typeLane;
     private String location;
     private List<BarrierInfo> barriers;
 
@@ -50,5 +51,6 @@ public class DeviceLaneResponse {
         private DetectionType role; // Lấy từ bảng barrier_camera (plate, face)
         private BaseStatus type;
         private String ipAddressCamera;
+        private String uuid;
     }
 }

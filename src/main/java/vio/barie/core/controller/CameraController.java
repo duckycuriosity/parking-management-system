@@ -56,9 +56,9 @@ public class CameraController {
         return Result.ok("Camera deleted successfully", null);
     }
 
-    @GetMapping("/{id}/stream")
-    public Result<StreamResponse> getLiveStream(@PathVariable("id") Long internalCameraId) {
-        StreamResponse response = cameraService.startLiveStream(internalCameraId);
+    @GetMapping("/{uuid}/stream")
+    public Result<StreamResponse> getLiveStream(@PathVariable("uuid") String cameraUUID) {
+        StreamResponse response = cameraService.startLiveStream(cameraUUID);
         return Result.ok("Get camera stream successfully", response);
     }
 

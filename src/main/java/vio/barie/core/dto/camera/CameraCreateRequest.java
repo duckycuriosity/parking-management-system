@@ -4,13 +4,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
+import java.util.Map;
+
 @Data
 public class CameraCreateRequest {
     @NotBlank
     private String name;
 
     @NotBlank
-    private String type = "stream-software";
+//    private String type;
     private String url;
-    private JsonNode extra;
+//    private Map<String, Object> extra;
+
 }
