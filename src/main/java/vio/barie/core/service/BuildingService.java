@@ -3,6 +3,7 @@ package vio.barie.core.service;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import vio.barie.core.common.BaseStatus;
 import vio.barie.core.config.exception.BusinessException;
 import vio.barie.core.dto.BuildingCreateRequest;
 import vio.barie.core.dto.BuildingResponse;
@@ -32,8 +33,14 @@ public class BuildingService {
         return buildingMapper.toResponse(saved);
     }
 
-    public List<BuildingResponse> findAll() {
-        return buildingMapper.toResponseList(buildingRepository.findAll());
+    public List<BuildingResponse> findAll(BaseStatus status) {
+        List<BuildingEntity> entities;
+        if (status != null) {
+            entities = buildingRepository.findByStatus(status);
+        } else {
+            entities = buildingRepository.findAll();
+        }
+        return buildingMapper.toResponseList(entities);
     }
 
     public BuildingResponse findById(Long id) {

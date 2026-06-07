@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import vio.barie.core.common.BaseStatus;
 import vio.barie.core.dto.*;
 import vio.barie.core.service.LaneService;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +22,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.RequestParam;
+import vio.barie.core.utils.DirectionType;
 
 import java.util.List;
 
@@ -64,10 +66,11 @@ public class LaneController {
     }
 
     @GetMapping("/parking-lot/{parkingLotId}")
-    public Result<List<LaneResponse>> findLanesByParkingLotId(@PathVariable Long parkingLotId, @RequestParam(name = "type", required = false) vio.barie.core.utils.DirectionType type) {
+    public Result<List<LaneResponse>> findLanesByParkingLotId(@PathVariable Long parkingLotId, @RequestParam(name = "type", required = false) DirectionType type,
+                                                              @RequestParam(value = "status", required = false) BaseStatus status) {
         return Result.ok(
                 "Fetched lanes by parking lot successfully",
-                laneService.findLanesByParkingLotId(parkingLotId, type)
+                laneService.findLanesByParkingLotId(parkingLotId, type, status)
         );
     }
 

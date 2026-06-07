@@ -3,6 +3,7 @@ package vio.barie.core.repository;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import vio.barie.core.common.BaseStatus;
 import vio.barie.core.entity.CameraEntity;
 
 import java.util.List;
@@ -11,6 +12,15 @@ import java.util.Optional;
 public interface CameraRepository extends JpaRepository<CameraEntity, Long> {
     @Query("SELECT c FROM CameraEntity c LEFT JOIN FETCH c.lane l LEFT JOIN FETCH l.parkingLot")
     List<CameraEntity> findAllWithRelations();
+
+    @Query("SELECT c FROM CameraEntity c " +
+            "LEFT JOIN FETCH c.lane l " +
+            "LEFT JOIN FETCH l.parkingLot p " +
+            "WHERE (:status IS NULL OR c.status = :status) " +
+            "AND (:searchKey IS NULL OR c.name ILIKE :searchKey)")
+    List<CameraEntity> searchCameras(
+            @Param("searchKey") String searchKey,
+            @Param("status") BaseStatus status);
 
     @Query("SELECT c FROM CameraEntity c LEFT JOIN FETCH c.lane l LEFT JOIN FETCH l.parkingLot WHERE c.id = :id")
     Optional<CameraEntity> findByIdWithRelations(@Param("id") Long id);
