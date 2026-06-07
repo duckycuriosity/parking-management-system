@@ -1,5 +1,7 @@
 package vio.barie.core.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -20,12 +22,13 @@ import vio.barie.core.repository.CameraRepository;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Service
 public class CameraService {
 
-    private final RestClient aiRestClient;
+//    private final RestClient aiRestClient;
     private final RestClient vmsRestClient;
     private final CameraRepository cameraRepository;
     private final CameraMapper cameraMapper;
@@ -63,7 +66,7 @@ public class CameraService {
             VmsTokenService vmsTokenService
 
     ) {
-        this.aiRestClient = aiRestClient;
+//        this.aiRestClient = aiRestClient;
         this.vmsRestClient = vmsRestClient;
         this.cameraRepository = cameraRepository;
         this.cameraMapper = cameraMapper;
@@ -76,41 +79,45 @@ public class CameraService {
 
         CameraEntity camera = new CameraEntity();
         Map<String, Object> aiPayload = new java.util.HashMap<>();
+        Map<String, Object> extra = new java.util.HashMap<>();
+        Map<String, Object> location = new java.util.HashMap<>();
+
+        location.put("latitude", clientBody.getLatitude());
+        location.put("longitude", clientBody.getLongitude());
+
+        extra.put("location", location);
+        extra.put("uuid", UUID.randomUUID());
+
         aiPayload.put("name", clientBody.getName());
-        aiPayload.put("url", clientBody.getUrl() != null ? clientBody.getUrl().trim() : "");
-        aiPayload.put("type", "ACTIVE");
-        aiPayload.put("extra", null);
+        aiPayload.put("main", clientBody.getMain() != null ? clientBody.getMain().trim() : "");
+        aiPayload.put("sub", clientBody.getSub() != null ? clientBody.getSub().trim() : "");
+        aiPayload.put("enableRecord", clientBody.isEnableRecord());
+        aiPayload.put("extra", extra);
+        aiPayload.put("id", 0);
+        aiPayload.put("vmsId", 0);
+        aiPayload.put("cameraId", 0);
 
-        String rawResponse;
-        try {
-            rawResponse = aiRestClient.post()
-                    .uri("/Camera")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(aiPayload)
-                    .retrieve()
-                    .body(String.class);
-        } catch (org.springframework.web.client.HttpClientErrorException.BadRequest ex) {
-            log.error("AI 8088 Bad Request - Details of the AI \u200B\u200Bresponse: {}", ex.getResponseBodyAsString());
-            throw new RuntimeException("The new AI system rejects data.: " + ex.getResponseBodyAsString());
-        }
+        String responseBody = vmsTokenService.executeWithAutoLoginRetry(token ->
+                vmsRestClient.post()
+                        .uri(vmsApiUrl + "/Camera")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .header(HttpHeaders.ACCEPT, "*/*")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(aiPayload)
+                        .retrieve()
+                        .body(String.class)  // 👈 Nhận về String trước
+        );
 
-        if (rawResponse == null || rawResponse.isBlank()) {
-            throw new IllegalStateException("AI camera service returned empty response");
-        }
+        JsonNode vmsResponse = safeParseJson(responseBody);
+        JsonNode extraResponse = vmsResponse.path("extra");
+        JsonNode locationResponse = extraResponse.path("location");
 
-        JsonNode aiCamera;
-        try {
-            JsonNode rootNode = objectMapper.readTree(rawResponse);
-            // phòng hờ nếu AI trả về dạng mảng danh sách
-            aiCamera = rootNode.isArray() && rootNode.size() > 0 ? rootNode.get(0) : rootNode;
-        } catch (Exception ex) {
-            throw new IllegalStateException("Failed to parse AI camera response: " + rawResponse, ex);
-        }
-
-        camera.setAiCameraId(aiCamera.path("id").asLong());
-        camera.setName(aiCamera.path("name").asText());
-        camera.setUuid(aiCamera.path("uuid").asText()); // Lấy UUID do AI sinh ra
-        camera.setUrl(aiCamera.path("url").asText());
+        camera.setAiCameraId(vmsResponse.path("id").asLong());
+        camera.setName(vmsResponse.path("name").asText());
+        camera.setUuid(extraResponse.path("uuid").asText()); // Lấy UUID do AI sinh ra
+        camera.setUrl(vmsResponse.path("main").asText());
+        camera.setLatitude(locationResponse.path("latitude").asDouble());
+        camera.setLongitude(locationResponse.path("longitude").asDouble());
         camera.setType(BaseStatus.ACTIVE);
         camera.setStatus(BaseStatus.ACTIVE);
 
@@ -143,8 +150,8 @@ public class CameraService {
         if (request.getName() != null) {
             entity.setName(request.getName());
         }
-        if (request.getUrl() != null) {
-            entity.setUrl(request.getUrl());
+        if (request.getMain() != null) {
+            entity.setUrl(request.getMain());
         }
 
         CameraEntity updated = cameraRepository.save(entity);
@@ -282,5 +289,44 @@ public class CameraService {
 
 
         return cameraMapper.toResponseList(syncedCameras);
+    }
+
+    private JsonNode safeParseJson(String jsonString) {
+        // Kiểm tra null/empty
+        if (jsonString == null || jsonString.isBlank()) {
+            log.error("❌ Response body rỗng!");
+            throw new RuntimeException("Phản hồi từ VMS API bị rỗng");
+        }
+
+        try {
+            JsonNode node = objectMapper.readTree(jsonString);
+
+            // Kiểm tra kết quả parse
+            if (node == null || node.isMissingNode() || node.isNull()) {
+                log.error("❌ Parse thành công nhưng kết quả null. Input: {}", jsonString);
+                throw new RuntimeException("Kết quả parse JSON là null");
+            }
+
+            log.debug("✅ Parse JSON thành công: {}", node.toString());
+            return node;
+
+        } catch (JsonMappingException e) {
+            // JSON hợp lệ cú pháp nhưng không map được
+            log.error("❌ JsonMappingException - Có thể response là array thay vì object");
+            log.error("   Nguyên nhân: {}", e.getOriginalMessage());
+            log.error("   Path lỗi: {}", e.getPath());
+            throw new RuntimeException("Cấu trúc JSON không khớp: " + e.getOriginalMessage(), e);
+
+        } catch (JsonProcessingException e) {
+            // JSON bị lỗi cú pháp
+            log.error("❌ JsonProcessingException - JSON syntax error");
+            log.error("   Nguyên nhân: {}", e.getMessage());
+            log.error("   Vị trí lỗi: line {}, offset {}",
+                    e.getLocation() != null ? e.getLocation().getLineNr() : "N/A",
+                    e.getLocation() != null ? e.getLocation().getColumnNr() : "N/A");
+            log.error("   Raw response (500 ký tự đầu): {}",
+                    jsonString.length() > 500 ? jsonString.substring(0, 500) + "..." : jsonString);
+            throw new RuntimeException("JSON không hợp lệ: " + e.getMessage(), e);
+        }
     }
 }

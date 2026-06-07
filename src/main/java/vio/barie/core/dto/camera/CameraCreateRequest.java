@@ -12,8 +12,9 @@ public class CameraCreateRequest {
     private String name;
 
     @NotBlank
-//    private String type;
-    private String url;
-//    private Map<String, Object> extra;
-
+    private String main;
+    private String sub;
+    private boolean enableRecord;
+    private Double latitude;
+    private Double longitude;
 }
