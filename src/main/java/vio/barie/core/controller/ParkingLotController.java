@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import vio.barie.core.common.BaseStatus;
 import vio.barie.core.dto.ParkingLotCreateRequest;
 import vio.barie.core.dto.ParkingLotResponse;
 import vio.barie.core.dto.Result;
@@ -27,8 +28,9 @@ public class ParkingLotController {
     }
 
     @GetMapping
-    public Result<List<ParkingLotResponse>> findAll() {
-        return Result.ok("Parking lots fetched", parkingLotService.findAll());
+    public Result<List<ParkingLotResponse>> findAll(
+            @RequestParam(value = "status", required = false) BaseStatus status) {
+        return Result.ok("Parking lots fetched", parkingLotService.findAll(status));
     }
 
     @GetMapping("/{id}")

@@ -2,6 +2,7 @@ package vio.barie.core.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import vio.barie.core.common.BaseStatus;
 import vio.barie.core.dto.ReportLinkResponse;
 import vio.barie.core.dto.Result;
 import vio.barie.core.dto.StreamResponse;
@@ -31,8 +32,9 @@ public class CameraController {
     }
 
     @GetMapping
-    public Result<List<CameraResponse>> getCameraList(@RequestParam(name = "searchKey", required = false) String searchKey) {
-        List<CameraResponse> response = cameraService.getCameraList(searchKey);
+    public Result<List<CameraResponse>> getCameraList(@RequestParam(name = "searchKey", required = false) String searchKey,
+                                                      @RequestParam(name = "status", required = false) BaseStatus status) {
+        List<CameraResponse> response = cameraService.getCameraList(searchKey, status);
         return Result.ok("Get list cameras successfully", response);
     }
 

@@ -3,6 +3,7 @@ package vio.barie.core.service;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import vio.barie.core.common.BaseStatus;
 import vio.barie.core.config.exception.BusinessException;
 import vio.barie.core.dto.ParkingLotCreateRequest;
 import vio.barie.core.dto.ParkingLotResponse;
@@ -37,8 +38,14 @@ public class ParkingLotService {
 
     }
 
-    public List<ParkingLotResponse> findAll() {
-        return parkingLotMapper.toResponseList(parkingLotRepository.findAll());
+    public List<ParkingLotResponse> findAll(BaseStatus status) {
+        List<ParkingLotEntity> entities;
+        if (status != null) {
+            entities = parkingLotRepository.findByStatus(status);
+        } else {
+            entities = parkingLotRepository.findAll();
+        }
+        return parkingLotMapper.toResponseList(entities);
     }
 
     public ParkingLotResponse findById(Long id) {

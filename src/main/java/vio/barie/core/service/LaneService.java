@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import vio.barie.core.common.BaseStatus;
 import vio.barie.core.config.exception.BusinessException;
 import vio.barie.core.dto.BarrierCameraAssignmentRequest;
 import vio.barie.core.dto.LaneCreateRequest;
@@ -116,9 +117,19 @@ public class LaneService {
         return response;
     }
 
-    public List<LaneResponse> findLanesByParkingLotId(Long parkingLotId, DirectionType type) {
-        List<LaneEntity> lanes = laneRepository.findAllByParkingLotId(parkingLotId, type);
-        return laneMapper.toResponseList(lanes);
+    public List<LaneResponse> findLanesByParkingLotId(Long parkingLotId, DirectionType type, BaseStatus status) {
+        List<LaneEntity> entities;
+        if (type != null) {
+            if (status != null) {
+                entities = laneRepository.findAllByParkingLotIdAndTypeAndStatus(parkingLotId, type, status);
+            } else {
+                entities = laneRepository.findAllByParkingLotIdAndTypeAndStatus(parkingLotId, type, null);
+            }
+        } else {
+            entities = laneRepository.findAllByParkingLotIdAndTypeAndStatus(parkingLotId, type, status);
+
+        }
+        return laneMapper.toResponseList(entities);
     }
 
 

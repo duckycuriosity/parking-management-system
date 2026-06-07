@@ -28,7 +28,7 @@ import java.util.UUID;
 @Service
 public class CameraService {
 
-//    private final RestClient aiRestClient;
+    //    private final RestClient aiRestClient;
     private final RestClient vmsRestClient;
     private final CameraRepository cameraRepository;
     private final CameraMapper cameraMapper;
@@ -126,13 +126,13 @@ public class CameraService {
     }
 
 
-    public List<CameraResponse> getCameraList(String searchKey) {
-        List<CameraEntity> entities;
+    public List<CameraResponse> getCameraList(String searchKey, BaseStatus status) {
+        String formattedSearchKey = null;
         if (searchKey != null && !searchKey.trim().isEmpty()) {
-            entities = cameraRepository.searchByParkingLotNameWithRelations(searchKey.trim());
-        } else {
-            entities = cameraRepository.findAllWithRelations();
+            formattedSearchKey = "%" + searchKey.trim() + "%";
         }
+        List<CameraEntity> entities = cameraRepository.searchCameras(formattedSearchKey, status);
+
         return cameraMapper.toResponseList(entities);
     }
 

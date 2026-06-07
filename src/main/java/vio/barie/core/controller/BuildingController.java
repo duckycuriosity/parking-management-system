@@ -4,15 +4,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import vio.barie.core.common.BaseStatus;
 import vio.barie.core.dto.BuildingCreateRequest;
 import vio.barie.core.dto.BuildingResponse;
 import vio.barie.core.dto.Result;
@@ -36,9 +29,9 @@ public class BuildingController {
     }
 
     @GetMapping
-    public Result<List<BuildingResponse>> findAll() {
+    public Result<List<BuildingResponse>> findAll(@RequestParam(value = "status", required = false) BaseStatus status) {
         return Result.ok("Building list fetched successfully",
-                buildingService.findAll());
+                buildingService.findAll(status));
     }
 
     @GetMapping("/{id}")
