@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.*;
 import vio.barie.core.dto.ParkingSessionDetailResponse;
 import vio.barie.core.service.ParkingSessionService;
 
+import java.util.List;
+
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/parking-sessions")
@@ -23,7 +25,7 @@ public class ParkingSessionController {
     @GetMapping
     public ResponseEntity<Page<ParkingSessionDetailResponse>> getAllParkingSessions(
             @RequestParam(value = "searchKey", required = false) String searchKey,
-            @RequestParam(value = "sessionType", required = false) String sessionType,
+            @RequestParam(value = "sessionType", required = false) List<String> sessionType,
             @RequestParam(value = "typeVehicle", required = false) String typeVehicle,
             @RequestParam(value = "entryLaneId", required = false) Long entryLaneId,
             @RequestParam(value = "exitLaneId", required = false) Long exitLaneId,
@@ -81,7 +83,7 @@ public class ParkingSessionController {
     public ResponseEntity<Page<ParkingSessionDetailResponse>> getParkingSessionsByParkingLot(
             @PathVariable Long parkingLotId,
             @RequestParam(value = "searchKey", required = false) String searchKey,
-            @RequestParam(value = "sessionType", required = false) String sessionType,
+            @RequestParam(value = "sessionType", required = false) List<String> sessionType,
             @RequestParam(value = "typeVehicle", required = false) String typeVehicle,
             @RequestParam(value = "entryLaneId", required = false) Long entryLaneId,
             @RequestParam(value = "exitLaneId", required = false) Long exitLaneId,
