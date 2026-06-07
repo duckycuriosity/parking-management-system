@@ -9,6 +9,7 @@ import vio.barie.core.dto.ActivitySessionResponse;
 import vio.barie.core.entity.ParkingSessionEntity;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEntity, Long> {
@@ -58,7 +59,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "AND (:searchKey IS NULL OR :searchKey = '' OR(" +
             "     LOWER(ec.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) OR " +
             "     LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')))) " +
-            "AND (:sessionType IS NULL OR s.sessionType = :sessionType) " +
+            "AND (:sessionType IS NULL OR s.sessionType IN :sessionType) " +
             "AND (:typeVehicle IS NULL OR v.vehicleType = :typeVehicle) " +
             "AND (:entryLaneId IS NULL OR el.id = :entryLaneId) " +
             "AND (:exitLaneId IS NULL OR xl.id = :exitLaneId) " +
@@ -69,7 +70,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
     Page<ParkingSessionEntity> findIdByParkingLotWithFilters(
             @Param("parkingLotId") Long parkingLotId,
             @Param("searchKey") String searchKey,
-            @Param("sessionType") SessionType sessionType,
+            @Param("sessionType") List<SessionType> sessionType,
             @Param("typeVehicle") String typeVehicle,
             @Param("entryLaneId") Long entryLaneId,
             @Param("exitLaneId") Long exitLaneId,
@@ -87,7 +88,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "(:searchKey IS NULL OR :searchKey = '' OR (" +
             "     LOWER(ec.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) " +
             "     OR LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')))) " +
-            "AND (:sessionType IS NULL OR s.sessionType = :sessionType) " +
+            "AND (:sessionType IS NULL OR s.sessionType IN :sessionType) " +
             "AND (:typeVehicle IS NULL OR v.vehicleType = :typeVehicle) " +
             "AND (:entryLaneId IS NULL OR el.id = :entryLaneId) " +
             "AND (:exitLaneId IS NULL OR xl.id = :exitLaneId) " +
@@ -97,7 +98,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "ORDER BY s.entryTime DESC")
     Page<ParkingSessionEntity> findAllParkingLotWithFilters(
             @Param("searchKey") String searchKey,
-            @Param("sessionType") SessionType sessionType,
+            @Param("sessionType") List<SessionType> sessionType,
             @Param("typeVehicle") String typeVehicle,
             @Param("entryLaneId") Long entryLaneId,
             @Param("exitLaneId") Long exitLaneId,

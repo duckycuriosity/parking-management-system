@@ -1,6 +1,7 @@
 package vio.barie.core.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -15,12 +16,13 @@ import vio.barie.core.entity.ParkingSessionEntity;
 import vio.barie.core.repository.PaymentRepository;
 import vio.barie.core.repository.ParkingSessionRepository;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ParkingSessionService {
@@ -41,24 +43,41 @@ public class ParkingSessionService {
         return parkingSessionRepository.getAllActivityHistory(pageable);
     }
 
-    private SessionType parseTicketType(String type) {
-        if (type == null || type.trim().isEmpty()) {
+    private List<SessionType> parseSessionTypes(List<String> types) {
+        if (types == null || types.isEmpty()) {
             return null; // Trả về null để query bỏ qua filter này (IS NULL)
         }
-        try {
-            return SessionType.valueOf(type.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            return null; // Nếu client gửi type vớ vẩn thì bỏ qua filter
+        List<SessionType> sessionTypes = new ArrayList<>();
+        for (String typeStr : types) {
+            if (typeStr == null || typeStr.trim().isEmpty()) {
+                continue;
+            }
+
+            String[] tokens = typeStr.split("[\\s,;]+");
+
+            for (String token : tokens) {
+                String cleanToken = token.trim().toUpperCase();
+                if (cleanToken.isEmpty()) {
+                    continue;
+                }
+                try {
+                    sessionTypes.add(SessionType.valueOf(cleanToken));
+                } catch (IllegalArgumentException e) {
+
+                    log.warn("[parseSessionTypes] Giá trị không hợp lệ bị bỏ qua: {}", cleanToken);
+                }
+            }
         }
+        return sessionTypes;
     }
 
     @Transactional(readOnly = true)
     public Page<ParkingSessionDetailResponse> getAllParkingSession(
-            String searchKey, String sessionType, String typeVehicle,
+            String searchKey, List<String> sessionTypes, String typeVehicle,
             Long entryLaneId, Long exitLaneId, String statusInOut, Pageable pageable) {
-
+        List<SessionType> parsedTypes = parseSessionTypes(sessionTypes);
         Page<ParkingSessionEntity> entityPage = parkingSessionRepository.findAllParkingLotWithFilters(
-                formatString(searchKey), parseTicketType(sessionType), formatString(typeVehicle),
+                formatString(searchKey), parsedTypes, formatString(typeVehicle),
                 entryLaneId, exitLaneId, formatString(statusInOut), pageable);
 
         Map<Long, PaymentEntity> paymentMap = fetchPaymentMap(entityPage.getContent());
@@ -68,11 +87,12 @@ public class ParkingSessionService {
 
     @Transactional(readOnly = true)
     public Page<ParkingSessionDetailResponse> getIdParkingSessionByParkingLot(
-            Long parkingLotId, String searchKey, String sessionType, String typeVehicle,
+            Long parkingLotId, String searchKey, List<String> sessionTypes, String typeVehicle,
             Long entryLaneId, Long exitLaneId, String statusInOut, Pageable pageable) {
 
+        List<SessionType> parsedTypes = parseSessionTypes(sessionTypes);
         Page<ParkingSessionEntity> entityPage = parkingSessionRepository.findIdByParkingLotWithFilters(
-                parkingLotId, formatString(searchKey), parseTicketType(sessionType), formatString(typeVehicle),
+                parkingLotId, formatString(searchKey), parsedTypes, formatString(typeVehicle),
                 entryLaneId, exitLaneId, formatString(statusInOut), pageable);
 
         Map<Long, PaymentEntity> paymentMap = fetchPaymentMap(entityPage.getContent());
