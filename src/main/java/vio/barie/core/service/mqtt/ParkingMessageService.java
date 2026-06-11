@@ -330,7 +330,7 @@ public class ParkingMessageService {
                 .entry_time(entryTime != null ? entryTime.format(DT_FMT) : null)
                 .amount_due(BigDecimal.valueOf(0))
                 .currency("VND")
-                .open(false)
+                .open(true)
                 .build();
 
         publish(deviceId, cmd);

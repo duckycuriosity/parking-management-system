@@ -262,14 +262,16 @@ public class BarrierService {
             cameraIdsToUpdateLane.add(request.getPlateCameraId());
         }
 
-//        if (!cameraIdsToUpdateLane.isEmpty()) {
-//            List<CameraEntity> cameras = cameraRepository.findAllById(cameraIdsToUpdateLane);
-////            for (CameraEntity cam : cameras) {
-////                cam.setLane(lane);
-////            }
-//            cameraRepository.saveAll(cameras);
-//        }
-        return getBarrierDetailById(barrierId);
+        BarrierDetailResponse response = getBarrierDetailById(barrierId);
+
+        if (!cameraIdsToUpdateLane.isEmpty()) {
+            List<CameraEntity> cameras = cameraRepository.findAllById(cameraIdsToUpdateLane);
+            for (CameraEntity cam : cameras) {
+                cam.setLane(laneRepository.findById(response.getLaneId()).get());
+            }
+            cameraRepository.saveAll(cameras);
+        }
+        return response;
     }
 
     @Transactional
