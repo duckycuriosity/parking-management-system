@@ -39,8 +39,8 @@ public class ParkingLotController {
     }
 
     @GetMapping("building/{buildingId}")
-    public Result<List<ParkingLotResponse>> findByBuildingId(@PathVariable Long buildingId) {
-        return Result.ok("Parking lots fetched by building", parkingLotService.findByBuildingId(buildingId));
+    public Result<List<ParkingLotResponse>> findByBuildingId(@PathVariable Long buildingId, @RequestParam(value = "status", defaultValue = "ACTIVE") BaseStatus status) {
+        return Result.ok("Parking lots fetched by building", parkingLotService.findByBuildingId(buildingId, status));
     }
 
     @PutMapping("/{id}")
