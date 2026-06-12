@@ -35,5 +35,5 @@ public interface LaneRepository extends JpaRepository<LaneEntity, Long> {
 
 
     boolean existsByParkingLot_Building_Id(Long buildingId);
-
+    
 }

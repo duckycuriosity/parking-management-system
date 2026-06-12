@@ -25,6 +25,9 @@ public class CameraEntity extends BaseEntity {
     @Column(name = "url")
     private String url;
 
+    @Column(name = "subUrl")
+    private String subUrl;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "type")
     private BaseStatus type;

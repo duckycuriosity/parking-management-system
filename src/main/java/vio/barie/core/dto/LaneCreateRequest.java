@@ -7,6 +7,8 @@ import lombok.Data;
 import vio.barie.core.common.BaseStatus;
 import vio.barie.core.utils.DirectionType;
 
+import java.util.List;
+
 @Data
 public class LaneCreateRequest {
 
@@ -29,5 +31,5 @@ public class LaneCreateRequest {
 
     // optional grouping
     private java.util.List<Long> cameraIds;
-    private java.util.List<Long> parkingDeviceIds;
+    private List<Long> parkingDeviceIds;
 }

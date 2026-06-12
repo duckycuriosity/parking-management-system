@@ -17,6 +17,7 @@ public class CameraResponse {
     private Long aiCameraId;
     private String name;
     private String url;
+    private String subUrl;
     private BaseStatus type;
     private String uuid;
     private JsonNode extra;
@@ -26,4 +27,6 @@ public class CameraResponse {
     private String description;
     private BaseStatus status;
     private DateTime created_date;
+    private Double latitude;
+    private Double longitude;
 }
