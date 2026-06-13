@@ -16,6 +16,7 @@ import vio.barie.core.dto.*;
 import vio.barie.core.dto.camera.CameraCreateRequest;
 import vio.barie.core.dto.camera.CameraResponse;
 import org.springframework.stereotype.Service;
+import vio.barie.core.dto.camera.CameraUpdateRequest;
 import vio.barie.core.entity.CameraEntity;
 import vio.barie.core.mapper.CameraMapper;
 import vio.barie.core.repository.CameraRepository;
@@ -144,16 +145,50 @@ public class CameraService {
     }
 
     @Transactional
-    public CameraResponse updateCamera(Long id, CameraCreateRequest request) {
+    public CameraResponse updateCamera(Long id, CameraUpdateRequest request) {
         CameraEntity entity = cameraRepository.findByIdWithRelations(id)
                 .orElseThrow(() -> new RuntimeException("Camera not found with ID: " + id));
 
+        Map<String, Object> aiPayload = new java.util.HashMap<>();
+        Map<String, Object> extra = new java.util.HashMap<>();
+        Map<String, Object> location = new java.util.HashMap<>();
+
+        location.put("latitude", entity.getLatitude());
+        location.put("longitude", entity.getLongitude());
+
+        extra.put("location", location);
+        extra.put("uuid", entity.getUuid());
+        if (entity.getAiCameraId() != null) {
+            aiPayload.put("id", entity.getAiCameraId());
+        }
+
         if (request.getName() != null) {
             entity.setName(request.getName());
+            aiPayload.put("name", request.getName());
         }
         if (request.getMain() != null) {
             entity.setUrl(request.getMain());
+            aiPayload.put("main", request.getMain() != null ? request.getMain().trim() : "");
         }
+        if (request.getSub() != null) {
+            entity.setSubUrl(request.getSub());
+            aiPayload.put("sub", request.getSub() != null ? request.getSub().trim() : "");
+        }
+        aiPayload.put("extra", extra);
+        aiPayload.put("enableRecord", request.isEnableRecord());
+        aiPayload.put("vmsId", 0);
+        aiPayload.put("cameraId", 0);
+
+        String responseBody = vmsTokenService.executeWithAutoLoginRetry(token ->
+                vmsRestClient.put()
+                        .uri(vmsApiUrl + "/Camera/" + entity.getAiCameraId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .header(HttpHeaders.ACCEPT, "*/*")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(aiPayload)
+                        .retrieve()
+                        .body(String.class)
+        );
 
         CameraEntity updated = cameraRepository.save(entity);
         return cameraMapper.toResponse(updated);

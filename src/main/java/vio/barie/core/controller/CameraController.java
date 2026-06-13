@@ -8,6 +8,7 @@ import vio.barie.core.dto.Result;
 import vio.barie.core.dto.StreamResponse;
 import vio.barie.core.dto.camera.CameraCreateRequest;
 import vio.barie.core.dto.camera.CameraResponse;
+import vio.barie.core.dto.camera.CameraUpdateRequest;
 import vio.barie.core.service.CameraService;
 
 import java.util.List;
@@ -47,7 +48,7 @@ public class CameraController {
     @PutMapping("/{id}")
     public Result<CameraResponse> updateCamera(
             @PathVariable Long id,
-            @RequestBody CameraCreateRequest request) {
+            @RequestBody CameraUpdateRequest request) {
         CameraResponse response = cameraService.updateCamera(id, request);
         return Result.ok("Camera updated successfully", response);
     }
