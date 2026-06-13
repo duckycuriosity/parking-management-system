@@ -117,6 +117,7 @@ public class CameraService {
         camera.setName(vmsResponse.path("name").asText());
         camera.setUuid(extraResponse.path("uuid").asText()); // Lấy UUID do AI sinh ra
         camera.setUrl(vmsResponse.path("main").asText());
+        camera.setSubUrl(vmsResponse.path("sub").asText());
         camera.setLatitude(locationResponse.path("latitude").asDouble());
         camera.setLongitude(locationResponse.path("longitude").asDouble());
         camera.setSubUrl(vmsResponse.path("main").asText());
@@ -196,9 +197,25 @@ public class CameraService {
 
     @Transactional
     public void deleteCamera(Long id) {
-        if (!cameraRepository.existsById(id)) {
-            throw new RuntimeException("Camera not found with ID: " + id);
+        CameraEntity entity = cameraRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Camera not found with ID: " + id));
+        Long aiCameraId = entity.getAiCameraId();
+        if (aiCameraId != null && aiCameraId > 0) {
+            try {
+                vmsTokenService.executeWithAutoLoginRetry(token -> {
+                    vmsRestClient.delete()
+                            .uri(vmsApiUrl + "/Camera/" + aiCameraId)
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                            .header(HttpHeaders.ACCEPT, "*/*")
+                            .retrieve()
+                            .toBodilessEntity();
+                    return null;
+                });
+            } catch (Exception e) {
+                throw new RuntimeException("Không thể đồng bộ xóa Camera với hệ thống VMS: " + e.getMessage(), e);
+            }
         }
+
         cameraRepository.deleteById(id);
     }
 

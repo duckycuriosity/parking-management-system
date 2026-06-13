@@ -16,4 +16,6 @@ public interface ParkingLotRepository extends JpaRepository<ParkingLotEntity, Lo
     List<ParkingLotEntity> findByStatus(BaseStatus status);
 
     boolean existsByBuildingId(Long buildingId);
+
+    List<ParkingLotEntity> findByBuildingIdAndStatus(Long buildingId, BaseStatus status);
 }
