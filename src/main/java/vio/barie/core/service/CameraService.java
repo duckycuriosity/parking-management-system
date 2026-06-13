@@ -118,6 +118,7 @@ public class CameraService {
         camera.setUrl(vmsResponse.path("main").asText());
         camera.setLatitude(locationResponse.path("latitude").asDouble());
         camera.setLongitude(locationResponse.path("longitude").asDouble());
+        camera.setSubUrl(vmsResponse.path("main").asText());
         camera.setType(BaseStatus.ACTIVE);
         camera.setStatus(BaseStatus.ACTIVE);
 

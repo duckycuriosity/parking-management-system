@@ -26,4 +26,7 @@ public class CameraResponse {
     private String description;
     private BaseStatus status;
     private DateTime created_date;
+    private double latitude;
+    private double longitude;
+    private String sub_url;
 }
