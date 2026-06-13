@@ -35,11 +35,10 @@ public class CameraMapper {
         response.setName(entity.getName());
         response.setDescription(entity.getDescription());
         response.setUrl(entity.getUrl());
-        response.setSubUrl(entity.getSubUrl());
         response.setAiCameraId(entity.getAiCameraId());
+        response.setSub_url(entity.getSubUrl());
         response.setLatitude(entity.getLatitude());
         response.setLongitude(entity.getLongitude());
-
 
         if (entity.getLane() != null) {
             response.setLane_id(entity.getLane().getId());
