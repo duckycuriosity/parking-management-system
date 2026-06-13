@@ -85,8 +85,10 @@ public class PlateMessageService {
             // If vehicle is registered with active ticket, handle as registered customer
             if (vehicle != null) {
                 TicketEntity ticket = ticketRepository.findByVehicleIdAndStatus(vehicle.getId(), TicketStatus.ACTIVE).orElse(null);
-                if (ticket != null) handleRegisteredVehicle(ticket, vehicle, plateNumber, cameraInLane, barrier.get(), laneId, direction, cameraUUID);
-                return;
+                if (ticket != null) {
+                    handleRegisteredVehicle(ticket, vehicle, plateNumber, cameraInLane, barrier.get(), laneId, direction, cameraUUID);
+                    return;
+                }
             }
             // Otherwise handle as guest/unregistered vehicle
             handleUnregisteredVehicle(plateNumber, cameraInLane, barrier.get(), laneId, direction);
