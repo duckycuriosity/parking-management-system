@@ -86,11 +86,10 @@ public class PlateMessageService {
             if (vehicle != null) {
                 TicketEntity ticket = ticketRepository.findByVehicleIdAndStatus(vehicle.getId(), TicketStatus.ACTIVE).orElse(null);
                 if (ticket != null) handleRegisteredVehicle(ticket, vehicle, plateNumber, cameraInLane, barrier.get(), laneId, direction, cameraUUID);
-            } else {
-                // Otherwise handle as guest/unregistered vehicle
-                handleUnregisteredVehicle(plateNumber, cameraInLane, barrier.get(), laneId, direction);
+                return;
             }
-
+            // Otherwise handle as guest/unregistered vehicle
+            handleUnregisteredVehicle(plateNumber, cameraInLane, barrier.get(), laneId, direction);
         } catch (Exception ex) {
             log.error("PlateMessageService: failed to handle plate event — payload={} error={}", event, ex.getMessage(),
                     ex);
