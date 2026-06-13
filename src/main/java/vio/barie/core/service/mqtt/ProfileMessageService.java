@@ -5,13 +5,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import vio.barie.core.dto.parking.PendingEventDetection;
-import vio.barie.core.entity.BarrierCameraEntity;
-import vio.barie.core.entity.BarrierEntity;
-import vio.barie.core.entity.CameraEntity;
-import vio.barie.core.entity.ParkingCustomerEntity;
+import vio.barie.core.entity.*;
 import vio.barie.core.repository.BarrierCameraRepository;
 import vio.barie.core.repository.BarrierRepository;
 import vio.barie.core.repository.CameraRepository;
@@ -81,7 +79,14 @@ public class ProfileMessageService {
                 newCustomer.setAiProfileId(profileId);
                 newCustomer.setUsername(profileName);
                 newCustomer.setZaloId("null");
-                customerRepository.save(newCustomer);
+                try {
+                    customerRepository.save(newCustomer);
+                } catch (DataIntegrityViolationException ex) {
+                    // Likely a concurrent insert created the same plate; fetch and return existing
+                    logger.warn("createNewCustomer: concurrent insert detected for profileId={}, fetching existing", profileId);
+                    // rethrow if we cannot recover
+                    throw ex;
+                }
             }
 
             PendingEventDetection pd = new PendingEventDetection();

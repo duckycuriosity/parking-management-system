@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import vio.barie.core.common.TicketStatus;
 import vio.barie.core.dto.parking.PendingEventDetection;
 import vio.barie.core.entity.*;
 import vio.barie.core.repository.*;
@@ -82,9 +83,9 @@ public class PlateMessageService {
             VehicleEntity vehicle = vehicleRepository.findPlateByPlateNumber(plateNumber);
 
             // If vehicle is registered with active ticket, handle as registered customer
-            if (vehicle != null && ticketRepository.existsByVehicleId(vehicle.getId())) {
-                handleRegisteredVehicle(vehicle, plateNumber, cameraInLane, barrier.get(), laneId, direction,
-                        cameraUUID);
+            if (vehicle != null) {
+                TicketEntity ticket = ticketRepository.findByVehicleIdAndStatus(vehicle.getId(), TicketStatus.ACTIVE).orElse(null);
+                if (ticket != null) handleRegisteredVehicle(ticket, vehicle, plateNumber, cameraInLane, barrier.get(), laneId, direction, cameraUUID);
             } else {
                 // Otherwise handle as guest/unregistered vehicle
                 handleUnregisteredVehicle(plateNumber, cameraInLane, barrier.get(), laneId, direction);
@@ -101,20 +102,11 @@ public class PlateMessageService {
      * For ENTRY: immediately process without waiting for face match
      * For EXIT: buffer event and wait for face match to verify identity
      */
-    private void handleRegisteredVehicle(VehicleEntity vehicle, String plateNumber,
+    private void handleRegisteredVehicle(TicketEntity ticket, VehicleEntity vehicle, String plateNumber,
                                          CameraEntity cameraInLane, BarrierEntity barrier,
                                          long laneId, DirectionType direction, String cameraUUID) {
         try {
-            Optional<TicketEntity> ticket = ticketRepository.findTicketByVehicleId(vehicle.getId());
-            if (ticket.isEmpty()) {
-                parkingMessageService.publishErrorWhenHandlingEvent(
-                        "Cannot find ticket for registered vehicle", cameraUUID, DetectionType.PLATE,
-                        barrier.getBarrierId());
-                logger.warn("No ticket found for registered vehicle: plate={}", plateNumber);
-                return;
-            }
-
-            ParkingCustomerEntity customer = ticket.get().getCustomer();
+            ParkingCustomerEntity customer = ticket.getCustomer();
                   
             if (customer == null) {
                 parkingMessageService.publishErrorWhenHandlingEvent(
@@ -128,9 +120,12 @@ public class PlateMessageService {
                     vehicle, customer, plateNumber, cameraInLane, barrier, laneId, direction);
 
             if (direction == DirectionType.ENTRY) {
-                // For registered customers at entry: immediately process without face matching
+                // For registered customers at entry: immediately process without face matching.
+                // Clear any stale face event sitting in the Redis buffer for this (barrier, lane)
+                // so it cannot cross-match with the next vehicle's plate.
                 logger.info("ENTRY registered vehicle plate={} customer={} — processing immediately",
                         plateNumber, customer.getId());
+                detectionMatchingService.clearEntryBuffer(barrier.getBarrierId(), laneId);
                 detectionMatchingService.handleEntryEvent(event);
             } else if (direction == DirectionType.EXIT) {
                 // For registered customers at exit: buffer event and wait for face match
