@@ -36,6 +36,7 @@ public class ProfileMessageService {
     private final BarrierRepository barrierRepository;
     private final static Logger logger = LoggerFactory.getLogger(ProfileMessageService.class);
 
+    @Transactional
     public void handle(JsonNode event) {
         try {
             Long cameraCode = event.path("cameraId").asLong();
@@ -73,7 +74,7 @@ public class ProfileMessageService {
                 return;
             }
 
-            if (customerRepository.findByAiProfileId(profileId).isEmpty()) {
+            if (!customerRepository.existsByAiProfileId(profileId)) {
                 ParkingCustomerEntity newCustomer = new ParkingCustomerEntity();
                 UUID uuid = UUID.randomUUID();
                 newCustomer.setAiIdentityId("temp_customer" + uuid.toString());

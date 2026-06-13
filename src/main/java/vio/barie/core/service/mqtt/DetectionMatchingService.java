@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import vio.barie.core.common.TicketStatus;
 import vio.barie.core.common.SessionType;
 import vio.barie.core.dto.parking.PendingEventDetection;
@@ -117,6 +118,7 @@ public class DetectionMatchingService {
         logger.warn("emitMatch: unknown direction type={}", detection.getDirectionType());
     }
 
+    @Transactional
     public void handleEntryEvent(PendingEventDetection detection) {
         try {
             VehicleEntity vehicle = null;
@@ -197,6 +199,7 @@ public class DetectionMatchingService {
         }
     }
 
+    @Transactional
     public void handleExitEvent(PendingEventDetection detection) {
         try {
             VehicleEntity vehicle = null;
