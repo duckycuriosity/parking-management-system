@@ -121,11 +121,8 @@ public class PlateMessageService {
 
             if (direction == DirectionType.ENTRY) {
                 // For registered customers at entry: immediately process without face matching.
-                // Clear any stale face event sitting in the Redis buffer for this (barrier, lane)
-                // so it cannot cross-match with the next vehicle's plate.
                 logger.info("ENTRY registered vehicle plate={} customer={} — processing immediately",
                         plateNumber, customer.getId());
-                detectionMatchingService.clearEntryBuffer(barrier.getBarrierId(), laneId);
                 detectionMatchingService.handleEntryEvent(event);
             } else if (direction == DirectionType.EXIT) {
                 // For registered customers at exit: buffer event and wait for face match

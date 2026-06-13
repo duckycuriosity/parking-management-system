@@ -104,20 +104,6 @@ public class DetectionMatchingService {
         }
     }
 
-    public void clearEntryBuffer(String barrierId, Long laneId) {
-        if (barrierId == null || laneId == null) return;
-        String key = "detection:pending:ENTRY:" + barrierId + ":" + laneId;
-        redisTemplate.delete(key);
-        logger.info("clearEntryBuffer: cleared stale face buffer for key={}", key);
-    }
-
-    public void clearExitBuffer(String barrierId, Long laneId) {
-        if (barrierId == null || laneId == null) return;
-        String key = "detection:pending:EXIT:" + barrierId + ":" + laneId;
-        redisTemplate.delete(key);
-        logger.info("clearExitBuffer: cleared stale face buffer for key={}", key);
-    }
-
     private void emitMatch(PendingEventDetection detection) {
         if (detection.getDirectionType() == DirectionType.ENTRY) {
             handleEntryEvent(detection);
@@ -210,8 +196,6 @@ public class DetectionMatchingService {
 
         } catch (Exception ex) {
             logger.error("handleEntryEvent: failed — type={}: {}", detection.getType(), ex.getMessage(), ex);
-        } finally {
-            clearEntryBuffer(detection.getEntryBarrierId(), detection.getEntryLaneId());
         }
     }
 
@@ -329,8 +313,6 @@ public class DetectionMatchingService {
 
         } catch (Exception ex) {
             logger.error("handleExitEvent: failed — type={}: {}", detection.getType(), ex.getMessage(), ex);
-        } finally {
-            clearExitBuffer(detection.getExitBarrierId(), detection.getExitLaneId());
         }
     }
 
