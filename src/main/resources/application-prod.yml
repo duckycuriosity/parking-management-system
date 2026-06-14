@@ -29,9 +29,9 @@ spring:
 
 logging:
   level:
-    org.flywaydb: DEBUG
-    org.springframework.boot.flyway.autoconfigure: DEBUG
-    org.eclipse.paho.client.mqttv3: DEBUG
+    org.flywaydb: WARN
+    org.springframework.boot.flyway.autoconfigure: WARN
+    org.eclipse.paho.client.mqttv3: WARN
     vio.barie.core.service.mqtt: DEBUG
 
 bootstrap:

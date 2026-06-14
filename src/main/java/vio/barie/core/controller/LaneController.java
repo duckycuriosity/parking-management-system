@@ -67,7 +67,7 @@ public class LaneController {
 
     @GetMapping("/parking-lot/{parkingLotId}")
     public Result<List<LaneResponse>> findLanesByParkingLotId(@PathVariable Long parkingLotId, @RequestParam(name = "type", required = false) DirectionType type,
-                                                              @RequestParam(value = "status", required = false) BaseStatus status) {
+                                                              @RequestParam(value = "status", defaultValue = "ACTIVE", required = false) BaseStatus status) {
         return Result.ok(
                 "Fetched lanes by parking lot successfully",
                 laneService.findLanesByParkingLotId(parkingLotId, type, status)

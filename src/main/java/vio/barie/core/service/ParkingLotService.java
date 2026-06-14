@@ -54,8 +54,8 @@ public class ParkingLotService {
         return parkingLotMapper.toResponse(entity);
     }
 
-    public List<ParkingLotResponse> findByBuildingId(Long buildingId) {
-        List<ParkingLotEntity> entities = parkingLotRepository.findByBuildingId(buildingId);
+    public List<ParkingLotResponse> findByBuildingId(Long buildingId, BaseStatus status) {
+        List<ParkingLotEntity> entities = parkingLotRepository.findByBuildingIdAndStatus(buildingId, status);
         return parkingLotMapper.toResponseList(entities);
     }
 

@@ -17,6 +17,6 @@ public class LaneResponse {
     private Long parkingLotId;
     private java.time.LocalDateTime createdAt;
     private List<Long> cameraIds;
-    private List<Long> parkingDeviceIds;
-    private List<String> parkingDeviceCodes;
+    private Long parkingDeviceIds;
+    private String parkingDeviceCode;
 }

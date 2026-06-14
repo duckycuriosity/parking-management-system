@@ -2,6 +2,7 @@ package vio.barie.core.service;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -33,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class LaneService {
@@ -66,12 +68,25 @@ public class LaneService {
 
         // associate parking devices
         if (request.getParkingDeviceIds() != null && !request.getParkingDeviceIds().isEmpty()) {
-            Iterable<ParkingDeviceEntity> devs = parkingDeviceRepository.findAllById(request.getParkingDeviceIds());
-            for (ParkingDeviceEntity d : devs) {
-                d.setLane(saved);
+            if (request.getParkingDeviceIds().size() > 1) {
+                throw new BusinessException("Mỗi làn chỉ được phép gắn tối đa 1 thiết bị!", "INVALID_DEVICE_COUNT", 400);
             }
-            parkingDeviceRepository.saveAll(devs);
+            Long targetDeviceId = request.getParkingDeviceIds().get(0);
+            if (targetDeviceId != null) {
+                ParkingDeviceEntity d = parkingDeviceRepository.findById(targetDeviceId)
+                        .orElseThrow(() -> new BusinessException("Parking device not found", "DEVICE_NOT_FOUND", 404));
+
+                // Validate
+                if (d.getLane() != null) {
+                    String errorMsg = String.format("Thiết bị [%s] hiện tại đang được gắn ở lane: %s", d.getDeviceId(), d.getLane().getName());
+                    throw new BusinessException(errorMsg, "DEVICE_ALREADY_ASSIGNED_TO_LANE", 400);
+                }
+
+                d.setLane(saved);
+                parkingDeviceRepository.save(d);
+            }
         }
+
 
         return laneMapper.toResponse(saved);
     }
@@ -87,18 +102,20 @@ public class LaneService {
 
             List<ParkingDeviceEntity> devices = parkingDeviceRepository.findByLaneIdIn(laneIds);
 
-
-            Map<Long, List<String>> deviceCodesMap = devices.stream()
-                    .collect(Collectors.groupingBy(
+            Map<Long, ParkingDeviceEntity> deviceByLaneMap = devices.stream()
+                    .collect(Collectors.toMap(
                             d -> d.getLane().getId(), // Key là laneId
-                            Collectors.mapping(ParkingDeviceEntity::getDeviceId, Collectors.toList()) // Value là list device_id
+                            d -> d,
+                            (existing, replacement) -> existing
+
                     ));
 
 
             for (LaneResponse res : responses) {
-                if (res.getParkingDeviceIds() != null && !res.getParkingDeviceIds().isEmpty()) {
-                    List<String> deviceCodes = parkingDeviceRepository.findDeviceIdsByIds(res.getParkingDeviceIds());
-                    res.setParkingDeviceCodes(deviceCodes);
+                ParkingDeviceEntity device = deviceByLaneMap.get(res.getId());
+                if (device != null) {
+                    res.setParkingDeviceIds(device.getId());
+                    res.setParkingDeviceCode(device.getDeviceId());
                 }
             }
         }
@@ -110,9 +127,9 @@ public class LaneService {
         LaneEntity entity = laneRepository.findByIdWithParkingLot(id)
                 .orElseThrow(() -> new BusinessException("Lane not found", "LANE_NOT_FOUND", 404));
         LaneResponse response = laneMapper.toResponse(entity);
-        if (response.getParkingDeviceIds() != null && !response.getParkingDeviceIds().isEmpty()) {
-            List<String> deviceCodes = parkingDeviceRepository.findDeviceIdsByIds(response.getParkingDeviceIds());
-            response.setParkingDeviceCodes(deviceCodes);
+        if (response.getParkingDeviceIds() != null) {
+            parkingDeviceRepository.findById(response.getParkingDeviceIds())
+                    .ifPresent(d -> response.setParkingDeviceCode(d.getDeviceId()));
         }
         return response;
     }
@@ -158,12 +175,37 @@ public class LaneService {
             cameraRepository.saveAll(cams);
         }
 
-        if (request.getParkingDeviceIds() != null) {
-            Iterable<ParkingDeviceEntity> devs = parkingDeviceRepository.findAllById(request.getParkingDeviceIds());
-            for (ParkingDeviceEntity d : devs) {
-                d.setLane(saved);
+        List<ParkingDeviceEntity> currentDevices = parkingDeviceRepository.findByLane_Id(id);
+        if (request.getParkingDeviceIds() != null || request.getParkingDeviceIds().isEmpty()) {
+            for (ParkingDeviceEntity oldDevice : currentDevices) {
+                oldDevice.setLane(null);
             }
-            parkingDeviceRepository.saveAll(devs);
+            parkingDeviceRepository.saveAll(currentDevices);
+        } else {
+            if (request.getParkingDeviceIds().size() > 1) {
+                throw new BusinessException("Mỗi làn chỉ được phép gắn tối đa 1 thiết bị!", "INVALID_DEVICE_COUNT", 400);
+            }
+            Long targetDeviceId = request.getParkingDeviceIds().get(0);
+            if (targetDeviceId != null) {
+                ParkingDeviceEntity requestedDevice = parkingDeviceRepository.findById(targetDeviceId)
+                        .orElseThrow(() -> new BusinessException("Parking device not found", "DEVICE_NOT_FOUND", 404));
+
+                if (requestedDevice.getLane() != null && !requestedDevice.getLane().getId().equals(id)) {
+                    String errorMsg = String.format("Thiết bị [%s] hiện tại đang được gắn ở lane: %s",
+                            requestedDevice.getDeviceId(), requestedDevice.getLane().getName());
+                    throw new BusinessException(errorMsg, "DEVICE_ALREADY_ASSIGNED_TO_LANE", 400);
+                }
+
+                for (ParkingDeviceEntity oldDevice : currentDevices) {
+                    if (!oldDevice.getId().equals(requestedDevice.getId())) {
+                        oldDevice.setLane(null);
+                        parkingDeviceRepository.save(oldDevice);
+                    }
+                }
+                requestedDevice.setLane(saved);
+                parkingDeviceRepository.save(requestedDevice);
+            }
+
         }
 
         return laneMapper.toResponse(saved);
