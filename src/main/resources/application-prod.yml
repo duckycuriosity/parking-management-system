@@ -20,6 +20,12 @@ spring:
       idle-timeout: 30000
       max-lifetime: 1800000
       connection-timeout: 20000
+  web:
+    resources:
+      static-locations:
+        - classpath:/static/
+        - classpath:/public/
+        - file:/home/admini/AVCoreV2/faces/
 
 logging:
   level:
