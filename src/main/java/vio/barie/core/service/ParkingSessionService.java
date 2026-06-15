@@ -11,15 +11,17 @@ import vio.barie.core.common.InOutStatus;
 import vio.barie.core.common.SessionType;
 import vio.barie.core.dto.ActivitySessionResponse;
 import vio.barie.core.dto.ParkingSessionDetailResponse;
+import vio.barie.core.dto.parking.HourlyTrafficResponse;
+import vio.barie.core.dto.parking.ParkingMetricsRequest;
 import vio.barie.core.entity.PaymentEntity;
 import vio.barie.core.entity.ParkingSessionEntity;
 import vio.barie.core.repository.PaymentRepository;
 import vio.barie.core.repository.ParkingSessionRepository;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -157,6 +159,79 @@ public class ParkingSessionService {
                 .exitLaneName(finalExitLaneName)
                 .buildingName(buildingNameStr)
                 .build();
+    }
+    public List<HourlyTrafficResponse> getHourlyStatistics(ParkingMetricsRequest request) {
+        // Lấy dữ liệu từ repository
+        List<Object[]> entriesResult = parkingSessionRepository.countEntriesByHour(
+                request.getParkingLotId(),
+                request.getStartDate(),
+                request.getEndDate()
+        );
+
+        List<Object[]> exitsResult = parkingSessionRepository.countExitsByHour(
+                request.getParkingLotId(),
+                request.getStartDate(),
+                request.getEndDate()
+        );
+
+        // Chuyển đổi sang Map với key là datetime đầy đủ
+        Map<String, Long> entriesMap = new HashMap<>();
+        for (Object[] row : entriesResult) {
+            String datetime = (String) row[0]; // "2026-06-13 18:00:00"
+            Long count = ((Number) row[1]).longValue();
+            entriesMap.put(datetime, count);
+        }
+
+        Map<String, Long> exitsMap = new HashMap<>();
+        for (Object[] row : exitsResult) {
+            String datetime = (String) row[0];
+            Long count = ((Number) row[1]).longValue();
+            exitsMap.put(datetime, count);
+        }
+
+        // Tạo list các datetime trong khoảng
+        List<String> allDateTimes = generateDateTimeRange(
+                request.getStartDate(),
+                request.getEndDate()
+        );
+
+        // Build response
+        List<HourlyTrafficResponse> response = new ArrayList<>();
+        long runningParked = 0;
+
+        for (String dateTime : allDateTimes) {
+            long entries = entriesMap.getOrDefault(dateTime, 0L);
+            long exits = exitsMap.getOrDefault(dateTime, 0L);
+
+            runningParked = runningParked + entries - exits;
+            if (runningParked < 0) runningParked = 0;
+
+            HourlyTrafficResponse dto = new HourlyTrafficResponse();
+            dto.setDateTime(dateTime);                    // "2026-06-13 18:00"
+            dto.setDate(dateTime.substring(0, 10));       // "2026-06-13"
+            dto.setHour(dateTime.substring(11, 16));      // "18:00"
+            dto.setEntries(entries);
+            dto.setExits(exits);
+            dto.setCurrentParked(runningParked);
+
+            response.add(dto);
+        }
+
+        return response;
+    }
+
+    private List<String> generateDateTimeRange(LocalDateTime start, LocalDateTime end) {
+        List<String> dateTimes = new ArrayList<>();
+        LocalDateTime current = start.truncatedTo(ChronoUnit.HOURS);
+        LocalDateTime endHour = end.truncatedTo(ChronoUnit.HOURS);
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:00:00");
+
+        while (!current.isAfter(endHour)) {
+            dateTimes.add(current.format(formatter));
+            current = current.plusHours(1);
+        }
+        return dateTimes;
     }
 
 }

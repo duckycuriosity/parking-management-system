@@ -23,6 +23,12 @@ spring:
       idle-timeout: 30000
       max-lifetime: 1800000
       connection-timeout: 20000
+  web:
+    resources:
+      static-locations:
+        - classpath:/static/
+        - classpath:/public/
+        - file:/home/admini/AVCoreV2/faces/
 
 
 logging:
@@ -40,7 +46,7 @@ mqtt:
   host: tcp://192.168.168.30:1883
   username:
   password:
-  client-id: barie-core-service-dev-03636
+  client-id: barie-core-service-dev-03
   # tuning values for diagnostics; adjust as needed
   keep-alive-seconds: 120
   connection-timeout-seconds: 60

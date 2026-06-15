@@ -9,6 +9,7 @@ import vio.barie.core.dto.ActivitySessionResponse;
 import vio.barie.core.entity.ParkingSessionEntity;
 import org.springframework.data.domain.Pageable;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -105,4 +106,34 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             @Param("statusInOut") String statusInOut,
             Pageable pageable);
 
+    @Query(value = """
+        SELECT 
+            TO_CHAR(DATE_TRUNC('hour', entry_time), 'YYYY-MM-DD HH24:00:00') as hour,
+            COUNT(*) as entries
+        FROM parking_session
+        WHERE parking_lot_id = :parkingLotId
+            AND entry_time BETWEEN :startDate AND :endDate
+        GROUP BY DATE_TRUNC('hour', entry_time)
+        ORDER BY hour
+        """,
+            nativeQuery = true)
+    List<Object[]> countEntriesByHour(@Param("parkingLotId") Integer parkingLotId,
+                                      @Param("startDate") LocalDateTime startDate,
+                                      @Param("endDate") LocalDateTime endDate);
+
+    @Query(value = """
+        SELECT 
+            TO_CHAR(DATE_TRUNC('hour', exit_time), 'YYYY-MM-DD HH24:00:00') as hour,
+            COUNT(*) as exits
+        FROM parking_session
+        WHERE parking_lot_id = :parkingLotId
+            AND exit_time IS NOT NULL
+            AND exit_time BETWEEN :startDate AND :endDate
+        GROUP BY DATE_TRUNC('hour', exit_time)
+        ORDER BY hour
+        """,
+            nativeQuery = true)
+    List<Object[]> countExitsByHour(@Param("parkingLotId") Integer parkingLotId,
+                                    @Param("startDate") LocalDateTime startDate,
+                                    @Param("endDate") LocalDateTime endDate);
 }
