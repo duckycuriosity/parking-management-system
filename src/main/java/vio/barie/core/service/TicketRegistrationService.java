@@ -97,9 +97,11 @@ public class TicketRegistrationService {
         VehicleEntity vehicle;
         if (vehicleRecord.isPresent()) {
             ticketRepository.findTicketByVehicleId(vehicleRecord.get().getId()).ifPresent(existingTicket -> {
-                if (existingTicket.getStatus() != TicketStatus.DEAD) {
+                if (existingTicket.getStatus() == TicketStatus.ACTIVE) {
                     throw new ServiceException(
-                            "Xe " + req.getVehiclePlateNumber() + " đã có vé đang hiệu lực. Vui lòng dùng API gia hạn.", 400);
+                            "Xe " + req.getVehiclePlateNumber() + " đã có vé đang hiệu lực.", 400);
+                } else {
+                    ticketRepository.delete(existingTicket);
                 }
             });
             vehicle = vehicleRecord.get();

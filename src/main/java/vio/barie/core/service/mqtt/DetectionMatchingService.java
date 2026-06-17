@@ -3,10 +3,12 @@ package vio.barie.core.service.mqtt;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vio.barie.core.common.TicketStatus;
 import vio.barie.core.common.SessionType;
+import vio.barie.core.config.exception.ServiceException;
 import vio.barie.core.dto.parking.PendingEventDetection;
 import vio.barie.core.dto.payment.CreatePaymentRequest;
 import vio.barie.core.dto.payment.CreatePaymentResponse;
@@ -14,6 +16,7 @@ import vio.barie.core.entity.*;
 import vio.barie.core.repository.*;
 import vio.barie.core.service.CalculatorService;
 import vio.barie.core.service.PaymentService;
+import vio.barie.core.utils.DetectionType;
 import vio.barie.core.utils.DirectionType;
 
 import java.math.BigDecimal;
@@ -30,6 +33,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 public class DetectionMatchingService {
 
     private static final long MATCH_WINDOW_MS = 120_000L; // 2 minutes
+    private static final Duration PLATE_DEDUP_TTL = Duration.ofMinutes(2);
 
     private static final Logger logger = LoggerFactory.getLogger(DetectionMatchingService.class);
 
@@ -43,6 +47,7 @@ public class DetectionMatchingService {
     private final CalculatorService calculatorService;
     private final PaymentService paymentService;
     private final RedisTemplate<String, PendingEventDetection> redisTemplate;
+    private final StringRedisTemplate stringRedisTemplate;
 
     /**
      * Ingest a detection event and try to match it with its counterpart.
@@ -56,6 +61,16 @@ public class DetectionMatchingService {
             ioTService.publishErrorWhenHandlingEvent("Received null detection", "",
                     detection != null ? detection.getType() : null);
             return;
+        }
+
+        String dedupKey = buildDedupKey(detection);
+        Boolean isNew = stringRedisTemplate.opsForValue()
+                .setIfAbsent(dedupKey, "1", PLATE_DEDUP_TTL);
+        if (Boolean.FALSE.equals(isNew)) {
+            logger.debug("ingest: duplicate suppressed within 5min — key={}", dedupKey);
+            return;
+        } else {
+            logger.debug("ingest: new detection processed — key={}", dedupKey);
         }
 
         try {
@@ -102,6 +117,21 @@ public class DetectionMatchingService {
             logger.error("ingest: failed to process detection — type={} direction={}: {}",
                     detection.getType(), detection.getDirectionType(), ex.getMessage(), ex);
         }
+    }
+
+
+    public void clearEntryBuffer(String barrierId, Long laneId) {
+        if (barrierId == null || laneId == null) return;
+        String key = "detection:pending:ENTRY:" + barrierId + ":" + laneId;
+        redisTemplate.delete(key);
+        logger.info("clearEntryBuffer: cleared stale face buffer for key={}", key);
+    }
+
+    public void clearExitBuffer(String barrierId, Long laneId) {
+        if (barrierId == null || laneId == null) return;
+        String key = "detection:pending:EXIT:" + barrierId + ":" + laneId;
+        redisTemplate.delete(key);
+        logger.info("clearExitBuffer: cleared stale face buffer for key={}", key);
     }
 
     private void emitMatch(PendingEventDetection detection) {
@@ -197,6 +227,9 @@ public class DetectionMatchingService {
         } catch (Exception ex) {
             logger.error("handleEntryEvent: failed — type={}: {}", detection.getType(), ex.getMessage(), ex);
         }
+//        finally {
+//            clearEntryBuffer(detection.getEntryBarrierId(), detection.getEntryLaneId());
+//        }
     }
 
     @Transactional
@@ -314,6 +347,28 @@ public class DetectionMatchingService {
         } catch (Exception ex) {
             logger.error("handleExitEvent: failed — type={}: {}", detection.getType(), ex.getMessage(), ex);
         }
+//        finally {
+//            clearExitBuffer(detection.getExitBarrierId(), detection.getExitLaneId());
+//        }
+    }
+
+    private String buildDedupKey(PendingEventDetection detection) {
+        StringBuilder key = new StringBuilder();
+        if (detection.getDirectionType().equals(DirectionType.ENTRY)) {
+            key.append(detection.getEntryLaneId());
+        }
+        else if (detection.getDirectionType().equals(DirectionType.EXIT)) {
+            key.append(detection.getExitLaneId());
+        } else throw new ServiceException("Lane of PendingEventDetection should not be null");
+
+        if (detection.getType().equals(DetectionType.FACE)) {
+            key.append(":").append(detection.getProfileId());
+        }
+        else if (detection.getType().equals(DetectionType.PLATE)) {
+            key.append(":").append(detection.getPlateNumber());
+        } else throw new ServiceException("Detection type of PendingEventDetection should not be null");
+
+        return key.toString();
     }
 
     private String buildMatchKey(PendingEventDetection detection) {
