@@ -14,7 +14,3 @@ ALTER TABLE branch
     ADD COLUMN IF NOT EXISTS longitude NUMERIC,
     ADD COLUMN IF NOT EXISTS created_by VARCHAR(100),
     ADD COLUMN IF NOT EXISTS updated_by VARCHAR(100);
-
--- Add PostGIS geography column for spatial queries
-ALTER TABLE branch
-    ADD COLUMN IF NOT EXISTS location geography(Point, 4326);
