@@ -61,39 +61,39 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> {
                     auth
-                            // keep public endpoints
-                            .requestMatchers("/core/public/**").permitAll()
-                            .requestMatchers("/api/ingest/**",
-                                    "/webhook/stringee/**")
-                            .permitAll()
-//                            // allow OpenAPI/Swagger UI and JSON (both with and without context-path)
-                            .requestMatchers("/admin/bootstrap/**",
-                                    "/api-docs/**",
-                                    "/v3/api-docs/**",
-                                    "/swagger-ui/**",
-                                    "/swagger-ui.html",
-                                    "/swagger-ui/index.html",
-                                    "/core/api-docs/**",
-                                    "/core/v3/api-docs/**",
-                                    "/core/swagger-ui/**",
-                                    "/core/swagger-ui.html",
-                                    "/core/swagger-ui/index.html",
-                                    "/profile-controller/findAll")
-
-                            .permitAll()
-                            .requestMatchers(
-                                    "/api/payment/callback",
-                                    "/api/payment/ipn",
-                                    "/api/payment/webhook/sepay",
-                                    "/api/payment/inquiry/**").permitAll();
-//                            .anyRequest().permitAll();
-                    auth.anyRequest().authenticated();
+//                            // keep public endpoints
+//                            .requestMatchers("/core/public/**").permitAll()
+//                            .requestMatchers("/api/ingest/**",
+//                                    "/webhook/stringee/**")
+//                            .permitAll()
+////                            // allow OpenAPI/Swagger UI and JSON (both with and without context-path)
+//                            .requestMatchers("/admin/bootstrap/**",
+//                                    "/api-docs/**",
+//                                    "/v3/api-docs/**",
+//                                    "/swagger-ui/**",
+//                                    "/swagger-ui.html",
+//                                    "/swagger-ui/index.html",
+//                                    "/core/api-docs/**",
+//                                    "/core/v3/api-docs/**",
+//                                    "/core/swagger-ui/**",
+//                                    "/core/swagger-ui.html",
+//                                    "/core/swagger-ui/index.html",
+//                                    "/profile-controller/findAll")
+//
+//                            .permitAll()
+//                            .requestMatchers(
+//                                    "/api/payment/callback",
+//                                    "/api/payment/ipn",
+//                                    "/api/payment/webhook/sepay",
+//                                    "/api/payment/inquiry/**").permitAll();
+                            .anyRequest().permitAll();
+//                    auth.anyRequest().authenticated();
                 })
 
-                .oauth2ResourceServer(oauth2 -> oauth2
-                        .authenticationEntryPoint(customAuthEntryPoint())
-                        .jwt(jwt -> jwt
-                                .jwtAuthenticationConverter(jwtAuthConverter)))
+//                .oauth2ResourceServer(oauth2 -> oauth2
+//                        .authenticationEntryPoint(customAuthEntryPoint())
+//                        .jwt(jwt -> jwt
+//                                .jwtAuthenticationConverter(jwtAuthConverter)))
 
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(customAuthEntryPoint())
