@@ -4,11 +4,17 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import vio.barie.core.common.OperatingStatus;
+import vio.barie.core.dto.Result;
+import vio.barie.core.dto.parking.HourlyTrafficResponse;
+import vio.barie.core.dto.parking.ParkingMetricsRequest;
 import vio.barie.core.entity.ParkingDeviceEntity;
 import vio.barie.core.entity.ParkingMessageEntity;
 import vio.barie.core.repository.ParkingDeviceRepository;
 import vio.barie.core.repository.ParkingMessageRepository;
+import vio.barie.core.service.ParkingSessionService;
 
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @RestController
@@ -17,6 +23,7 @@ import java.util.List;
 public class ParkingMonitorController {
     private final ParkingMessageRepository messageRepository;
     private final ParkingDeviceRepository deviceRepository;
+    private final ParkingSessionService parkingSessionService;
 
     @GetMapping("/devices")
     public List<ParkingDeviceEntity> devices() {
@@ -40,6 +47,29 @@ public class ParkingMonitorController {
     ) {
         return messageRepository
                 .findTop50ByDeviceIdOrderByCreatedAtDesc(deviceId);
+    }
+
+//    @GetMapping("/parking/metrics")
+//    public List<> parkingMetrics (@RequestParam ParkingMetricsRequest pmr) {
+//
+//    }
+
+    @GetMapping("/parking/hourly-traffic")
+    public Result<List<HourlyTrafficResponse>> getHourlyTraffic ( @RequestParam LocalDateTime startDate,
+                                                                  @RequestParam LocalDateTime endDate,
+                                                                  @RequestParam(required = false) Integer parkingLotId) {
+        ParkingMetricsRequest request = new ParkingMetricsRequest();
+        request.setStartDate(startDate);
+        request.setEndDate(endDate);
+        request.setParkingLotId(parkingLotId);
+        if (request.getEndDate().isBefore(request.getStartDate())) {
+            throw new IllegalArgumentException("End date must be after start date");
+        }
+        if (ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate()) > 30) {
+            throw new IllegalArgumentException("Date range cannot exceed 30 days");
+        }
+        List<HourlyTrafficResponse> response = parkingSessionService.getHourlyStatistics(request);
+        return Result.ok(response);
     }
 
 }

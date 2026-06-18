@@ -28,7 +28,8 @@ public class PlateService {
         AiPlateResponse aiResponse = aiPlateGateway.create(request);
 
         VehicleEntity device = plateMapper.toVehicle(aiResponse);
-        VehicleRepository.save(device);
+        VehicleEntity vehicle = VehicleRepository.save(device);
+        aiResponse.setVehicle(vehicle);
         return aiResponse;
     }
 

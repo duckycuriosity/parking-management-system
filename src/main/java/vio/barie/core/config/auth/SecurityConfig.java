@@ -61,12 +61,12 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> {
                     auth
-                            // keep public endpoints
+//                            // keep public endpoints
 //                            .requestMatchers("/core/public/**").permitAll()
 //                            .requestMatchers("/api/ingest/**",
 //                                    "/webhook/stringee/**")
 //                            .permitAll()
-//                            // allow OpenAPI/Swagger UI and JSON (both with and without context-path)
+////                            // allow OpenAPI/Swagger UI and JSON (both with and without context-path)
 //                            .requestMatchers("/admin/bootstrap/**",
 //                                    "/api-docs/**",
 //                                    "/v3/api-docs/**",
@@ -81,7 +81,11 @@ public class SecurityConfig {
 //                                    "/profile-controller/findAll")
 //
 //                            .permitAll()
-//                            .requestMatchers("/api/payment/callback", "/api/payment/ipn").permitAll();
+//                            .requestMatchers(
+//                                    "/api/payment/callback",
+//                                    "/api/payment/ipn",
+//                                    "/api/payment/webhook/sepay",
+//                                    "/api/payment/inquiry/**").permitAll();
                             .anyRequest().permitAll();
 //                    auth.anyRequest().authenticated();
                 })

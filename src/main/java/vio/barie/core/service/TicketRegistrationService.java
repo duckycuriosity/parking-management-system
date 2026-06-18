@@ -16,7 +16,6 @@ import vio.barie.core.dto.PlateCreateRequest;
 import vio.barie.core.dto.payment.CreatePaymentRequest;
 import vio.barie.core.dto.payment.CreatePaymentResponse;
 import vio.barie.core.dto.payment.PaymentInquiryResponse;
-import vio.barie.core.dto.payment.SePayTransaction;
 import vio.barie.core.dto.ticket.AdminMonthlyTicketRegistrationRequest;
 import vio.barie.core.dto.ticket.RenewTicketRequest;
 import vio.barie.core.dto.ticket.TicketDTO;
@@ -35,6 +34,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Service
@@ -60,6 +60,8 @@ public class TicketRegistrationService {
     public TicketRegistrationResponseDTO registerMonthlyTicket(
             AdminMonthlyTicketRegistrationRequest req,
             MultipartFile faceImage) throws IOException {
+
+        AtomicReference<String> msg = new AtomicReference<>("Vé tháng đăng kí thành công!");
 
         log.info("Starting monthly ticket registration for customer: {}, plate: {}",
                 req.getName(), req.getVehiclePlateNumber());
@@ -97,9 +99,12 @@ public class TicketRegistrationService {
         VehicleEntity vehicle;
         if (vehicleRecord.isPresent()) {
             ticketRepository.findTicketByVehicleId(vehicleRecord.get().getId()).ifPresent(existingTicket -> {
-                if (existingTicket.getStatus() != TicketStatus.DEAD) {
+                if (existingTicket.getStatus() == TicketStatus.ACTIVE) {
                     throw new ServiceException(
-                            "Xe " + req.getVehiclePlateNumber() + " đã có vé đang hiệu lực. Vui lòng dùng API gia hạn.", 400);
+                            "Xe " + req.getVehiclePlateNumber() + " đã có vé đang hiệu lực.", 400);
+                } else {
+                    ticketRepository.delete(existingTicket);
+                    msg.set("Phát hiện vé không còn hiệu lực. Hệ thống đã tự động xóa và tạo mới vé thành công!");
                 }
             });
             vehicle = vehicleRecord.get();
@@ -110,18 +115,9 @@ public class TicketRegistrationService {
             plateReq.setType(req.getVehicleType());
             plateReq.setEnabled(true);
 
-            AiPlateResponse plate = plateService.create(plateReq);
-            log.info("Plate registered successfully: plateId={}, uuid={}", plate.getId(), plate.getUuid());
-
-            // 6️⃣ Create vehicle
-            String normalizedVehicleType = normalizeVehicleType(req.getVehicleType());
-            VehicleEntity newVehicle = new VehicleEntity();
-            newVehicle.setPlateNumber(req.getVehiclePlateNumber());
-            newVehicle.setAiIdentityPlateId(plate.getUuid());
-            newVehicle.setVehicleType(normalizedVehicleType);
-            newVehicle.setInfo("{}");
-
-            vehicle = vehicleRepository.save(newVehicle);
+            AiPlateResponse aiPlateResponse = plateService.create(plateReq);
+            vehicle = aiPlateResponse.getVehicle();
+            log.info("Plate registered successfully: plateId={}, uuid={}", aiPlateResponse.getId(), aiPlateResponse.getUuid());
             log.debug("Vehicle created: vehicleId={}", vehicle.getId());
         }
 
@@ -164,7 +160,7 @@ public class TicketRegistrationService {
                 .email(customer.map(ParkingCustomerEntity::getEmail).orElse(""))
                 .phoneNumber(savedTicket.getPhoneNumber())
                 .notes(savedTicket.getNotes())
-                .message("Monthly ticket registered successfully. Ticket is now active.")
+                .message(msg.get())
                 .build();
 
         log.info("Monthly ticket registration completed successfully: ticketId={}, customerId={}, vehicleId={}",
