@@ -1,6 +1,7 @@
 package vio.barie.core.dto;
 
 import lombok.Data;
+import vio.barie.core.entity.VehicleEntity;
 
 @Data
 public class AiPlateResponse {
@@ -9,4 +10,5 @@ public class AiPlateResponse {
     private String plate;
     private String type;
     private Boolean enabled;
+    private VehicleEntity vehicle;
 }

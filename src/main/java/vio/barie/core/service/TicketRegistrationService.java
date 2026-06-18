@@ -112,18 +112,9 @@ public class TicketRegistrationService {
             plateReq.setType(req.getVehicleType());
             plateReq.setEnabled(true);
 
-            AiPlateResponse plate = plateService.create(plateReq);
-            log.info("Plate registered successfully: plateId={}, uuid={}", plate.getId(), plate.getUuid());
-
-            // 6️⃣ Create vehicle
-            String normalizedVehicleType = normalizeVehicleType(req.getVehicleType());
-            VehicleEntity newVehicle = new VehicleEntity();
-            newVehicle.setPlateNumber(req.getVehiclePlateNumber());
-            newVehicle.setAiIdentityPlateId(plate.getUuid());
-            newVehicle.setVehicleType(normalizedVehicleType);
-            newVehicle.setInfo("{}");
-
-            vehicle = vehicleRepository.save(newVehicle);
+            AiPlateResponse aiPlateResponse = plateService.create(plateReq);
+            vehicle = aiPlateResponse.getVehicle();
+            log.info("Plate registered successfully: plateId={}, uuid={}", aiPlateResponse.getId(), aiPlateResponse.getUuid());
             log.debug("Vehicle created: vehicleId={}", vehicle.getId());
         }
 
