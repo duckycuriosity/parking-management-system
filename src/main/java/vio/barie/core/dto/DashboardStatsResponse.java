@@ -17,6 +17,9 @@ public class DashboardStatsResponse {
     private long totalExit;
     private long totalEntry;
 
+    private long maxMotorcycleCapacity;
+    private long maxCarCapacity;
+
     private VehicleStats vehicleStats;
 
     private long totalSessionTypeCount;

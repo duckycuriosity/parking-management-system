@@ -14,4 +14,6 @@ public class ParkingLotResponse {
     private String description;
     private BaseStatus status;
     private LocalDateTime createdAt;
+    private Integer maxMotorcycleCapacity;
+    private Integer maxCarCapacity;
 }

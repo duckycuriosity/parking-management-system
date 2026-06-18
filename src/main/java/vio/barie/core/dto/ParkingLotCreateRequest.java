@@ -1,5 +1,6 @@
 package vio.barie.core.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -9,7 +10,7 @@ import vio.barie.core.common.BaseStatus;
 @Data
 public class ParkingLotCreateRequest {
 
-   
+
     @NotBlank(message = "Parking lot name is required")
     @Size(max = 255)
     private String name;
@@ -17,9 +18,17 @@ public class ParkingLotCreateRequest {
     @NotNull(message = "buildingId is required")
     private Long buildingId;
 
-    @Size(max = 2000, message = "Description must not exceed 2000 characters")
+    @Size(max = 255, message = "Description must not exceed 2000 characters")
     private String description;
 
     @NotNull(message = "Status is required")
     private BaseStatus status;
+
+    @NotNull(message = "Max Motorcycle Capacity")
+    @JsonProperty("max_motorcycle_capacity")
+    private Integer maxMotorcycleCapacity;
+
+    @NotNull(message = "Max Car Capacity")
+    @JsonProperty("max_car_capacity")
+    private Integer maxCarCapacity;
 }

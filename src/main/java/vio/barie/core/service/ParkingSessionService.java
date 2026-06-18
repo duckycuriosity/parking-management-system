@@ -16,6 +16,7 @@ import vio.barie.core.dto.parking.ParkingMetricsRequest;
 import vio.barie.core.dto.*;
 import vio.barie.core.entity.PaymentEntity;
 import vio.barie.core.entity.ParkingSessionEntity;
+import vio.barie.core.repository.ParkingLotRepository;
 import vio.barie.core.repository.PaymentRepository;
 import vio.barie.core.repository.ParkingSessionRepository;
 
@@ -38,6 +39,7 @@ public class ParkingSessionService {
 
     private final ParkingSessionRepository parkingSessionRepository;
     private final PaymentRepository paymentRepository;
+    private final ParkingLotRepository parkingLotRepository;
 
     public List<ActivitySessionResponse> getTop10ActivitiesByLane(Long laneId) {
         Page<ActivitySessionResponse> page = parkingSessionRepository.getActivityHistoryByLaneId(laneId, PageRequest.of(0, 10));
@@ -167,6 +169,7 @@ public class ParkingSessionService {
                 .buildingName(buildingNameStr)
                 .build();
     }
+
     public List<HourlyTrafficResponse> getHourlyStatistics(ParkingMetricsRequest request) {
         // Lấy dữ liệu từ repository
         List<Object[]> entriesResult = parkingSessionRepository.countEntriesByHour(
@@ -255,10 +258,10 @@ public class ParkingSessionService {
         if (startDate.isAfter(endDate)) {
             throw new IllegalArgumentException("Ngày bắt đầu không được lớn hơn ngày kết thúc");
         }
-
+        // tính toán traffic ra vào
         long totalEntry = parkingSessionRepository.countTotalEntries(startDate, endDate, parkingLotId);
         long totalExit = parkingSessionRepository.countTotalExits(startDate, endDate, parkingLotId);
-
+        // thống kê các loại xe
         List<VehicleStatProjection> vehicleStatsList = parkingSessionRepository.countVehicleTypeStats(startDate, endDate, parkingLotId);
         DashboardStatsResponse.VehicleStats vehicleStats = new DashboardStatsResponse.VehicleStats();
 
@@ -279,7 +282,7 @@ public class ParkingSessionService {
                     break;
             }
         }
-
+        // thống kê phiên
         long totalSessionTypeCount = parkingSessionRepository.countTotalSessionTypes(startDate, endDate, parkingLotId);
 
         List<SessionStatProjection> sessionStatsList = parkingSessionRepository.countSessionTypeDetails(startDate, endDate, parkingLotId);
@@ -289,6 +292,14 @@ public class ParkingSessionService {
                         SessionStatProjection::getTotal
                 ));
 
+        // tính toán sức chứa
+        long maxMotorcycle = 0;
+        long maxCar = 0;
+        List<Object[]> capacityResult = parkingLotRepository.getCapacityStats(parkingLotId);
+        if (!capacityResult.isEmpty() && capacityResult.get(0).length == 2) {
+            maxMotorcycle = ((Number) capacityResult.get(0)[0]).longValue();
+            maxCar = ((Number) capacityResult.get(0)[1]).longValue();
+        }
         return DashboardStatsResponse.builder()
                 .totalTraffic(totalEntry + totalExit)
                 .totalEntry(totalEntry)
@@ -296,6 +307,8 @@ public class ParkingSessionService {
                 .vehicleStats(vehicleStats)
                 .totalSessionTypeCount(totalSessionTypeCount)
                 .sessionTypeDetails(sessionTypeDetails)
+                .maxMotorcycleCapacity(maxMotorcycle)
+                .maxCarCapacity(maxCar)
                 .build();
     }
 }

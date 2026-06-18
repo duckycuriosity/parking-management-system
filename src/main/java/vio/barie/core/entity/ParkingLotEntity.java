@@ -28,6 +28,12 @@ public class ParkingLotEntity extends BaseEntity {
     @Column(name = "status")
     private BaseStatus status;
 
+    @Column(name = "max_motorcycle_capacity")
+    private Integer maxMotorcycleCapacity;
+
+    @Column(name = "max_car_capacity")
+    private Integer maxCarCapacity;
+
     // Quan hệ 1-n với Lane
     @OneToMany(mappedBy = "parkingLot", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<LaneEntity> lanes;

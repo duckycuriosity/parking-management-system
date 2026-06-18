@@ -16,6 +16,8 @@ public class ParkingLotMapper {
         entity.setName(request.getName());
         entity.setDescription(request.getDescription());
         entity.setStatus(request.getStatus());
+        entity.setMaxMotorcycleCapacity(request.getMaxMotorcycleCapacity());
+        entity.setMaxCarCapacity(request.getMaxCarCapacity());
         return entity;
     }
 
@@ -30,6 +32,8 @@ public class ParkingLotMapper {
         resp.setDescription(entity.getDescription());
         resp.setStatus(entity.getStatus());
         resp.setCreatedAt(entity.getCreatedAt());
+        resp.setMaxMotorcycleCapacity(entity.getMaxMotorcycleCapacity());
+        resp.setMaxCarCapacity(entity.getMaxCarCapacity());
         return resp;
     }
 
