@@ -25,6 +25,7 @@ public class BarrierService {
     private final ParkingDeviceRepository parkingDeviceRepository;
     private final LaneRepository laneRepository;
 
+    @Transactional
     public List<BarrierDetailResponse> getAllBarrierDetails() {
 
         List<BarrierEntity> barriers = barrierRepository.findAllWithDeviceAndLane();

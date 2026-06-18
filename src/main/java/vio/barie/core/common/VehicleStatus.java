@@ -1,5 +1,5 @@
 package vio.barie.core.common;
 
 public enum VehicleStatus {
-    MOTOBIKE, CAR, OTHER
+    MOTORBIKE, CAR, OTHER
 }

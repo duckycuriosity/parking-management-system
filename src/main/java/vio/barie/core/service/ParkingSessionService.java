@@ -9,13 +9,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vio.barie.core.common.InOutStatus;
 import vio.barie.core.common.SessionType;
-import vio.barie.core.dto.ActivitySessionResponse;
-import vio.barie.core.dto.ParkingSessionDetailResponse;
+import vio.barie.core.dto.*;
 import vio.barie.core.entity.PaymentEntity;
 import vio.barie.core.entity.ParkingSessionEntity;
 import vio.barie.core.repository.PaymentRepository;
 import vio.barie.core.repository.ParkingSessionRepository;
 
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -68,7 +69,7 @@ public class ParkingSessionService {
                 }
             }
         }
-        return sessionTypes;
+        return sessionTypes.isEmpty() ? null : sessionTypes;
     }
 
     @Transactional(readOnly = true)
@@ -159,4 +160,61 @@ public class ParkingSessionService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
+    public DashboardStatsResponse getDashboardStatistics(
+            Long parkingLotId, LocalDateTime startDate, LocalDateTime endDate) {
+
+        if (startDate == null) {
+            startDate = LocalDateTime.now().with(LocalTime.MIN);
+        }
+        if (endDate == null) {
+            endDate = LocalDateTime.now().with(LocalTime.MAX);
+        }
+
+        if (startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("Ngày bắt đầu không được lớn hơn ngày kết thúc");
+        }
+
+        long totalEntry = parkingSessionRepository.countTotalEntries(startDate, endDate, parkingLotId);
+        long totalExit = parkingSessionRepository.countTotalExits(startDate, endDate, parkingLotId);
+
+        List<VehicleStatProjection> vehicleStatsList = parkingSessionRepository.countVehicleTypeStats(startDate, endDate, parkingLotId);
+        DashboardStatsResponse.VehicleStats vehicleStats = new DashboardStatsResponse.VehicleStats();
+
+        for (VehicleStatProjection proj : vehicleStatsList) {
+            if (proj.getVehicleType() == null) continue;
+            String type = proj.getVehicleType().toUpperCase();
+            long total = proj.getTotal() != null ? proj.getTotal() : 0;
+
+            switch (type) {
+                case "MOTORBIKE":
+                    vehicleStats.setTotalMotorbike(total);
+                    break;
+                case "CAR":
+                    vehicleStats.setTotalCar(total);
+                    break;
+                default:
+                    vehicleStats.setTotalOther(vehicleStats.getTotalOther() + total);
+                    break;
+            }
+        }
+
+        long totalSessionTypeCount = parkingSessionRepository.countTotalSessionTypes(startDate, endDate, parkingLotId);
+
+        List<SessionStatProjection> sessionStatsList = parkingSessionRepository.countSessionTypeDetails(startDate, endDate, parkingLotId);
+        Map<String, Long> sessionTypeDetails = sessionStatsList.stream()
+                .collect(Collectors.toMap(
+                        proj -> proj.getSessionType() != null ? proj.getSessionType().toString() : "UNKNOWN",
+                        SessionStatProjection::getTotal
+                ));
+
+        return DashboardStatsResponse.builder()
+                .totalTraffic(totalEntry + totalExit)
+                .totalEntry(totalEntry)
+                .totalExit(totalExit)
+                .vehicleStats(vehicleStats)
+                .totalSessionTypeCount(totalSessionTypeCount)
+                .sessionTypeDetails(sessionTypeDetails)
+                .build();
+    }
 }

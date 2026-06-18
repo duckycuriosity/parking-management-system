@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import vio.barie.core.dto.DeviceLaneResponse;
+import vio.barie.core.dto.DeviceStatsResponse;
 import vio.barie.core.dto.Result;
 import vio.barie.core.service.DeviceLaneService;
 
@@ -26,6 +27,12 @@ public class DeviceLaneController {
     public Result<List<DeviceLaneResponse>> getAllDevice() {
         List<DeviceLaneResponse> data = deviceLaneService.getAllDevice();
         return Result.ok("Get All Device Successfully", data);
+    }
+
+    @GetMapping("/statistics")
+    public Result<DeviceStatsResponse> getDeviceStatistics() {
+        DeviceStatsResponse data = deviceLaneService.getDeviceStats();
+        return Result.ok("Get Device Statistics Successfully", data);
     }
 
 }

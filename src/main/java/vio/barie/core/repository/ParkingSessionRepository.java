@@ -6,9 +6,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import vio.barie.core.common.SessionType;
 import vio.barie.core.dto.ActivitySessionResponse;
+import vio.barie.core.dto.SessionStatProjection;
+import vio.barie.core.dto.VehicleStatProjection;
 import vio.barie.core.entity.ParkingSessionEntity;
 import org.springframework.data.domain.Pageable;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -53,8 +56,8 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "LEFT JOIN s.entryLane el " +
             "LEFT JOIN s.exitLane xl " +
             "LEFT JOIN s.entryCustomer ec " +
-            "LEFT JOIN TicketEntity t ON s.ticketId = t.id " +
-            "LEFT JOIN t.customer c " +
+//            "LEFT JOIN TicketEntity t ON s.ticketId = t.id " +
+//            "LEFT JOIN t.customer c " +
             "WHERE s.parkingLot.id = :parkingLotId " +
             "AND (:searchKey IS NULL OR :searchKey = '' OR(" +
             "     LOWER(ec.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) OR " +
@@ -82,8 +85,8 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "LEFT JOIN s.entryLane el " +
             "LEFT JOIN s.exitLane xl " +
             "LEFT JOIN s.entryCustomer ec " +
-            "LEFT JOIN TicketEntity t ON s.ticketId = t.id " +
-            "LEFT JOIN t.customer c " +
+//            "LEFT JOIN TicketEntity t ON s.ticketId = t.id " +
+//            "LEFT JOIN t.customer c " +
             "WHERE " +
             "(:searchKey IS NULL OR :searchKey = '' OR (" +
             "     LOWER(ec.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) " +
@@ -105,4 +108,50 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             @Param("statusInOut") String statusInOut,
             Pageable pageable);
 
+    @Query("SELECT COUNT(s.id) FROM ParkingSessionEntity s " +
+            "WHERE s.entryTime >= :startDate AND s.entryTime <= :endDate " +
+            "AND (:parkingLotId IS NULL OR s.parkingLot.id = :parkingLotId)")
+    long countTotalEntries(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            @Param("parkingLotId") Long parkingLotId);
+
+    @Query("SELECT COUNT(s.id) FROM ParkingSessionEntity s " +
+            "WHERE s.exitTime >= :startDate AND s.exitTime <= :endDate " +
+            "AND (:parkingLotId IS NULL OR s.parkingLot.id = :parkingLotId)")
+    long countTotalExits(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            @Param("parkingLotId") Long parkingLotId);
+
+    @Query("SELECT v.vehicleType AS vehicleType, COUNT(s.id) AS total " +
+            "FROM ParkingSessionEntity s " +
+            "JOIN s.vehicle v " +
+            "WHERE s.entryTime >= :startDate AND s.entryTime <= :endDate " +
+            "AND (:parkingLotId IS NULL OR s.parkingLot.id = :parkingLotId) " +
+            "GROUP BY v.vehicleType")
+    List<VehicleStatProjection> countVehicleTypeStats(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            @Param("parkingLotId") Long parkingLotId);
+
+    @Query("SELECT COUNT(s.id) FROM ParkingSessionEntity s " +
+            "WHERE s.sessionType IS NOT NULL " +
+            "AND s.entryTime >= :startDate AND s.entryTime <= :endDate " +
+            "AND (:parkingLotId IS NULL OR s.parkingLot.id = :parkingLotId)")
+    long countTotalSessionTypes(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            @Param("parkingLotId") Long parkingLotId);
+
+    @Query("SELECT s.sessionType AS sessionType, COUNT(s.id) AS total " +
+            "FROM ParkingSessionEntity s " +
+            "WHERE s.sessionType IS NOT NULL " +
+            "AND s.entryTime >= :startDate AND s.entryTime <= :endDate " +
+            "AND (:parkingLotId IS NULL OR s.parkingLot.id = :parkingLotId) " +
+            "GROUP BY s.sessionType")
+    List<SessionStatProjection> countSessionTypeDetails(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            @Param("parkingLotId") Long parkingLotId);
 }

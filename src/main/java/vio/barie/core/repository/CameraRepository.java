@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface CameraRepository extends JpaRepository<CameraEntity, Long> {
+    long countByStatus(BaseStatus status);
+
     @Query("SELECT c FROM CameraEntity c LEFT JOIN FETCH c.lane l LEFT JOIN FETCH l.parkingLot")
     List<CameraEntity> findAllWithRelations();
 

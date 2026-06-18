@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import vio.barie.core.common.OperatingStatus;
 import vio.barie.core.entity.BarrierEntity;
 
 import java.util.List;
@@ -12,6 +13,8 @@ import java.util.Optional;
 
 @Repository
 public interface BarrierRepository extends JpaRepository<BarrierEntity, Long> {
+    long countByParkingDevice_Status(OperatingStatus status);
+
     Optional<BarrierEntity> findByBarrierId(String barrierId);
 
     @Query("select b from BarrierEntity b join fetch b.parkingDevice where b.barrierId = :barrierId")
@@ -42,5 +45,5 @@ public interface BarrierRepository extends JpaRepository<BarrierEntity, Long> {
             "LEFT JOIN FETCH pd.lane")
     List<BarrierEntity> findAllWithDeviceAndLane();
 
-  
+
 }

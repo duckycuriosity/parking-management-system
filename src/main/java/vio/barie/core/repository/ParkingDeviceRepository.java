@@ -13,6 +13,8 @@ import java.util.Optional;
 
 @Repository
 public interface ParkingDeviceRepository extends JpaRepository<ParkingDeviceEntity, Long> {
+    long countByStatus(OperatingStatus status);
+
     Optional<ParkingDeviceEntity> findByDeviceId(String deviceId);
 
     List<ParkingDeviceEntity> findByLane_Id(Long laneId);
