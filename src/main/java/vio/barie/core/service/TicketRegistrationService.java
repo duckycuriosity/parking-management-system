@@ -16,7 +16,6 @@ import vio.barie.core.dto.PlateCreateRequest;
 import vio.barie.core.dto.payment.CreatePaymentRequest;
 import vio.barie.core.dto.payment.CreatePaymentResponse;
 import vio.barie.core.dto.payment.PaymentInquiryResponse;
-import vio.barie.core.dto.payment.SePayTransaction;
 import vio.barie.core.dto.ticket.AdminMonthlyTicketRegistrationRequest;
 import vio.barie.core.dto.ticket.RenewTicketRequest;
 import vio.barie.core.dto.ticket.TicketDTO;
@@ -35,6 +34,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Service
@@ -60,6 +60,8 @@ public class TicketRegistrationService {
     public TicketRegistrationResponseDTO registerMonthlyTicket(
             AdminMonthlyTicketRegistrationRequest req,
             MultipartFile faceImage) throws IOException {
+
+        AtomicReference<String> msg = new AtomicReference<>("Vé tháng đăng kí thành công!");
 
         log.info("Starting monthly ticket registration for customer: {}, plate: {}",
                 req.getName(), req.getVehiclePlateNumber());
@@ -102,6 +104,7 @@ public class TicketRegistrationService {
                             "Xe " + req.getVehiclePlateNumber() + " đã có vé đang hiệu lực.", 400);
                 } else {
                     ticketRepository.delete(existingTicket);
+                    msg.set("Phát hiện vé không còn hiệu lực. Hệ thống đã tự động xóa và tạo mới vé thành công!");
                 }
             });
             vehicle = vehicleRecord.get();
@@ -157,7 +160,7 @@ public class TicketRegistrationService {
                 .email(customer.map(ParkingCustomerEntity::getEmail).orElse(""))
                 .phoneNumber(savedTicket.getPhoneNumber())
                 .notes(savedTicket.getNotes())
-                .message("Monthly ticket registered successfully. Ticket is now active.")
+                .message(msg.get())
                 .build();
 
         log.info("Monthly ticket registration completed successfully: ticketId={}, customerId={}, vehicleId={}",
