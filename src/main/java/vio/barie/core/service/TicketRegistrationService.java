@@ -351,7 +351,7 @@ public class TicketRegistrationService {
         // Vehicle type validation against DB constraint: CAR, MOTOBIKE, OTHER
         if (normalizeVehicleType(req.getVehicleType()) == null) {
             throw new ServiceException(
-                    "Invalid vehicleType. Supported: CAR, MOTOBIKE, OTHER (aliases: MOTORBIKE, SEDAN, SUV, TRUCK)",
+                    "Invalid vehicleType. Supported: CAR, MOTORBIKE, OTHER (aliases: MOTORBIKE, SEDAN, SUV, TRUCK)",
                     400);
         }
     }
@@ -366,7 +366,7 @@ public class TicketRegistrationService {
             return "CAR";
         }
         if ("MOTOBIKE".equals(value) || "MOTORBIKE".equals(value) || "BIKE".equals(value)) {
-            return "MOTOBIKE";
+            return "MOTORBIKE";
         }
         if ("OTHER".equals(value)) {
             return "OTHER";
