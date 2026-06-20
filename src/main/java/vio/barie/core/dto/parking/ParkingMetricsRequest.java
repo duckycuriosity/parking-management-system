@@ -11,5 +11,5 @@ public class ParkingMetricsRequest {
     LocalDateTime startDate;
     @NotNull(message = "Start date is required")
     LocalDateTime endDate;
-    private Integer parkingLotId;
+    private Integer buildingId;
 }

@@ -174,13 +174,13 @@ public class ParkingSessionService {
     public List<HourlyTrafficResponse> getHourlyStatistics(ParkingMetricsRequest request) {
         // Lấy dữ liệu từ repository
         List<Object[]> entriesResult = parkingSessionRepository.countEntriesByHour(
-                request.getParkingLotId(),
+                request.getBuildingId(),
                 request.getStartDate(),
                 request.getEndDate()
         );
 
         List<Object[]> exitsResult = parkingSessionRepository.countExitsByHour(
-                request.getParkingLotId(),
+                request.getBuildingId(),
                 request.getStartDate(),
                 request.getEndDate()
         );

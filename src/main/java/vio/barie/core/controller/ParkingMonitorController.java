@@ -70,11 +70,11 @@ public class ParkingMonitorController {
     @GetMapping("/parking/hourly-traffic")
     public Result<List<HourlyTrafficResponse>> getHourlyTraffic ( @RequestParam LocalDateTime startDate,
                                                                   @RequestParam LocalDateTime endDate,
-                                                                  @RequestParam(required = false) Integer parkingLotId) {
+                                                                  @RequestParam(required = false) Integer buildingId) {
         ParkingMetricsRequest request = new ParkingMetricsRequest();
         request.setStartDate(startDate);
         request.setEndDate(endDate);
-        request.setParkingLotId(parkingLotId);
+        request.setBuildingId(buildingId);
         if (request.getEndDate().isBefore(request.getStartDate())) {
             throw new IllegalArgumentException("End date must be after start date");
         }
