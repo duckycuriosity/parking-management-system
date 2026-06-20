@@ -24,11 +24,10 @@ public class ParkingLotCreateRequest {
     @NotNull(message = "Status is required")
     private BaseStatus status;
 
-    @NotNull(message = "Max Motorcycle Capacity")
     @JsonProperty("max_motorcycle_capacity")
     private Integer maxMotorcycleCapacity;
 
-    @NotNull(message = "Max Car Capacity")
+
     @JsonProperty("max_car_capacity")
     private Integer maxCarCapacity;
 }

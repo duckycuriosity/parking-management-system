@@ -102,8 +102,13 @@ public class ParkingLotService {
         entity.setBuilding(building);
         entity.setDescription(request.getDescription());
         entity.setStatus(request.getStatus());
-        entity.setMaxMotorcycleCapacity(request.getMaxMotorcycleCapacity());
-        entity.setMaxCarCapacity(request.getMaxCarCapacity());
+        if (request.getMaxMotorcycleCapacity() != null) {
+            entity.setMaxMotorcycleCapacity(request.getMaxMotorcycleCapacity());
+        }
+        if (request.getMaxCarCapacity() != null) {
+            entity.setMaxCarCapacity(request.getMaxCarCapacity());
+
+        }
         ParkingLotEntity saved = parkingLotRepository.save(entity);
         return parkingLotMapper.toResponse(saved);
     }

@@ -178,7 +178,6 @@ public class LaneService {
                 oldCam.setLane(null);
             }
         }
-    
         if (!newCameraIds.isEmpty()) {
             Iterable<CameraEntity> cams = cameraRepository.findAllById(newCameraIds);
             for (CameraEntity cam : cams) {
@@ -242,7 +241,6 @@ public class LaneService {
                     "Làn này đang được liên kết với dữ liệu khác, không thể xóa!",
                     "LANE_IN_USE", 409);
         }
-        laneRepository.delete(entity);
     }
 
     @Transactional
