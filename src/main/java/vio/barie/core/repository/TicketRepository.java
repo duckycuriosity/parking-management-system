@@ -73,7 +73,7 @@ public interface TicketRepository extends JpaRepository<TicketEntity, Long>, Jpa
             Pageable pageable);
 
     // 1. tổng số vé (Bỏ qua DEAD)
-    @Query("SELECT COUNT(t) FROM TicketEntity t WHERE t.status IN ('ACTIVE', 'INACTIVE')")
+    @Query("SELECT COUNT(t) FROM TicketEntity t WHERE t.status IN ('ACTIVE', 'INACTIVE', 'DEAD')")
     long countTotalTickets();
 
     // 2. vé đang hoạt động (status = ACTIVE và chưa qua ngày hết hạn)
