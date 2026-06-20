@@ -13,10 +13,12 @@ import vio.barie.core.dto.ActivitySessionResponse;
 import vio.barie.core.dto.ParkingSessionDetailResponse;
 import vio.barie.core.dto.parking.HourlyTrafficResponse;
 import vio.barie.core.dto.parking.ParkingMetricsRequest;
+import vio.barie.core.dto.parking.VehicleMetricsResponse;
 import vio.barie.core.entity.PaymentEntity;
 import vio.barie.core.entity.ParkingSessionEntity;
 import vio.barie.core.repository.PaymentRepository;
 import vio.barie.core.repository.ParkingSessionRepository;
+import vio.barie.core.utils.VehicleType;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -160,6 +162,15 @@ public class ParkingSessionService {
                 .buildingName(buildingNameStr)
                 .build();
     }
+
+    public VehicleMetricsResponse getVehicleMetrics (LocalDateTime startDate, LocalDateTime endDate, Integer buildingId) {
+        VehicleMetricsResponse result = new VehicleMetricsResponse();
+        result.setCars(parkingSessionRepository.countNumberOfVehicleInParkingLot(buildingId, VehicleType.CAR.name(), startDate, endDate));
+        result.setMotorbikes(parkingSessionRepository.countNumberOfVehicleInParkingLot(buildingId, VehicleType.MOTORBIKE.name(), startDate, endDate));
+        result.setUnidentifiedVehicles(parkingSessionRepository.countNumberOfVehicleInParkingLot(buildingId, "OTHER", startDate, endDate));
+        return result;
+    }
+
     public List<HourlyTrafficResponse> getHourlyStatistics(ParkingMetricsRequest request) {
         // Lấy dữ liệu từ repository
         List<Object[]> entriesResult = parkingSessionRepository.countEntriesByHour(

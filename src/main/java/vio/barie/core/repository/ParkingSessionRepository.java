@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import vio.barie.core.common.SessionType;
 import vio.barie.core.dto.ActivitySessionResponse;
+import vio.barie.core.dto.parking.VehicleMetricsResponse;
 import vio.barie.core.entity.ParkingSessionEntity;
 import org.springframework.data.domain.Pageable;
 
@@ -106,6 +107,20 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             @Param("statusInOut") String statusInOut,
             Pageable pageable);
 
+    @Query(value = "SELECT COUNT(*) FROM vehicle v " +
+            "WHERE v.vehicle_type = :vehicle_type " +
+            "AND v.id IN ( " +
+            "    SELECT ps.vehicle_id FROM parking_session ps " +
+            "    WHERE ps.exit_time IS NULL " +
+            "    AND ps.entry_time BETWEEN :startDate AND :endDate " +
+            "    AND ps.parking_lot_id IN ( " +
+            "        SELECT pl.id FROM parking_lot pl WHERE pl.building_id = :building_id" +
+            "    ) " +
+            ")", nativeQuery = true)
+    Integer countNumberOfVehicleInParkingLot(@Param("building_id") Integer building_id,
+                                             @Param("vehicle_type") String vehicle_type,
+                                             @Param("startDate") LocalDateTime startDate,
+                                             @Param("endDate") LocalDateTime endDate);
     @Query(value = """
         SELECT 
             TO_CHAR(DATE_TRUNC('hour', entry_time), 'YYYY-MM-DD HH24:00:00') as hour,

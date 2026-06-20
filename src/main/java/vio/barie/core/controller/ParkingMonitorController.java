@@ -7,6 +7,7 @@ import vio.barie.core.common.OperatingStatus;
 import vio.barie.core.dto.Result;
 import vio.barie.core.dto.parking.HourlyTrafficResponse;
 import vio.barie.core.dto.parking.ParkingMetricsRequest;
+import vio.barie.core.dto.parking.VehicleMetricsResponse;
 import vio.barie.core.entity.ParkingDeviceEntity;
 import vio.barie.core.entity.ParkingMessageEntity;
 import vio.barie.core.repository.ParkingDeviceRepository;
@@ -49,10 +50,22 @@ public class ParkingMonitorController {
                 .findTop50ByDeviceIdOrderByCreatedAtDesc(deviceId);
     }
 
-//    @GetMapping("/parking/metrics")
-//    public List<> parkingMetrics (@RequestParam ParkingMetricsRequest pmr) {
-//
-//    }
+    @GetMapping("/parking/vehicle-metrics")
+    public Result<VehicleMetricsResponse> parkingMetrics (
+            @RequestParam LocalDateTime startDate,
+            @RequestParam LocalDateTime endDate,
+            @RequestParam(required = false) Integer buildingId
+    ) {
+        if (endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException("End date must be after start date");
+        }
+        if (ChronoUnit.DAYS.between(startDate, endDate) > 30) {
+            throw new IllegalArgumentException("Date range cannot exceed 30 days");
+        }
+
+        VehicleMetricsResponse response = parkingSessionService.getVehicleMetrics(startDate, endDate, buildingId);
+        return Result.ok(response);
+    }
 
     @GetMapping("/parking/hourly-traffic")
     public Result<List<HourlyTrafficResponse>> getHourlyTraffic ( @RequestParam LocalDateTime startDate,
