@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import vio.barie.core.common.SessionType;
 import vio.barie.core.dto.ActivitySessionResponse;
+import vio.barie.core.dto.LaneActivityDTO;
 import vio.barie.core.dto.parking.VehicleMetricsResponse;
 import vio.barie.core.entity.ParkingSessionEntity;
 import org.springframework.data.domain.Pageable;

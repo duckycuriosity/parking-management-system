@@ -105,6 +105,14 @@ public class LaneController {
         );
     }
 
+    @GetMapping("/lane-latest-activity")
+    public Result<List<LaneActivityDTO>> getLaneLatestActivity () {
+        return Result.ok(
+                "Success",
+                laneService.getLaneLatestAction()
+        );
+    }
+
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id) {
         laneService.delete(id);
