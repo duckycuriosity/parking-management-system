@@ -8,15 +8,16 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 
 @Data
-@NoArgsConstructor
 @AllArgsConstructor
+@NoArgsConstructor
 public class LaneActivityDTO {
-    private Integer laneId;
+    private Long laneId;
     private String laneName;
     private String laneType;
+    private String lastAction;
     private LocalDateTime lastActionTime;
-    private Integer parkingLotId;
-    private Integer vehicleId;
+    private Long parkingLotId;
+    private Long vehicleId;
     private String plateNumber;
     private String vehicleType;
 }

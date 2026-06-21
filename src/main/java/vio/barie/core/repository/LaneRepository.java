@@ -76,7 +76,7 @@ public interface LaneRepository extends JpaRepository<LaneEntity, Long> {
         la.action_time AS lastActionTime,
         la.parking_lot_id AS parkingLotId,
         la.vehicle_id AS vehicleId,
-        v.plate_number AS licensePlate,
+        v.plate_number AS plateNumber,
         v.vehicle_type AS vehicleType
     FROM latest_activity la
     JOIN lane l ON la.lane_id = l.id

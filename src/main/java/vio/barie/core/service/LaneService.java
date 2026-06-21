@@ -282,7 +282,6 @@ public class LaneService {
         }
     }
     public List<LaneActivityDTO> getLaneLatestAction() {
-        List<LaneActivityDTO> result = laneRepository.findLatestActivityPerLane();
-        return result;
+        return laneRepository.findLatestActivityPerLane();
     }
 }
