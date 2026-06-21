@@ -1,8 +1,10 @@
 package vio.barie.core.repository;
 
+import jakarta.persistence.Tuple;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import vio.barie.core.dto.payment.RevenueSummaryResponse;
 import vio.barie.core.entity.PaymentEntity;
 
 import java.math.BigDecimal;
@@ -16,38 +18,34 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
     boolean existsById(Long id);
     boolean existsBySepayTxId(String sepayTxId);
 
-    // Stats / Reconciliation
-
-    @Query("""
-            SELECT COUNT(p) FROM PaymentEntity p
+    @Query(value = """
+            SELECT
+                COALESCE(SUM(p.amount), 0) AS revenue,
+                COUNT(p.id)                AS count
+            FROM payment p
+            LEFT JOIN parking_session ps
+                ON p.callback_type = 'SESSION'
+               AND (p.callback_context->>'sessionId')::bigint = ps.id
+            LEFT JOIN parking_lot pl ON ps.parking_lot_id = pl.id
             WHERE p.status = :status
-              AND p.paidAt >= :from AND p.paidAt < :to
-            """)
-    long countByStatusAndPaidAtBetween(@Param("status") String status,
-                                       @Param("from") LocalDateTime from,
-                                       @Param("to")   LocalDateTime to);
+              AND p.paid_at >= :from
+              AND p.paid_at < :to
+              AND (
+                    (:parkingLotId IS NULL AND :buildingId IS NULL)
+                    OR (
+                        pl.id IS NOT NULL
+                        AND (:parkingLotId IS NULL OR pl.id = :parkingLotId)
+                        AND (:buildingId   IS NULL OR pl.building_id = :buildingId)
+                    )
+                  )
+            """, nativeQuery = true)
+    Tuple sumAndCountByStatus(
+            @Param("status")       String        status,
+            @Param("from")         LocalDateTime from,
+            @Param("to")           LocalDateTime to,
+            @Param("parkingLotId") Long          parkingLotId,
+            @Param("buildingId")   Long          buildingId);
 
-    @Query("""
-            SELECT COALESCE(SUM(p.amount), 0) FROM PaymentEntity p
-            WHERE p.status = :status
-              AND p.paidAt >= :from AND p.paidAt < :to
-            """)
-    BigDecimal sumAmountByStatusAndPaidAtBetween(@Param("status") String status,
-                                                 @Param("from") LocalDateTime from,
-                                                 @Param("to")   LocalDateTime to);
-
-    @Query("""
-            SELECT p.callbackType,
-                   COUNT(p),
-                   COALESCE(SUM(p.amount), 0)
-            FROM PaymentEntity p
-            WHERE p.status = :status
-              AND p.paidAt >= :from AND p.paidAt < :to
-            GROUP BY p.callbackType
-            """)
-    java.util.List<Object[]> revenueGroupByCallbackType(@Param("status") String status,
-                                                        @Param("from") LocalDateTime from,
-                                                        @Param("to")   LocalDateTime to);
 
     @Query(value = "SELECT * FROM payment " +
             "WHERE callback_type = 'SESSION' " +

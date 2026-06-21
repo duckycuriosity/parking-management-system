@@ -3,6 +3,7 @@ package vio.barie.core.service;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.Tuple;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -20,6 +21,7 @@ import vio.barie.core.config.payment.MegaPayConfig;
 import vio.barie.core.dto.parking.PaymentMessage;
 import vio.barie.core.dto.parking.PaymentSuccessCommand;
 import vio.barie.core.dto.payment.*;
+import vio.barie.core.dto.payment.RevenueSummaryResponse;
 import vio.barie.core.entity.ParkingSessionEntity;
 import vio.barie.core.entity.PaymentEntity;
 import vio.barie.core.entity.TicketEntity;
@@ -135,6 +137,22 @@ public class PaymentService {
     public PaymentInquiryResponse inquiryByInvoiceNo(String invoiceNo){
         return paymentGateway.inquiryByInvoiceNo(invoiceNo);
     };
+
+    @Transactional(readOnly = true)
+    public RevenueSummaryResponse getDailyRevenueSummary(Long parkingLotId, Long buildingId) {
+        LocalDateTime from = LocalDateTime.now().toLocalDate().atStartOfDay();
+        LocalDateTime to = LocalDateTime.now();
+
+        Tuple result = paymentRepository.sumAndCountByStatus("PAID", from, to, parkingLotId, buildingId);
+
+        BigDecimal revenue = result.get("revenue", BigDecimal.class);
+        Number count = (Number) result.get("count");
+
+        return RevenueSummaryResponse.builder()
+                .totalRevenue(revenue != null ? revenue : BigDecimal.ZERO)
+                .successfulTransactions(count != null ? count.longValue() : 0L)
+                .build();
+    }
 
     private void failPendingPaymentsForSession(Long sessionId) {
         if (sessionId == null) return;

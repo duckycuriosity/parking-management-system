@@ -15,7 +15,6 @@ import vio.barie.core.service.payment.megapay.MegaPayGateway;
 import vio.barie.core.service.payment.sepay.SePayGateway;
 
 @Configuration
-@ConfigurationProperties(prefix = "payment")
 @RequiredArgsConstructor
 public class PaymentConfig {
     @Value("${payment.method}")

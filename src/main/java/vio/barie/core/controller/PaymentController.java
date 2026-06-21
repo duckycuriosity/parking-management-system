@@ -11,6 +11,7 @@ import vio.barie.core.dto.Result;
 import vio.barie.core.dto.payment.MegaPayResponse;
 import vio.barie.core.dto.payment.PaymentInquiryResponse;
 import vio.barie.core.dto.payment.RefundRequest;
+import vio.barie.core.dto.payment.RevenueSummaryResponse;
 import vio.barie.core.service.PaymentService;
 
 import java.util.Map;
@@ -61,5 +62,12 @@ public class PaymentController {
         PaymentInquiryResponse resp = paymentService.inquiryByInvoiceNo(invoiceNo);
         if (resp == null) return Result.error(404, "Transaction not found");
         return Result.ok(resp);
+    }
+
+    @GetMapping("/statistics")
+    public Result<RevenueSummaryResponse> getDailyRevenue(
+            @RequestParam(required = false) Long parkingLotId,
+            @RequestParam(required = false) Long buildingId) {
+        return Result.ok(paymentService.getDailyRevenueSummary(parkingLotId, buildingId));
     }
 }
