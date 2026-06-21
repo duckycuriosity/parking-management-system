@@ -112,15 +112,12 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
                         "AND v.id IN ( " +
                         "    SELECT ps.vehicle_id FROM parking_session ps " +
                         "    WHERE ps.exit_time IS NULL " +
-                        "    AND ps.entry_time BETWEEN :startDate AND :endDate " +
                         "    AND (:building_id IS NULL OR ps.parking_lot_id IN ( " +
                         "        SELECT pl.id FROM parking_lot pl WHERE pl.building_id = :building_id" +
                         "    )) " +
                         ")", nativeQuery = true)
         Integer countNumberOfVehicleInParkingLot(@Param("building_id") Integer building_id,
-                        @Param("vehicle_type") String vehicle_type,
-                        @Param("startDate") LocalDateTime startDate,
-                        @Param("endDate") LocalDateTime endDate);
+                        @Param("vehicle_type") String vehicle_type);
 
         @Query(value = """
             SELECT
@@ -128,7 +125,6 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
                 COUNT(*) as entries
             FROM parking_session
             WHERE (:buildingId IS NULL OR parking_lot_id IN (SELECT pl.id FROM parking_lot pl WHERE pl.building_id = :buildingId))
-                AND entry_time BETWEEN :startDate AND :endDate
             GROUP BY DATE_TRUNC('hour', entry_time)
             ORDER BY hour
             """, nativeQuery = true)
@@ -143,7 +139,6 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             FROM parking_session
             WHERE (:buildingId IS NULL OR parking_lot_id IN (SELECT pl.id FROM parking_lot pl WHERE pl.building_id = :buildingId))
                 AND exit_time IS NOT NULL
-                AND exit_time BETWEEN :startDate AND :endDate
             GROUP BY DATE_TRUNC('hour', exit_time)
             ORDER BY hour
             """, nativeQuery = true)

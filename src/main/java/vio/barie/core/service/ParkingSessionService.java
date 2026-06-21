@@ -163,11 +163,11 @@ public class ParkingSessionService {
                 .build();
     }
 
-    public VehicleMetricsResponse getVehicleMetrics (LocalDateTime startDate, LocalDateTime endDate, Integer buildingId) {
+    public VehicleMetricsResponse getVehicleMetrics (Integer buildingId) {
         VehicleMetricsResponse result = new VehicleMetricsResponse();
-        result.setCars(parkingSessionRepository.countNumberOfVehicleInParkingLot(buildingId, VehicleType.CAR.name(), startDate, endDate));
-        result.setMotorbikes(parkingSessionRepository.countNumberOfVehicleInParkingLot(buildingId, VehicleType.MOTORBIKE.name(), startDate, endDate));
-        result.setUnidentifiedVehicles(parkingSessionRepository.countNumberOfVehicleInParkingLot(buildingId, "OTHER", startDate, endDate));
+        result.setCars(parkingSessionRepository.countNumberOfVehicleInParkingLot(buildingId, VehicleType.CAR.name()));
+        result.setMotorbikes(parkingSessionRepository.countNumberOfVehicleInParkingLot(buildingId, VehicleType.MOTORBIKE.name()));
+        result.setUnidentifiedVehicles(parkingSessionRepository.countNumberOfVehicleInParkingLot(buildingId, "OTHER"));
         return result;
     }
 

@@ -52,25 +52,16 @@ public class ParkingMonitorController {
 
     @GetMapping("/parking/vehicle-metrics")
     public Result<VehicleMetricsResponse> parkingMetrics (
-            @RequestParam LocalDateTime startDate,
-            @RequestParam LocalDateTime endDate,
             @RequestParam(required = false) Integer buildingId
     ) {
-        if (endDate.isBefore(startDate)) {
-            throw new IllegalArgumentException("End date must be after start date");
-        }
-        if (ChronoUnit.DAYS.between(startDate, endDate) > 30) {
-            throw new IllegalArgumentException("Date range cannot exceed 30 days");
-        }
-
-        VehicleMetricsResponse response = parkingSessionService.getVehicleMetrics(startDate, endDate, buildingId);
+        VehicleMetricsResponse response = parkingSessionService.getVehicleMetrics(buildingId);
         return Result.ok(response);
     }
 
     @GetMapping("/parking/hourly-traffic")
-    public Result<List<HourlyTrafficResponse>> getHourlyTraffic ( @RequestParam LocalDateTime startDate,
-                                                                  @RequestParam LocalDateTime endDate,
-                                                                  @RequestParam(required = false) Integer buildingId) {
+    public Result<List<HourlyTrafficResponse>> getHourlyTraffic (@RequestParam(required = false) Integer buildingId,
+                                                                 @RequestParam LocalDateTime startDate,
+                                                                 @RequestParam LocalDateTime endDate) {
         ParkingMetricsRequest request = new ParkingMetricsRequest();
         request.setStartDate(startDate);
         request.setEndDate(endDate);
