@@ -48,6 +48,9 @@ dependencies {
     implementation 'commons-io:commons-io:2.18.0'
     implementation 'org.json:json:20250517'
 
+    // Excel export
+    implementation 'org.apache.poi:poi-ooxml:5.3.0'
+
     // API Docs
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
 
