@@ -14,16 +14,25 @@ import vio.barie.core.dto.ParkingSessionDetailResponse;
 import vio.barie.core.dto.parking.HourlyTrafficResponse;
 import vio.barie.core.dto.parking.ParkingMetricsRequest;
 import vio.barie.core.dto.parking.VehicleMetricsResponse;
+import vio.barie.core.dto.*;
 import vio.barie.core.entity.PaymentEntity;
 import vio.barie.core.entity.ParkingSessionEntity;
+import vio.barie.core.repository.ParkingLotRepository;
 import vio.barie.core.repository.PaymentRepository;
 import vio.barie.core.repository.ParkingSessionRepository;
 import vio.barie.core.utils.VehicleType;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -33,6 +42,7 @@ public class ParkingSessionService {
 
     private final ParkingSessionRepository parkingSessionRepository;
     private final PaymentRepository paymentRepository;
+    private final ParkingLotRepository parkingLotRepository;
 
     public List<ActivitySessionResponse> getTop10ActivitiesByLane(Long laneId) {
         Page<ActivitySessionResponse> page = parkingSessionRepository.getActivityHistoryByLaneId(laneId, PageRequest.of(0, 10));
@@ -72,7 +82,7 @@ public class ParkingSessionService {
                 }
             }
         }
-        return sessionTypes;
+        return sessionTypes.isEmpty() ? null : sessionTypes;
     }
 
     @Transactional(readOnly = true)
@@ -163,7 +173,7 @@ public class ParkingSessionService {
                 .build();
     }
 
-    public VehicleMetricsResponse getVehicleMetrics (Integer buildingId) {
+    public VehicleMetricsResponse getVehicleMetrics(Integer buildingId) {
         VehicleMetricsResponse result = new VehicleMetricsResponse();
         result.setCars(parkingSessionRepository.countNumberOfVehicleInParkingLot(buildingId, VehicleType.CAR.name()));
         result.setMotorbikes(parkingSessionRepository.countNumberOfVehicleInParkingLot(buildingId, VehicleType.MOTORBIKE.name()));
@@ -243,6 +253,98 @@ public class ParkingSessionService {
             current = current.plusHours(1);
         }
         return dateTimes;
+    }
+
+    @Transactional(readOnly = true)
+    public DashboardStatsResponse getDashboardStatistics(
+            Long buildingId, Long parkingLotId) {
+
+
+        // thống kê các loại xe
+        List<VehicleStatProjection> vehicleStatsList = parkingSessionRepository.countVehicleTypeStats(buildingId, parkingLotId);
+        DashboardStatsResponse.VehicleStats vehicleStats = new DashboardStatsResponse.VehicleStats();
+
+        for (VehicleStatProjection proj : vehicleStatsList) {
+            if (proj.getVehicleType() == null) continue;
+            String type = proj.getVehicleType().toUpperCase();
+            long total = proj.getTotal() != null ? proj.getTotal() : 0;
+
+            switch (type) {
+                case "MOTORBIKE":
+                    vehicleStats.setTotalMotorbike(total);
+                    break;
+                case "CAR":
+                    vehicleStats.setTotalCar(total);
+                    break;
+                default:
+                    vehicleStats.setTotalOther(vehicleStats.getTotalOther() + total);
+                    break;
+            }
+        }
+
+
+        // tính toán sức chứa
+        long maxMotorcycle = 0;
+        long maxCar = 0;
+        List<Object[]> capacityResult = parkingLotRepository.getCapacityStats(buildingId, parkingLotId);
+        if (!capacityResult.isEmpty() && capacityResult.get(0).length == 2) {
+            maxMotorcycle = ((Number) capacityResult.get(0)[0]).longValue();
+            maxCar = ((Number) capacityResult.get(0)[1]).longValue();
+        }
+
+        // validate vượt sức chứa
+        boolean isFull = false;
+        String warningMessage = null;
+
+        boolean isMotorbikeFull = maxMotorcycle >= 0 && vehicleStats.getTotalMotorbike() >= maxMotorcycle;
+        boolean isCarFull = maxCar >= 0 && vehicleStats.getTotalCar() >= maxCar;
+        if (isMotorbikeFull && isCarFull) {
+            isFull = true;
+            warningMessage = "Bãi gửi xe đã hết chỗ (cả ô tô và xe máy), vui lòng qua bãi gửi xe khác.";
+        } else if (isMotorbikeFull) {
+            isFull = true;
+            warningMessage = "Bãi gửi xe đã hết chỗ cho Xe Máy, vui lòng qua bãi gửi xe khác.";
+        } else if (isCarFull) {
+            isFull = true;
+            warningMessage = "Bãi gửi xe đã hết chỗ cho Ô Tô, vui lòng qua bãi gửi xe khác.";
+        }
+        return DashboardStatsResponse.builder()
+
+                .vehicleStats(vehicleStats)
+                .maxMotorcycleCapacity(maxMotorcycle)
+                .maxCarCapacity(maxCar)
+                .isFull(isFull)
+                .warningMessage(warningMessage)
+                .build();
+    }
+
+    @Transactional
+    public DashboardStatsResponseInOut getDashboardStatisInOut(
+            Long buildingId, Long parkingLotId
+    ) {
+        LocalDateTime startOfDay = LocalDate.now().atStartOfDay(); // 00:00
+        LocalDateTime endOfDay = LocalDate.now().atTime(LocalTime.MAX); // 23:59:59
+        
+        // tính toán traffic ra vào
+        long totalEntry = parkingSessionRepository.countTotalEntries(buildingId, parkingLotId, startOfDay, endOfDay);
+        long totalExit = parkingSessionRepository.countTotalExits(buildingId, parkingLotId, startOfDay, endOfDay);
+
+        // thống kê phiên
+        long totalSessionTypeCount = parkingSessionRepository.countTotalSessionTypes(buildingId, parkingLotId, startOfDay, endOfDay);
+        List<SessionStatProjection> sessionStatsList = parkingSessionRepository.countSessionTypeDetails(buildingId, parkingLotId, startOfDay, endOfDay);
+
+        Map<String, Long> sessionTypeDetails = sessionStatsList.stream()
+                .collect(Collectors.toMap(
+                        proj -> proj.getSessionType() != null ? proj.getSessionType().toString() : "UNKNOWN",
+                        SessionStatProjection::getTotal
+                ));
+        return DashboardStatsResponseInOut.builder()
+                .totalTraffic(totalEntry + totalExit)
+                .totalEntry(totalEntry)
+                .totalExit(totalExit)
+                .totalSessionTypeCount(totalSessionTypeCount)
+                .sessionTypeDetails(sessionTypeDetails)
+                .build();
     }
 
 }

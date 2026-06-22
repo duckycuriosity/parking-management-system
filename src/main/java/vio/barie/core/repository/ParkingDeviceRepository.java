@@ -13,6 +13,23 @@ import java.util.Optional;
 
 @Repository
 public interface ParkingDeviceRepository extends JpaRepository<ParkingDeviceEntity, Long> {
+
+    @Query("SELECT COUNT(pd) FROM ParkingDeviceEntity pd " +
+            "LEFT JOIN pd.lane l LEFT JOIN l.parkingLot p " +
+            "WHERE (:parkingLotId IS NULL OR p.id = :parkingLotId) " +
+            "AND (:buildingId IS NULL OR p.building.id = :buildingId)")
+    long countDevicesWithFilters(@Param("buildingId") Long buildingId, @Param("parkingLotId") Long parkingLotId);
+
+    @Query("SELECT COUNT(pd) FROM ParkingDeviceEntity pd " +
+            "LEFT JOIN pd.lane l LEFT JOIN l.parkingLot p " +
+            "WHERE pd.status = :status " +
+            "AND (:parkingLotId IS NULL OR p.id = :parkingLotId) " +
+            "AND (:buildingId IS NULL OR p.building.id = :buildingId)")
+    long countDevicesByStatusWithFilters(
+            @Param("status") OperatingStatus status,
+            @Param("buildingId") Long buildingId,
+            @Param("parkingLotId") Long parkingLotId);
+
     Optional<ParkingDeviceEntity> findByDeviceId(String deviceId);
 
     List<ParkingDeviceEntity> findByLane_Id(Long laneId);

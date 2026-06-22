@@ -7,7 +7,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import vio.barie.core.common.BaseStatus;
 import vio.barie.core.common.OperatingStatus;
 import vio.barie.core.dto.DeviceLaneResponse;
+import vio.barie.core.dto.DeviceStatsResponse;
 import vio.barie.core.dto.Result;
+import vio.barie.core.entity.BarrierEntity;
+import vio.barie.core.repository.BarrierRepository;
+import vio.barie.core.repository.CameraRepository;
 import vio.barie.core.repository.DeviceLaneRepository;
 import vio.barie.core.repository.ParkingDeviceRepository;
 import vio.barie.core.utils.DetectionType;
@@ -23,6 +27,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class DeviceLaneService {
     private final ParkingDeviceRepository parkingDeviceRepository;
+    private final CameraRepository cameraRepository;
+    private final BarrierRepository barrierRepository;
 
     public Result<List<DeviceLaneResponse>> getAllDeviceByLaneId(Long laneId) {
         List<DeviceLaneRepository> rawData = parkingDeviceRepository.findAllDeviceDetailsByLaneId(laneId);
@@ -163,4 +169,28 @@ public class DeviceLaneService {
     private <E extends Enum<E>> E parseEnum(Class<E> enumClass, String value) {
         return (value == null || value.trim().isEmpty()) ? null : Enum.valueOf(enumClass, value);
     }
+
+    public DeviceStatsResponse getDeviceStats(Long buildingId, Long parkingLotId) {
+        long totalCamera = cameraRepository.countCamerasWithFilters(buildingId, parkingLotId);
+        long onlineCamera = cameraRepository.countCamerasByStatusWithFilters(BaseStatus.ACTIVE, buildingId, parkingLotId);
+
+        long totalBarrier = barrierRepository.countBarriersWithFilters(buildingId, parkingLotId);
+        long onlineBarrier = barrierRepository.countBarriersByDeviceStatusWithFilters(OperatingStatus.ONLINE, buildingId, parkingLotId);
+
+        long totalPi = parkingDeviceRepository.countDevicesWithFilters(buildingId, parkingLotId);
+        long onlinePi = parkingDeviceRepository.countDevicesByStatusWithFilters(OperatingStatus.ONLINE, buildingId, parkingLotId);
+
+        return DeviceStatsResponse.builder()
+                .totalCamera(totalCamera)
+                .onlineCamera(onlineCamera)
+                .offlineCamera(totalCamera - onlineCamera)
+                .totalBarrier(totalBarrier)
+                .onlineBarrier(onlineBarrier)
+                .offlineBarrier(totalBarrier - onlineBarrier)
+                .totalPi(totalPi)
+                .onlinePi(onlinePi)
+                .offlinePi(totalPi - onlinePi)
+                .build();
+    }
+
 }

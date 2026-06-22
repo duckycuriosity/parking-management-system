@@ -39,7 +39,6 @@ public class LaneController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Result<LaneResponse> create(@Valid @RequestBody LaneCreateRequest request) {
-        log.info("Log xem post", request);
         return Result.ok(
                 "Lane created successfully",
                 laneService.create(request)

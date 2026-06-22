@@ -1,6 +1,7 @@
 package vio.barie.core.service;
 
-import jakarta.transaction.Transactional;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -88,6 +89,7 @@ public class LaneService {
         return laneMapper.toResponse(saved);
     }
 
+    @Transactional(readOnly = true)
     public Page<LaneResponse> findAll(Pageable pageable) {
         Page<LaneEntity> lanePage = laneRepository.findAllWithParkingLot(pageable);
         List<LaneResponse> responses = laneMapper.toResponseList(lanePage.getContent());
@@ -119,7 +121,7 @@ public class LaneService {
         return new PageImpl<>(responses, pageable, lanePage.getTotalElements());
     }
 
-
+    @Transactional(readOnly = true)
     public LaneResponse findById(Long id) {
         LaneEntity entity = laneRepository.findByIdWithParkingLot(id)
                 .orElseThrow(() -> new BusinessException("Lane not found", "LANE_NOT_FOUND", 404));
@@ -164,8 +166,17 @@ public class LaneService {
         LaneEntity saved = laneRepository.save(entity);
 
         // update camera associations (simple strategy: set lane for listed cameras)
-        if (request.getCameraIds() != null) {
-            Iterable<CameraEntity> cams = cameraRepository.findAllById(request.getCameraIds());
+        List<CameraEntity> currentCameras = entity.getCameras() != null
+                ? new ArrayList<>(entity.getCameras())
+                : new ArrayList<>();
+        List<Long> newCameraIds = request.getCameraIds() != null ? request.getCameraIds() : List.of();
+        for (CameraEntity oldCam : currentCameras) {
+            if (!newCameraIds.contains(oldCam.getId())) {
+                oldCam.setLane(null);
+            }
+        }
+        if (!newCameraIds.isEmpty()) {
+            Iterable<CameraEntity> cams = cameraRepository.findAllById(newCameraIds);
             for (CameraEntity cam : cams) {
                 cam.setLane(saved);
             }
@@ -173,7 +184,7 @@ public class LaneService {
         }
 
         List<ParkingDeviceEntity> currentDevices = parkingDeviceRepository.findByLane_Id(id);
-        if (request.getParkingDeviceIds() != null || request.getParkingDeviceIds().isEmpty()) {
+        if (request.getParkingDeviceIds() == null || request.getParkingDeviceIds().isEmpty()) {
             for (ParkingDeviceEntity oldDevice : currentDevices) {
                 oldDevice.setLane(null);
             }
@@ -212,7 +223,21 @@ public class LaneService {
     public void delete(Long id) {
         LaneEntity entity = laneRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Lane not found", "LANE_NOT_FOUND", 404));
-        laneRepository.delete(entity);
+
+        List<ParkingDeviceEntity> linkedDevices = parkingDeviceRepository.findByLane_Id(id);
+        if (!linkedDevices.isEmpty()) {
+            throw new BusinessException(
+                    "Làn này đang được gắn thiết bị, vui lòng gỡ thiết bị trước khi xóa!",
+                    "LANE_HAS_DEVICE", 400);
+        }
+        try {
+            laneRepository.delete(entity);
+            laneRepository.flush();
+        } catch (DataIntegrityViolationException ex) {
+            throw new BusinessException(
+                    "Làn này đang được liên kết với dữ liệu khác, không thể xóa!",
+                    "LANE_IN_USE", 409);
+        }
     }
 
     @Transactional

@@ -7,11 +7,15 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import vio.barie.core.dto.DashboardStatsResponse;
+import vio.barie.core.dto.DashboardStatsResponseInOut;
 import vio.barie.core.dto.ParkingSessionDetailResponse;
 import vio.barie.core.service.ParkingSessionService;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
@@ -96,6 +100,57 @@ public class ParkingSessionController {
         Page<ParkingSessionDetailResponse> response = parkingSessionService.getIdParkingSessionByParkingLot(
                 parkingLotId, searchKey, sessionType, typeVehicle, entryLaneId, exitLaneId, statusInOut, pageable);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/slot-statistics")
+    public ResponseEntity<DashboardStatsResponse> getParkingSessionStatistics(
+            @RequestParam(value = "buildingId", required = false) Long buildingId,
+            @RequestParam(value = "parkingLotId", required = false) Long parkingLotId
+
+    ) {
+        log.info("[getParkingSessionStatistics] RAW PARAMS → parkingLotId={}",
+                parkingLotId, buildingId);
+
+        try {
+            DashboardStatsResponse response = parkingSessionService.getDashboardStatistics(
+                    buildingId, parkingLotId);
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException ex) {
+            log.error("[getParkingSessionStatistics] Lỗi tham số đầu vào: {}", ex.getMessage());
+            return ResponseEntity.badRequest().build();
+        } catch (Exception ex) {
+            log.error("[getParkingSessionStatistics] EXCEPTION khi thống kê: {}", ex.getMessage(), ex);
+            throw ex;
+        }
+    }
+
+    @GetMapping("/statistic-in-out")
+    public ResponseEntity<DashboardStatsResponseInOut> getParkingSessionStatisInOut(
+            @RequestParam(value = "buildingId", required = false) Long buildingId,
+            @RequestParam(value = "parkingLotId", required = false) Long parkingLotId
+
+    ) {
+        try {
+            DashboardStatsResponseInOut response = parkingSessionService.getDashboardStatisInOut(
+                    buildingId, parkingLotId);
+
+            log.info("[getParkingSessionStatistics] RESULT → totalTraffic={}, totalEntry={}, totalExit={}, totalSessionTypes={}",
+                    response.getTotalTraffic(),
+                    response.getTotalEntry(),
+                    response.getTotalExit(),
+                    response.getTotalSessionTypeCount());
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException ex) {
+            log.error("[getParkingSessionStatistics] Lỗi tham số đầu vào: {}", ex.getMessage());
+            return ResponseEntity.badRequest().build();
+        } catch (Exception ex) {
+            log.error("[getParkingSessionStatistics] EXCEPTION khi thống kê: {}", ex.getMessage(), ex);
+            throw ex;
+        }
     }
 
 }

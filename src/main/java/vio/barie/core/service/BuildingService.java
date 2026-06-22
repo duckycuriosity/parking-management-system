@@ -14,7 +14,9 @@ import vio.barie.core.repository.LaneRepository;
 import vio.barie.core.repository.ParkingLotRepository;
 import vio.barie.core.repository.ParkingSessionRepository;
 
+import java.text.Normalizer;
 import java.util.List;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -26,8 +28,35 @@ public class BuildingService {
     private final ParkingLotRepository parkingLotRepository;
     private final LaneRepository laneRepository;
 
+    private String normalizeString(String input) {
+        if (input == null || input.trim().isEmpty()) {
+            return "";
+        }
+        // Chuẩn hóa loại bỏ dấu
+        String normalized = Normalizer.normalize(input.trim(), Normalizer.Form.NFD);
+        Pattern pattern = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
+        String noAccent = pattern.matcher(normalized).replaceAll("");
+
+        return noAccent.replace("đ", "d").replace("Đ", "d").toLowerCase();
+    }
+
+    private void validateDuplicateName(String newName, Long excludeId) {
+        String normalizedNewName = normalizeString(newName);
+
+        List<String> existingNames = buildingRepository.findAllNamesExcludingId(excludeId);
+
+        boolean isDuplicate = existingNames.stream()
+                .anyMatch(name -> normalizeString(name).equals(normalizedNewName));
+
+        if (isDuplicate) {
+            throw new BusinessException("Tên tòa nhà đã tồn tại trong hệ thống (trùng lặp cả khi không dấu)!", "BUILDING_NAME_DUPLICATED", 400);
+        }
+    }
+
+
     @Transactional
     public BuildingResponse create(BuildingCreateRequest request) {
+        validateDuplicateName(request.getName(), null);
         BuildingEntity entity = buildingMapper.toEntity(request);
         BuildingEntity saved = buildingRepository.save(entity);
         return buildingMapper.toResponse(saved);
@@ -53,7 +82,7 @@ public class BuildingService {
     public BuildingResponse update(Long id, BuildingCreateRequest request) {
         BuildingEntity entity = buildingRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Building not found", "BUILDING_NOT_FOUND", 404));
-
+        validateDuplicateName(request.getName(), id);
         entity.setName(request.getName());
         entity.setAddress(request.getAddress());
         entity.setDescription(request.getDescription());
