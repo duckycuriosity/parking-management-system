@@ -3,6 +3,7 @@ package vio.barie.core.service;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.Tuple;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -20,6 +21,8 @@ import vio.barie.core.config.payment.MegaPayConfig;
 import vio.barie.core.dto.parking.PaymentMessage;
 import vio.barie.core.dto.parking.PaymentSuccessCommand;
 import vio.barie.core.dto.payment.*;
+import vio.barie.core.dto.payment.PaymentListItemResponse;
+import vio.barie.core.dto.payment.RevenueSummaryResponse;
 import vio.barie.core.entity.ParkingSessionEntity;
 import vio.barie.core.entity.PaymentEntity;
 import vio.barie.core.entity.TicketEntity;
@@ -33,14 +36,31 @@ import vio.barie.core.utils.Sanitize;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.XSSFFont;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+
+import vio.barie.core.dto.payment.RevenueReportResponse;
 
 import static cn.hutool.core.convert.Convert.hexToBytes;
 
@@ -135,6 +155,196 @@ public class PaymentService {
     public PaymentInquiryResponse inquiryByInvoiceNo(String invoiceNo){
         return paymentGateway.inquiryByInvoiceNo(invoiceNo);
     };
+
+    @Transactional(readOnly = true)
+    public RevenueSummaryResponse getDailyRevenueSummary(Long parkingLotId, Long buildingId) {
+        LocalDateTime from = LocalDateTime.now().toLocalDate().atStartOfDay();
+        LocalDateTime to = LocalDateTime.now();
+
+        Tuple result = paymentRepository.sumAndCountByStatus("PAID", from, to, parkingLotId, buildingId);
+
+        BigDecimal revenue = result.get("revenue", BigDecimal.class);
+        Number count = (Number) result.get("count");
+
+        return RevenueSummaryResponse.builder()
+                .totalRevenue(revenue != null ? revenue : BigDecimal.ZERO)
+                .successfulTransactions(count != null ? count.longValue() : 0L)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PaymentListItemResponse> getPaymentList(Boolean success, int page, int size) {
+        String statusFilter = success == null ? "ALL" : (success ? "PAID" : "OTHER");
+        Page<Object[]> raw = paymentRepository.findPaymentListRaw(statusFilter, PageRequest.of(page, size));
+        return raw.map(row -> PaymentListItemResponse.builder()
+                .plateNumber((String) row[0])
+                .type((String) row[1])
+                .amount(row[2] != null ? new BigDecimal(row[2].toString()) : null)
+                .paymentMethod((String) row[3])
+                .status((String) row[4])
+                .time(row[5] instanceof Timestamp ? ((Timestamp) row[5]).toLocalDateTime() : null)
+                .build());
+    }
+
+    @Transactional(readOnly = true)
+    public RevenueReportResponse getRevenueReport(LocalDate startDate, LocalDate endDate) {
+        LocalDateTime from = startDate.atStartOfDay();
+        LocalDateTime to = endDate.plusDays(1).atStartOfDay();
+
+        List<Object[]> rows = paymentRepository.findDailyRevenue(from, to);
+
+        List<RevenueReportResponse.DailyDetail> details = rows.stream()
+                .map(row -> RevenueReportResponse.DailyDetail.builder()
+                        .date((String) row[0])
+                        .transactionCount(((Number) row[1]).longValue())
+                        .revenue(new BigDecimal(row[2].toString()))
+                        .build())
+                .collect(Collectors.toList());
+
+        BigDecimal totalRevenue = details.stream()
+                .map(RevenueReportResponse.DailyDetail::getRevenue)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        long totalTransactions = details.stream()
+                .mapToLong(RevenueReportResponse.DailyDetail::getTransactionCount)
+                .sum();
+
+        long daysInRange = ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        BigDecimal avgDailyRevenue = daysInRange > 0
+                ? totalRevenue.divide(BigDecimal.valueOf(daysInRange), 0, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+
+        return RevenueReportResponse.builder()
+                .totalRevenue(totalRevenue)
+                .avgDailyRevenue(avgDailyRevenue)
+                .totalTransactions(totalTransactions)
+                .dailyDetails(details)
+                .build();
+    }
+
+    public byte[] exportRevenueReportToExcel(LocalDate startDate, LocalDate endDate) {
+        RevenueReportResponse report = getRevenueReport(startDate, endDate);
+        DateTimeFormatter displayFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        try (XSSFWorkbook wb = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+
+            Sheet sheet = wb.createSheet("Báo cáo doanh thu");
+
+            // --- styles ---
+            DataFormat dataFormat = wb.createDataFormat();
+            short currencyFmt = dataFormat.getFormat("#,##0");
+
+            CellStyle titleStyle = wb.createCellStyle();
+            XSSFFont titleFont = wb.createFont();
+            titleFont.setBold(true);
+            titleFont.setFontHeightInPoints((short) 14);
+            titleStyle.setFont(titleFont);
+            titleStyle.setAlignment(HorizontalAlignment.CENTER);
+
+            CellStyle boldCenter = wb.createCellStyle();
+            XSSFFont boldFont = wb.createFont();
+            boldFont.setBold(true);
+            boldCenter.setFont(boldFont);
+            boldCenter.setAlignment(HorizontalAlignment.CENTER);
+            boldCenter.setFillForegroundColor(IndexedColors.PALE_BLUE.getIndex());
+            boldCenter.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            setBorder(boldCenter);
+
+            CellStyle boldCurrencyCenter = wb.createCellStyle();
+            boldCurrencyCenter.cloneStyleFrom(boldCenter);
+            boldCurrencyCenter.setDataFormat(currencyFmt);
+
+            CellStyle cell = wb.createCellStyle();
+            setBorder(cell);
+
+            CellStyle cellCurrency = wb.createCellStyle();
+            cellCurrency.cloneStyleFrom(cell);
+            cellCurrency.setDataFormat(currencyFmt);
+
+            CellStyle footerStyle = wb.createCellStyle();
+            footerStyle.cloneStyleFrom(boldCenter);
+
+            CellStyle footerCurrencyStyle = wb.createCellStyle();
+            footerCurrencyStyle.cloneStyleFrom(boldCenter);
+            footerCurrencyStyle.setDataFormat(currencyFmt);
+
+            // --- Row 0: title ---
+            Row r0 = sheet.createRow(0);
+            setCell(r0, 0, "BÁO CÁO DOANH THU", titleStyle);
+            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 2));
+
+            // --- Row 1: date range ---
+            Row r1 = sheet.createRow(1);
+            String rangeLabel = "Từ ngày: " + startDate.format(displayFmt)
+                    + "   Đến ngày: " + endDate.format(displayFmt);
+            setCell(r1, 0, rangeLabel, null);
+            sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 2));
+
+            // --- Row 3: summary header ---
+            Row r3 = sheet.createRow(3);
+            setCell(r3, 0, "Tổng doanh thu (VND)", boldCenter);
+            setCell(r3, 1, "Trung bình / ngày (VND)", boldCenter);
+            setCell(r3, 2, "Tổng giao dịch", boldCenter);
+
+            // --- Row 4: summary values ---
+            Row r4 = sheet.createRow(4);
+            setNumCell(r4, 0, report.getTotalRevenue().doubleValue(), boldCurrencyCenter);
+            setNumCell(r4, 1, report.getAvgDailyRevenue().doubleValue(), boldCurrencyCenter);
+            setNumCell(r4, 2, (double) report.getTotalTransactions(), boldCenter);
+
+            // --- Row 6: table header ---
+            Row r6 = sheet.createRow(6);
+            setCell(r6, 0, "Ngày", boldCenter);
+            setCell(r6, 1, "Số giao dịch", boldCenter);
+            setCell(r6, 2, "Doanh thu (VND)", boldCenter);
+
+            // --- Data rows ---
+            int rowIdx = 7;
+            for (RevenueReportResponse.DailyDetail d : report.getDailyDetails()) {
+                Row dr = sheet.createRow(rowIdx++);
+                setCell(dr, 0, d.getDate(), cell);
+                setNumCell(dr, 1, (double) d.getTransactionCount(), cell);
+                setNumCell(dr, 2, d.getRevenue().doubleValue(), cellCurrency);
+            }
+
+            // --- Footer row ---
+            Row footer = sheet.createRow(rowIdx);
+            setCell(footer, 0, "Tổng cộng", footerStyle);
+            setNumCell(footer, 1, (double) report.getTotalTransactions(), footerStyle);
+            setNumCell(footer, 2, report.getTotalRevenue().doubleValue(), footerCurrencyStyle);
+
+            // --- Column widths ---
+            sheet.setColumnWidth(0, 16 * 256);
+            sheet.setColumnWidth(1, 20 * 256);
+            sheet.setColumnWidth(2, 24 * 256);
+
+            wb.write(out);
+            return out.toByteArray();
+
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi khi xuất file Excel: " + e.getMessage(), e);
+        }
+    }
+
+    private void setCell(Row row, int col, String value, CellStyle style) {
+        Cell c = row.createCell(col);
+        c.setCellValue(value != null ? value : "");
+        if (style != null) c.setCellStyle(style);
+    }
+
+    private void setNumCell(Row row, int col, double value, CellStyle style) {
+        Cell c = row.createCell(col);
+        c.setCellValue(value);
+        if (style != null) c.setCellStyle(style);
+    }
+
+    private void setBorder(CellStyle style) {
+        style.setBorderTop(BorderStyle.THIN);
+        style.setBorderBottom(BorderStyle.THIN);
+        style.setBorderLeft(BorderStyle.THIN);
+        style.setBorderRight(BorderStyle.THIN);
+    }
 
     private void failPendingPaymentsForSession(Long sessionId) {
         if (sessionId == null) return;
