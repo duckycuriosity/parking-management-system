@@ -170,15 +170,15 @@ public class DeviceLaneService {
         return (value == null || value.trim().isEmpty()) ? null : Enum.valueOf(enumClass, value);
     }
 
-    public DeviceStatsResponse getDeviceStats() {
-        long totalCamera = cameraRepository.count();
-        long onlineCamera = cameraRepository.countByStatus(BaseStatus.ACTIVE);
+    public DeviceStatsResponse getDeviceStats(Long buildingId, Long parkingLotId) {
+        long totalCamera = cameraRepository.countCamerasWithFilters(buildingId, parkingLotId);
+        long onlineCamera = cameraRepository.countCamerasByStatusWithFilters(BaseStatus.ACTIVE, buildingId, parkingLotId);
 
-        long totalBarrier = barrierRepository.count();
-        long onlineBarrier = barrierRepository.countByParkingDevice_Status(OperatingStatus.ONLINE);
+        long totalBarrier = barrierRepository.countBarriersWithFilters(buildingId, parkingLotId);
+        long onlineBarrier = barrierRepository.countBarriersByDeviceStatusWithFilters(OperatingStatus.ONLINE, buildingId, parkingLotId);
 
-        long totalPi = parkingDeviceRepository.count();
-        long onlinePi = parkingDeviceRepository.countByStatus(OperatingStatus.ONLINE);
+        long totalPi = parkingDeviceRepository.countDevicesWithFilters(buildingId, parkingLotId);
+        long onlinePi = parkingDeviceRepository.countDevicesByStatusWithFilters(OperatingStatus.ONLINE, buildingId, parkingLotId);
 
         return DeviceStatsResponse.builder()
                 .totalCamera(totalCamera)

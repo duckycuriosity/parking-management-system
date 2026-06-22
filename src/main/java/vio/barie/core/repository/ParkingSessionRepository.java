@@ -124,53 +124,66 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
     Integer countNumberOfVehicleInParkingLot(@Param("building_id") Integer building_id,
                                              @Param("vehicle_type") String vehicle_type);
 
-
+    // Đếm tổng lượt vào toàn thời gian
     @Query("SELECT COUNT(s.id) FROM ParkingSessionEntity s " +
             "WHERE s.entryTime >= :startDate AND s.entryTime <= :endDate " +
-            "AND (:parkingLotId IS NULL OR s.parkingLot.id = :parkingLotId)")
+            "AND (:parkingLotId IS NULL OR s.parkingLot.id = :parkingLotId) " +
+            "AND (:buildingId IS NULL OR s.parkingLot.building.id = :buildingId)")
     long countTotalEntries(
+            @Param("buildingId") Long buildingId,
+            @Param("parkingLotId") Long parkingLotId,
             @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate,
-            @Param("parkingLotId") Long parkingLotId);
+            @Param("endDate") LocalDateTime endDate);
 
+
+    // Đếm tổng lượt ra toàn thời gian
     @Query("SELECT COUNT(s.id) FROM ParkingSessionEntity s " +
-            "WHERE s.exitTime >= :startDate AND s.exitTime <= :endDate " +
-            "AND (:parkingLotId IS NULL OR s.parkingLot.id = :parkingLotId)")
+            "WHERE s.exitTime IS NOT NULL " +
+            "AND s.exitTime >= :startDate AND s.exitTime <= :endDate " +
+            "AND (:buildingId IS NULL OR s.parkingLot.building.id = :buildingId) " +
+            "AND (:parkingLotId IS NULL OR s.parkingLot.id = :parkingLotId) ")
     long countTotalExits(
+            @Param("buildingId") Long buildingId,
+            @Param("parkingLotId") Long parkingLotId,
             @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate,
-            @Param("parkingLotId") Long parkingLotId);
+            @Param("endDate") LocalDateTime endDate);
 
+    // Đếm số phương tiện
     @Query("SELECT v.vehicleType AS vehicleType, COUNT(s.id) AS total " +
             "FROM ParkingSessionEntity s " +
             "JOIN s.vehicle v " +
-            "WHERE s.entryTime >= :startDate AND s.entryTime <= :endDate " +
+            "WHERE s.exitTime IS NULL " +
             "AND (:parkingLotId IS NULL OR s.parkingLot.id = :parkingLotId) " +
+            "AND (:buildingId IS NULL OR s.parkingLot.building.id = :buildingId) " +
             "GROUP BY v.vehicleType")
     List<VehicleStatProjection> countVehicleTypeStats(
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate,
+            @Param("buildingId") Long buildingId,
             @Param("parkingLotId") Long parkingLotId);
 
+    // Đếm tổng số session có loại vé toàn thời gian
     @Query("SELECT COUNT(s.id) FROM ParkingSessionEntity s " +
             "WHERE s.sessionType IS NOT NULL " +
             "AND s.entryTime >= :startDate AND s.entryTime <= :endDate " +
-            "AND (:parkingLotId IS NULL OR s.parkingLot.id = :parkingLotId)")
+            "AND (:parkingLotId IS NULL OR s.parkingLot.id = :parkingLotId) " +
+            "AND (:buildingId IS NULL OR s.parkingLot.building.id = :buildingId)")
     long countTotalSessionTypes(
+            @Param("buildingId") Long buildingId,
+            @Param("parkingLotId") Long parkingLotId,
             @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate,
-            @Param("parkingLotId") Long parkingLotId);
+            @Param("endDate") LocalDateTime endDate);
 
     @Query("SELECT s.sessionType AS sessionType, COUNT(s.id) AS total " +
             "FROM ParkingSessionEntity s " +
             "WHERE s.sessionType IS NOT NULL " +
             "AND s.entryTime >= :startDate AND s.entryTime <= :endDate " +
             "AND (:parkingLotId IS NULL OR s.parkingLot.id = :parkingLotId) " +
+            "AND (:buildingId IS NULL OR s.parkingLot.building.id = :buildingId) " +
             "GROUP BY s.sessionType")
     List<SessionStatProjection> countSessionTypeDetails(
+            @Param("buildingId") Long buildingId,
+            @Param("parkingLotId") Long parkingLotId,
             @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate,
-            @Param("parkingLotId") Long parkingLotId);
+            @Param("endDate") LocalDateTime endDate);
 
     @Query(value = """
             SELECT 

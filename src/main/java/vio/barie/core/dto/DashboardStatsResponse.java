@@ -13,18 +13,13 @@ import java.util.Map;
 @NoArgsConstructor
 @Builder
 public class DashboardStatsResponse {
-    private long totalTraffic;
-    private long totalExit;
-    private long totalEntry;
 
     private long maxMotorcycleCapacity;
     private long maxCarCapacity;
 
     private VehicleStats vehicleStats;
-
-    private long totalSessionTypeCount;
-
-    private Map<String, Long> sessionTypeDetails;
+    private boolean isFull;
+    private String warningMessage;
 
     @Data
     @AllArgsConstructor

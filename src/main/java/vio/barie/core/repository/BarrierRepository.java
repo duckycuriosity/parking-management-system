@@ -13,7 +13,23 @@ import java.util.Optional;
 
 @Repository
 public interface BarrierRepository extends JpaRepository<BarrierEntity, Long> {
-    long countByParkingDevice_Status(OperatingStatus status);
+
+    @Query("SELECT COUNT(b) FROM BarrierEntity b " +
+            "LEFT JOIN b.parkingDevice pd LEFT JOIN pd.lane l LEFT JOIN l.parkingLot p " +
+            "WHERE (:parkingLotId IS NULL OR p.id = :parkingLotId) " +
+            "AND (:buildingId IS NULL OR p.building.id  = :buildingId)"
+    )
+    long countBarriersWithFilters(@Param("buildingId") Long buildingId, @Param("parkingLotId") Long parkingLotId);
+
+    @Query("SELECT COUNT(b) FROM BarrierEntity b " +
+            "LEFT JOIN b.parkingDevice pd LEFT JOIN pd.lane l LEFT JOIN l.parkingLot p " +
+            "WHERE pd.status = :status " +
+            "AND (:parkingLotId IS NULL OR p.id = :parkingLotId) " +
+            "AND (:buildingId IS NULL OR p.building.id = :buildingId)")
+    long countBarriersByDeviceStatusWithFilters(
+            @Param("status") OperatingStatus status,
+            @Param("buildingId") Long buildingId,
+            @Param("parkingLotId") Long parkingLotId);
 
     Optional<BarrierEntity> findByBarrierId(String barrierId);
 

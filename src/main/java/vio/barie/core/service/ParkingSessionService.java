@@ -22,6 +22,7 @@ import vio.barie.core.repository.PaymentRepository;
 import vio.barie.core.repository.ParkingSessionRepository;
 import vio.barie.core.utils.VehicleType;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
@@ -172,7 +173,7 @@ public class ParkingSessionService {
                 .build();
     }
 
-    public VehicleMetricsResponse getVehicleMetrics (Integer buildingId) {
+    public VehicleMetricsResponse getVehicleMetrics(Integer buildingId) {
         VehicleMetricsResponse result = new VehicleMetricsResponse();
         result.setCars(parkingSessionRepository.countNumberOfVehicleInParkingLot(buildingId, VehicleType.CAR.name()));
         result.setMotorbikes(parkingSessionRepository.countNumberOfVehicleInParkingLot(buildingId, VehicleType.MOTORBIKE.name()));
@@ -256,23 +257,11 @@ public class ParkingSessionService {
 
     @Transactional(readOnly = true)
     public DashboardStatsResponse getDashboardStatistics(
-            Long parkingLotId, LocalDateTime startDate, LocalDateTime endDate) {
+            Long buildingId, Long parkingLotId) {
 
-        if (startDate == null) {
-            startDate = LocalDateTime.now().with(LocalTime.MIN);
-        }
-        if (endDate == null) {
-            endDate = LocalDateTime.now().with(LocalTime.MAX);
-        }
 
-        if (startDate.isAfter(endDate)) {
-            throw new IllegalArgumentException("Ngày bắt đầu không được lớn hơn ngày kết thúc");
-        }
-        // tính toán traffic ra vào
-        long totalEntry = parkingSessionRepository.countTotalEntries(startDate, endDate, parkingLotId);
-        long totalExit = parkingSessionRepository.countTotalExits(startDate, endDate, parkingLotId);
         // thống kê các loại xe
-        List<VehicleStatProjection> vehicleStatsList = parkingSessionRepository.countVehicleTypeStats(startDate, endDate, parkingLotId);
+        List<VehicleStatProjection> vehicleStatsList = parkingSessionRepository.countVehicleTypeStats(buildingId, parkingLotId);
         DashboardStatsResponse.VehicleStats vehicleStats = new DashboardStatsResponse.VehicleStats();
 
         for (VehicleStatProjection proj : vehicleStatsList) {
@@ -292,33 +281,70 @@ public class ParkingSessionService {
                     break;
             }
         }
-        // thống kê phiên
-        long totalSessionTypeCount = parkingSessionRepository.countTotalSessionTypes(startDate, endDate, parkingLotId);
 
-        List<SessionStatProjection> sessionStatsList = parkingSessionRepository.countSessionTypeDetails(startDate, endDate, parkingLotId);
+
+        // tính toán sức chứa
+        long maxMotorcycle = 0;
+        long maxCar = 0;
+        List<Object[]> capacityResult = parkingLotRepository.getCapacityStats(buildingId, parkingLotId);
+        if (!capacityResult.isEmpty() && capacityResult.get(0).length == 2) {
+            maxMotorcycle = ((Number) capacityResult.get(0)[0]).longValue();
+            maxCar = ((Number) capacityResult.get(0)[1]).longValue();
+        }
+
+        // validate vượt sức chứa
+        boolean isFull = false;
+        String warningMessage = null;
+
+        boolean isMotorbikeFull = maxMotorcycle >= 0 && vehicleStats.getTotalMotorbike() >= maxMotorcycle;
+        boolean isCarFull = maxCar >= 0 && vehicleStats.getTotalCar() >= maxCar;
+        if (isMotorbikeFull && isCarFull) {
+            isFull = true;
+            warningMessage = "Bãi gửi xe đã hết chỗ (cả ô tô và xe máy), vui lòng qua bãi gửi xe khác.";
+        } else if (isMotorbikeFull) {
+            isFull = true;
+            warningMessage = "Bãi gửi xe đã hết chỗ cho Xe Máy, vui lòng qua bãi gửi xe khác.";
+        } else if (isCarFull) {
+            isFull = true;
+            warningMessage = "Bãi gửi xe đã hết chỗ cho Ô Tô, vui lòng qua bãi gửi xe khác.";
+        }
+        return DashboardStatsResponse.builder()
+
+                .vehicleStats(vehicleStats)
+                .maxMotorcycleCapacity(maxMotorcycle)
+                .maxCarCapacity(maxCar)
+                .isFull(isFull)
+                .warningMessage(warningMessage)
+                .build();
+    }
+
+    @Transactional
+    public DashboardStatsResponseInOut getDashboardStatisInOut(
+            Long buildingId, Long parkingLotId
+    ) {
+        LocalDateTime startOfDay = LocalDate.now().atStartOfDay(); // 00:00
+        LocalDateTime endOfDay = LocalDate.now().atTime(LocalTime.MAX); // 23:59:59
+        
+        // tính toán traffic ra vào
+        long totalEntry = parkingSessionRepository.countTotalEntries(buildingId, parkingLotId, startOfDay, endOfDay);
+        long totalExit = parkingSessionRepository.countTotalExits(buildingId, parkingLotId, startOfDay, endOfDay);
+
+        // thống kê phiên
+        long totalSessionTypeCount = parkingSessionRepository.countTotalSessionTypes(buildingId, parkingLotId, startOfDay, endOfDay);
+        List<SessionStatProjection> sessionStatsList = parkingSessionRepository.countSessionTypeDetails(buildingId, parkingLotId, startOfDay, endOfDay);
+
         Map<String, Long> sessionTypeDetails = sessionStatsList.stream()
                 .collect(Collectors.toMap(
                         proj -> proj.getSessionType() != null ? proj.getSessionType().toString() : "UNKNOWN",
                         SessionStatProjection::getTotal
                 ));
-
-        // tính toán sức chứa
-        long maxMotorcycle = 0;
-        long maxCar = 0;
-        List<Object[]> capacityResult = parkingLotRepository.getCapacityStats(parkingLotId);
-        if (!capacityResult.isEmpty() && capacityResult.get(0).length == 2) {
-            maxMotorcycle = ((Number) capacityResult.get(0)[0]).longValue();
-            maxCar = ((Number) capacityResult.get(0)[1]).longValue();
-        }
-        return DashboardStatsResponse.builder()
+        return DashboardStatsResponseInOut.builder()
                 .totalTraffic(totalEntry + totalExit)
                 .totalEntry(totalEntry)
                 .totalExit(totalExit)
-                .vehicleStats(vehicleStats)
                 .totalSessionTypeCount(totalSessionTypeCount)
                 .sessionTypeDetails(sessionTypeDetails)
-                .maxMotorcycleCapacity(maxMotorcycle)
-                .maxCarCapacity(maxCar)
                 .build();
     }
+
 }

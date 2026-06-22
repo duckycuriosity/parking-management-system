@@ -10,7 +10,23 @@ import java.util.List;
 import java.util.Optional;
 
 public interface CameraRepository extends JpaRepository<CameraEntity, Long> {
-    long countByStatus(BaseStatus status);
+
+    @Query("SELECT COUNT(c) FROM CameraEntity c " +
+            "LEFT JOIN c.lane l LEFT JOIN l.parkingLot p " +
+            "WHERE (:parkingLotId IS NULL or p.id =:parkingLotId) " +
+            "AND (:buildingId IS NULL OR p.building.id = :buildingId)")
+    long countCamerasWithFilters(@Param("buildingId") Long buildingId, @Param("parkingLotId") Long parkingLotId);
+
+    @Query("SELECT COUNT(c) FROM CameraEntity c " +
+            "LEFT JOIN c.lane l LEFT JOIN l.parkingLot p " +
+            "WHERE c.status = :status " +
+            "AND (:parkingLotId IS NULL OR p.id = :parkingLotId) " +
+            "AND (:buildingId IS NULL OR p.building.id = :buildingId)"
+    )
+    long countCamerasByStatusWithFilters(
+            @Param("status") BaseStatus status,
+            @Param("buildingId") Long buildingId,
+            @Param("parkingLotId") Long parkingLotId);
 
     @Query("SELECT c FROM CameraEntity c LEFT JOIN FETCH c.lane l LEFT JOIN FETCH l.parkingLot")
     List<CameraEntity> findAllWithRelations();

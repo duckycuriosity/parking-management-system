@@ -1,10 +1,7 @@
 package vio.barie.core.controller;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import vio.barie.core.dto.DeviceLaneResponse;
 import vio.barie.core.dto.DeviceStatsResponse;
 import vio.barie.core.dto.Result;
@@ -30,8 +27,10 @@ public class DeviceLaneController {
     }
 
     @GetMapping("/statistics")
-    public Result<DeviceStatsResponse> getDeviceStatistics() {
-        DeviceStatsResponse data = deviceLaneService.getDeviceStats();
+    public Result<DeviceStatsResponse> getDeviceStatistics(
+            @RequestParam(value = "buildingId", required = false) Long buildingId,
+            @RequestParam(value = "parkingLotId", required = false) Long parkingLotId) {
+        DeviceStatsResponse data = deviceLaneService.getDeviceStats(buildingId, parkingLotId);
         return Result.ok("Get Device Statistics Successfully", data);
     }
 
