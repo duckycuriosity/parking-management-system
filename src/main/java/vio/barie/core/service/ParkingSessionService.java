@@ -11,6 +11,7 @@ import vio.barie.core.common.InOutStatus;
 import vio.barie.core.common.SessionType;
 import vio.barie.core.dto.ActivitySessionResponse;
 import vio.barie.core.dto.ParkingSessionDetailResponse;
+import vio.barie.core.dto.parking.CurrentParkingSessionCountResponse;
 import vio.barie.core.dto.parking.HourlyTrafficResponse;
 import vio.barie.core.dto.parking.ParkingMetricsRequest;
 import vio.barie.core.dto.parking.VehicleMetricsResponse;
@@ -347,4 +348,7 @@ public class ParkingSessionService {
                 .build();
     }
 
+    public CurrentParkingSessionCountResponse getCurrentParkingSessionCount(Integer buildingId, Integer parkingLotId) {
+        return parkingSessionRepository.currentParkingSessionCount(buildingId, parkingLotId);
+    }
 }

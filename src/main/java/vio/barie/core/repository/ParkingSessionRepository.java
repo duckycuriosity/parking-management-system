@@ -9,6 +9,7 @@ import vio.barie.core.dto.ActivitySessionResponse;
 import vio.barie.core.dto.SessionStatProjection;
 import vio.barie.core.dto.VehicleStatProjection;
 import vio.barie.core.dto.LaneActivityDTO;
+import vio.barie.core.dto.parking.CurrentParkingSessionCountResponse;
 import vio.barie.core.dto.parking.VehicleMetricsResponse;
 import vio.barie.core.entity.ParkingSessionEntity;
 import org.springframework.data.domain.Pageable;
@@ -213,4 +214,35 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
     List<Object[]> countExitsByHour(@Param("buildingId") Integer buildingId,
                                     @Param("startDate") LocalDateTime startDate,
                                     @Param("endDate") LocalDateTime endDate);
+    @Query(value = """
+        SELECT 
+            COUNT(CASE WHEN ps.entry_time >= CURRENT_DATE 
+                       AND ps.entry_time < CURRENT_DATE + INTERVAL '1' DAY 
+                  THEN 1 END) AS currentEntries,
+            
+            COUNT(CASE WHEN ps.exit_time >= CURRENT_DATE 
+                       AND ps.exit_time < CURRENT_DATE + INTERVAL '1' DAY 
+                       AND ps.exit_time IS NOT NULL
+                  THEN 1 END) AS currentExits,
+            
+            COUNT(CASE WHEN ps.exit_time IS NULL 
+                  THEN 1 END) AS currentParking
+        FROM parking_session ps
+        WHERE (
+            (:buildingId IS NULL OR ps.parking_lot_id IN (
+                SELECT pl.id FROM parking_lot pl WHERE pl.building_id = :buildingId
+            ))
+            AND 
+            (:parkingLotId IS NULL OR ps.parking_lot_id = :parkingLotId)
+        )
+        AND (
+            (ps.entry_time >= CURRENT_DATE AND ps.entry_time < CURRENT_DATE + INTERVAL '1' DAY)
+            OR 
+            (ps.exit_time >= CURRENT_DATE AND ps.exit_time < CURRENT_DATE + INTERVAL '1' DAY)
+        );
+        """, nativeQuery = true)
+    CurrentParkingSessionCountResponse currentParkingSessionCount(
+            @Param("buildingId") Integer buildingId,
+            @Param("parkingLotId") Integer parkingLotId
+    );
 }

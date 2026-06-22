@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.*;
 
 import vio.barie.core.common.OperatingStatus;
 import vio.barie.core.dto.Result;
+import vio.barie.core.dto.parking.CurrentParkingSessionCountResponse;
 import vio.barie.core.dto.parking.HourlyTrafficResponse;
 import vio.barie.core.dto.parking.ParkingMetricsRequest;
 import vio.barie.core.dto.parking.VehicleMetricsResponse;
@@ -74,6 +75,13 @@ public class ParkingMonitorController {
         }
         List<HourlyTrafficResponse> response = parkingSessionService.getHourlyStatistics(request);
         return Result.ok(response);
+    }
+
+    @GetMapping("/parking/current-session-metrics")
+    public Result<CurrentParkingSessionCountResponse> getCurrentParkingMetrics (@RequestParam(required = false) Integer buildingId, @RequestParam(required = false) Integer parkingLotId) {
+        return Result.ok(
+                parkingSessionService.getCurrentParkingSessionCount(buildingId, parkingLotId)
+        );
     }
 
 }
