@@ -36,6 +36,12 @@ import vio.barie.core.utils.Sanitize;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.XSSFFont;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
@@ -43,6 +49,7 @@ import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
 import java.util.HashMap;
@@ -213,6 +220,130 @@ public class PaymentService {
                 .totalTransactions(totalTransactions)
                 .dailyDetails(details)
                 .build();
+    }
+
+    public byte[] exportRevenueReportToExcel(LocalDate startDate, LocalDate endDate) {
+        RevenueReportResponse report = getRevenueReport(startDate, endDate);
+        DateTimeFormatter displayFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        try (XSSFWorkbook wb = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+
+            Sheet sheet = wb.createSheet("Báo cáo doanh thu");
+
+            // --- styles ---
+            DataFormat dataFormat = wb.createDataFormat();
+            short currencyFmt = dataFormat.getFormat("#,##0");
+
+            CellStyle titleStyle = wb.createCellStyle();
+            XSSFFont titleFont = wb.createFont();
+            titleFont.setBold(true);
+            titleFont.setFontHeightInPoints((short) 14);
+            titleStyle.setFont(titleFont);
+            titleStyle.setAlignment(HorizontalAlignment.CENTER);
+
+            CellStyle boldCenter = wb.createCellStyle();
+            XSSFFont boldFont = wb.createFont();
+            boldFont.setBold(true);
+            boldCenter.setFont(boldFont);
+            boldCenter.setAlignment(HorizontalAlignment.CENTER);
+            boldCenter.setFillForegroundColor(IndexedColors.PALE_BLUE.getIndex());
+            boldCenter.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            setBorder(boldCenter);
+
+            CellStyle boldCurrencyCenter = wb.createCellStyle();
+            boldCurrencyCenter.cloneStyleFrom(boldCenter);
+            boldCurrencyCenter.setDataFormat(currencyFmt);
+
+            CellStyle cell = wb.createCellStyle();
+            setBorder(cell);
+
+            CellStyle cellCurrency = wb.createCellStyle();
+            cellCurrency.cloneStyleFrom(cell);
+            cellCurrency.setDataFormat(currencyFmt);
+
+            CellStyle footerStyle = wb.createCellStyle();
+            footerStyle.cloneStyleFrom(boldCenter);
+
+            CellStyle footerCurrencyStyle = wb.createCellStyle();
+            footerCurrencyStyle.cloneStyleFrom(boldCenter);
+            footerCurrencyStyle.setDataFormat(currencyFmt);
+
+            // --- Row 0: title ---
+            Row r0 = sheet.createRow(0);
+            setCell(r0, 0, "BÁO CÁO DOANH THU", titleStyle);
+            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 2));
+
+            // --- Row 1: date range ---
+            Row r1 = sheet.createRow(1);
+            String rangeLabel = "Từ ngày: " + startDate.format(displayFmt)
+                    + "   Đến ngày: " + endDate.format(displayFmt);
+            setCell(r1, 0, rangeLabel, null);
+            sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 2));
+
+            // --- Row 3: summary header ---
+            Row r3 = sheet.createRow(3);
+            setCell(r3, 0, "Tổng doanh thu (VND)", boldCenter);
+            setCell(r3, 1, "Trung bình / ngày (VND)", boldCenter);
+            setCell(r3, 2, "Tổng giao dịch", boldCenter);
+
+            // --- Row 4: summary values ---
+            Row r4 = sheet.createRow(4);
+            setNumCell(r4, 0, report.getTotalRevenue().doubleValue(), boldCurrencyCenter);
+            setNumCell(r4, 1, report.getAvgDailyRevenue().doubleValue(), boldCurrencyCenter);
+            setNumCell(r4, 2, (double) report.getTotalTransactions(), boldCenter);
+
+            // --- Row 6: table header ---
+            Row r6 = sheet.createRow(6);
+            setCell(r6, 0, "Ngày", boldCenter);
+            setCell(r6, 1, "Số giao dịch", boldCenter);
+            setCell(r6, 2, "Doanh thu (VND)", boldCenter);
+
+            // --- Data rows ---
+            int rowIdx = 7;
+            for (RevenueReportResponse.DailyDetail d : report.getDailyDetails()) {
+                Row dr = sheet.createRow(rowIdx++);
+                setCell(dr, 0, d.getDate(), cell);
+                setNumCell(dr, 1, (double) d.getTransactionCount(), cell);
+                setNumCell(dr, 2, d.getRevenue().doubleValue(), cellCurrency);
+            }
+
+            // --- Footer row ---
+            Row footer = sheet.createRow(rowIdx);
+            setCell(footer, 0, "Tổng cộng", footerStyle);
+            setNumCell(footer, 1, (double) report.getTotalTransactions(), footerStyle);
+            setNumCell(footer, 2, report.getTotalRevenue().doubleValue(), footerCurrencyStyle);
+
+            // --- Column widths ---
+            sheet.setColumnWidth(0, 16 * 256);
+            sheet.setColumnWidth(1, 20 * 256);
+            sheet.setColumnWidth(2, 24 * 256);
+
+            wb.write(out);
+            return out.toByteArray();
+
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi khi xuất file Excel: " + e.getMessage(), e);
+        }
+    }
+
+    private void setCell(Row row, int col, String value, CellStyle style) {
+        Cell c = row.createCell(col);
+        c.setCellValue(value != null ? value : "");
+        if (style != null) c.setCellStyle(style);
+    }
+
+    private void setNumCell(Row row, int col, double value, CellStyle style) {
+        Cell c = row.createCell(col);
+        c.setCellValue(value);
+        if (style != null) c.setCellStyle(style);
+    }
+
+    private void setBorder(CellStyle style) {
+        style.setBorderTop(BorderStyle.THIN);
+        style.setBorderBottom(BorderStyle.THIN);
+        style.setBorderLeft(BorderStyle.THIN);
+        style.setBorderRight(BorderStyle.THIN);
     }
 
     private void failPendingPaymentsForSession(Long sessionId) {
