@@ -1,10 +1,11 @@
 package vio.barie.core.repository;
 
 import jakarta.persistence.Tuple;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import vio.barie.core.dto.payment.RevenueSummaryResponse;
 import vio.barie.core.entity.PaymentEntity;
 
 import java.math.BigDecimal;
@@ -90,4 +91,59 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
             ORDER BY (callback_context->>'sessionId')::bigint, created_at DESC
             """, nativeQuery = true)
     List<PaymentEntity> findLatestBySessionIds(@Param("sessionIds") List<Long> sessionIds);
+
+    @Query(value = """
+            SELECT
+                COALESCE(v_s.plate_number, v_t.plate_number) AS plate_number,
+                CASE p.callback_type
+                    WHEN 'SESSION' THEN 'Trả vé ngày'
+                    WHEN 'TICKET'  THEN 'Đóng vé tháng'
+                    ELSE p.callback_type
+                END AS type,
+                p.amount,
+                p.payment_method,
+                p.status,
+                COALESCE(p.paid_at, p.created_at) AS time
+            FROM payment p
+            LEFT JOIN parking_session ps
+                ON p.callback_type = 'SESSION'
+               AND (p.callback_context->>'sessionId')::bigint = ps.id
+            LEFT JOIN vehicle v_s ON ps.vehicle_id = v_s.id
+            LEFT JOIN ticket t
+                ON p.callback_type = 'TICKET'
+               AND (p.callback_context->>'ticketId')::bigint = t.id
+            LEFT JOIN vehicle v_t ON t.vehicle_id = v_t.id
+            WHERE (
+                :statusFilter = 'ALL'
+                OR (:statusFilter = 'PAID'  AND p.status = 'PAID')
+                OR (:statusFilter = 'OTHER' AND p.status NOT IN ('PAID', 'PENDING'))
+            )
+            ORDER BY COALESCE(p.paid_at, p.created_at) DESC NULLS LAST
+            """,
+            countQuery = """
+            SELECT COUNT(p.id) FROM payment p
+            WHERE (
+                :statusFilter = 'ALL'
+                OR (:statusFilter = 'PAID'  AND p.status = 'PAID')
+                OR (:statusFilter = 'OTHER' AND p.status NOT IN ('PAID', 'PENDING'))
+            )
+            """,
+            nativeQuery = true)
+    Page<Object[]> findPaymentListRaw(@Param("statusFilter") String statusFilter, Pageable pageable);
+
+    @Query(value = """
+            SELECT
+                TO_CHAR(DATE(p.paid_at), 'DD/MM/YYYY') AS day,
+                COUNT(p.id)                             AS transaction_count,
+                COALESCE(SUM(p.amount), 0)              AS revenue
+            FROM payment p
+            WHERE p.status = 'PAID'
+              AND p.paid_at >= :startDate
+              AND p.paid_at < :endDate
+            GROUP BY DATE(p.paid_at)
+            ORDER BY DATE(p.paid_at) DESC
+            """, nativeQuery = true)
+    List<Object[]> findDailyRevenue(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate")   LocalDateTime endDate);
 }

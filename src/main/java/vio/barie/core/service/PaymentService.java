@@ -21,6 +21,7 @@ import vio.barie.core.config.payment.MegaPayConfig;
 import vio.barie.core.dto.parking.PaymentMessage;
 import vio.barie.core.dto.parking.PaymentSuccessCommand;
 import vio.barie.core.dto.payment.*;
+import vio.barie.core.dto.payment.PaymentListItemResponse;
 import vio.barie.core.dto.payment.RevenueSummaryResponse;
 import vio.barie.core.entity.ParkingSessionEntity;
 import vio.barie.core.entity.PaymentEntity;
@@ -36,13 +37,23 @@ import vio.barie.core.utils.Sanitize;
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+
+import vio.barie.core.dto.payment.RevenueReportResponse;
 
 import static cn.hutool.core.convert.Convert.hexToBytes;
 
@@ -151,6 +162,56 @@ public class PaymentService {
         return RevenueSummaryResponse.builder()
                 .totalRevenue(revenue != null ? revenue : BigDecimal.ZERO)
                 .successfulTransactions(count != null ? count.longValue() : 0L)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PaymentListItemResponse> getPaymentList(Boolean success, int page, int size) {
+        String statusFilter = success == null ? "ALL" : (success ? "PAID" : "OTHER");
+        Page<Object[]> raw = paymentRepository.findPaymentListRaw(statusFilter, PageRequest.of(page, size));
+        return raw.map(row -> PaymentListItemResponse.builder()
+                .plateNumber((String) row[0])
+                .type((String) row[1])
+                .amount(row[2] != null ? new BigDecimal(row[2].toString()) : null)
+                .paymentMethod((String) row[3])
+                .status((String) row[4])
+                .time(row[5] instanceof Timestamp ? ((Timestamp) row[5]).toLocalDateTime() : null)
+                .build());
+    }
+
+    @Transactional(readOnly = true)
+    public RevenueReportResponse getRevenueReport(LocalDate startDate, LocalDate endDate) {
+        LocalDateTime from = startDate.atStartOfDay();
+        LocalDateTime to = endDate.plusDays(1).atStartOfDay();
+
+        List<Object[]> rows = paymentRepository.findDailyRevenue(from, to);
+
+        List<RevenueReportResponse.DailyDetail> details = rows.stream()
+                .map(row -> RevenueReportResponse.DailyDetail.builder()
+                        .date((String) row[0])
+                        .transactionCount(((Number) row[1]).longValue())
+                        .revenue(new BigDecimal(row[2].toString()))
+                        .build())
+                .collect(Collectors.toList());
+
+        BigDecimal totalRevenue = details.stream()
+                .map(RevenueReportResponse.DailyDetail::getRevenue)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        long totalTransactions = details.stream()
+                .mapToLong(RevenueReportResponse.DailyDetail::getTransactionCount)
+                .sum();
+
+        long daysInRange = ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        BigDecimal avgDailyRevenue = daysInRange > 0
+                ? totalRevenue.divide(BigDecimal.valueOf(daysInRange), 0, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+
+        return RevenueReportResponse.builder()
+                .totalRevenue(totalRevenue)
+                .avgDailyRevenue(avgDailyRevenue)
+                .totalTransactions(totalTransactions)
+                .dailyDetails(details)
                 .build();
     }
 
