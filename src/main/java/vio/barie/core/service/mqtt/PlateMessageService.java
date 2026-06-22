@@ -19,6 +19,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import vio.barie.core.utils.VehicleType;
 
 @Slf4j
 @Component
@@ -46,6 +47,7 @@ public class PlateMessageService {
             String plateNumber = event.path("plate").path("plate").asText(null);
             String cameraUUID = event.path("cameraUUID").asText();
             Boolean isVerified = event.path("plate").path("isVerified").asBoolean(false);
+            Integer labelTypeVehicle = event.path("object").path("label").asInt();
 
             if (plateNumber == null || cameraUUID == null) {
                 logger.warn("PlateHandler: plate event has no plateNumber — cameraId={}", cameraCode);
@@ -91,7 +93,7 @@ public class PlateMessageService {
                 }
             }
             // Otherwise handle as guest/unregistered vehicle
-            handleUnregisteredVehicle(plateNumber, cameraInLane, barrier.get(), laneId, direction);
+            handleUnregisteredVehicle(plateNumber, cameraInLane, barrier.get(), laneId, direction, labelTypeVehicle);
         } catch (Exception ex) {
             log.error("PlateMessageService: failed to handle plate event — payload={} error={}", event, ex.getMessage(),
                     ex);
@@ -152,12 +154,12 @@ public class PlateMessageService {
      * Always buffer event and wait for face matching logic to create session
      */
     private void handleUnregisteredVehicle(String plateNumber, CameraEntity cameraInLane,
-                                           BarrierEntity barrier, long laneId, DirectionType direction) {
+                                           BarrierEntity barrier, long laneId, DirectionType direction, Integer vehicleType) {
         try {
             if (!vehicleRepository.existsByPlateNumber(plateNumber)) {
                 logger.info("Vehicle with plate={} exists but no active ticket — treating as unregistered",
                         plateNumber);
-                VehicleEntity newVehicle = createNewVehicle(plateNumber);
+                VehicleEntity newVehicle = createNewVehicle(plateNumber, vehicleType);
             }
 
             PendingEventDetection event = buildPendingEventForUnregistered(
@@ -244,11 +246,15 @@ public class PlateMessageService {
     /**
      * Create new vehicle record for unregistered vehicle with temporary AI identity
      */
-    private VehicleEntity createNewVehicle(String plateNumber) {
+    private VehicleEntity createNewVehicle(String plateNumber, Integer vehicleType) {
         VehicleEntity vehicle = new VehicleEntity();
         vehicle.setPlateNumber(plateNumber);
         vehicle.setAiIdentityPlateId("UNVERIFIED_" + UUID.randomUUID().toString());
-        vehicle.setVehicleType("OTHER");
+        if (vehicleType.equals(VehicleType.CAR.getCode())) {
+            vehicle.setVehicleType("CAR");
+        } else {
+            vehicle.setVehicleType("MOTORBIKE");
+        }
         try {
             return vehicleRepository.save(vehicle);
         } catch (DataIntegrityViolationException ex) {

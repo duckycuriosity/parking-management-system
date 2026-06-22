@@ -10,10 +10,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import vio.barie.core.common.BaseStatus;
 import vio.barie.core.config.exception.BusinessException;
-import vio.barie.core.dto.BarrierCameraAssignmentRequest;
-import vio.barie.core.dto.LaneCreateRequest;
-import vio.barie.core.dto.LaneResponse;
-import vio.barie.core.dto.ParkingLotResponse;
+import vio.barie.core.dto.*;
 import vio.barie.core.entity.BarrierCameraEntity;
 import vio.barie.core.entity.BarrierEntity;
 import vio.barie.core.entity.CameraEntity;
@@ -308,5 +305,8 @@ public class LaneService {
             mapping.setPriority(request.getPriority() != null ? request.getPriority() : 0);
             barrierCameraRepository.save(mapping);
         }
+    }
+    public List<LaneActivityDTO> getLaneLatestAction() {
+        return laneRepository.findLatestActivityPerLane();
     }
 }

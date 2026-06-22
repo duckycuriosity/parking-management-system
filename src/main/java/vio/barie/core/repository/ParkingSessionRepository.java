@@ -8,6 +8,8 @@ import vio.barie.core.common.SessionType;
 import vio.barie.core.dto.ActivitySessionResponse;
 import vio.barie.core.dto.SessionStatProjection;
 import vio.barie.core.dto.VehicleStatProjection;
+import vio.barie.core.dto.LaneActivityDTO;
+import vio.barie.core.dto.parking.VehicleMetricsResponse;
 import vio.barie.core.entity.ParkingSessionEntity;
 import org.springframework.data.domain.Pageable;
 
@@ -51,6 +53,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "ORDER BY COALESCE(s.exitTime, s.entryTime) DESC")
     Page<ActivitySessionResponse> getAllActivityHistory(Pageable pageable);
 
+
     @Query("SELECT s FROM ParkingSessionEntity s " +
             "LEFT JOIN s.vehicle v " +
             "LEFT JOIN s.entryLane el " +
@@ -80,6 +83,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             @Param("statusInOut") String statusInOut,
             Pageable pageable);
 
+
     @Query("SELECT s FROM ParkingSessionEntity s " +
             "LEFT JOIN s.vehicle v " +
             "LEFT JOIN s.entryLane el " +
@@ -107,6 +111,19 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             @Param("exitLaneId") Long exitLaneId,
             @Param("statusInOut") String statusInOut,
             Pageable pageable);
+
+    @Query(value = "SELECT COUNT(*) FROM vehicle v " +
+            "WHERE v.vehicle_type = :vehicle_type " +
+            "AND v.id IN ( " +
+            "    SELECT ps.vehicle_id FROM parking_session ps " +
+            "    WHERE ps.exit_time IS NULL " +
+            "    AND (:building_id IS NULL OR ps.parking_lot_id IN ( " +
+            "        SELECT pl.id FROM parking_lot pl WHERE pl.building_id = :building_id" +
+            "    )) " +
+            ")", nativeQuery = true)
+    Integer countNumberOfVehicleInParkingLot(@Param("building_id") Integer building_id,
+                                             @Param("vehicle_type") String vehicle_type);
+
 
     @Query("SELECT COUNT(s.id) FROM ParkingSessionEntity s " +
             "WHERE s.entryTime >= :startDate AND s.entryTime <= :endDate " +
@@ -154,34 +171,33 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate,
             @Param("parkingLotId") Long parkingLotId);
+
     @Query(value = """
-        SELECT 
-            TO_CHAR(DATE_TRUNC('hour', entry_time), 'YYYY-MM-DD HH24:00:00') as hour,
-            COUNT(*) as entries
-        FROM parking_session
-        WHERE parking_lot_id = :parkingLotId
-            AND entry_time BETWEEN :startDate AND :endDate
-        GROUP BY DATE_TRUNC('hour', entry_time)
-        ORDER BY hour
-        """,
+            SELECT 
+                TO_CHAR(DATE_TRUNC('hour', entry_time), 'YYYY-MM-DD HH24:00:00') as hour,
+                COUNT(*) as entries
+            FROM parking_session
+            WHERE parking_lot_id = :parkingLotId
+                AND entry_time BETWEEN :startDate AND :endDate
+            GROUP BY DATE_TRUNC('hour', entry_time)
+            ORDER BY hour
+            """,
             nativeQuery = true)
     List<Object[]> countEntriesByHour(@Param("parkingLotId") Integer parkingLotId,
                                       @Param("startDate") LocalDateTime startDate,
                                       @Param("endDate") LocalDateTime endDate);
 
     @Query(value = """
-        SELECT 
-            TO_CHAR(DATE_TRUNC('hour', exit_time), 'YYYY-MM-DD HH24:00:00') as hour,
-            COUNT(*) as exits
-        FROM parking_session
-        WHERE parking_lot_id = :parkingLotId
-            AND exit_time IS NOT NULL
-            AND exit_time BETWEEN :startDate AND :endDate
-        GROUP BY DATE_TRUNC('hour', exit_time)
-        ORDER BY hour
-        """,
-            nativeQuery = true)
-    List<Object[]> countExitsByHour(@Param("parkingLotId") Integer parkingLotId,
+            SELECT
+                TO_CHAR(DATE_TRUNC('hour', exit_time), 'YYYY-MM-DD HH24:00:00') as hour,
+                COUNT(*) as exits
+            FROM parking_session
+            WHERE (:buildingId IS NULL OR parking_lot_id IN (SELECT pl.id FROM parking_lot pl WHERE pl.building_id = :buildingId))
+                AND exit_time IS NOT NULL
+            GROUP BY DATE_TRUNC('hour', exit_time)
+            ORDER BY hour
+            """, nativeQuery = true)
+    List<Object[]> countExitsByHour(@Param("buildingId") Integer buildingId,
                                     @Param("startDate") LocalDateTime startDate,
                                     @Param("endDate") LocalDateTime endDate);
 }

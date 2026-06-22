@@ -7,6 +7,7 @@ import vio.barie.core.common.OperatingStatus;
 import vio.barie.core.dto.Result;
 import vio.barie.core.dto.parking.HourlyTrafficResponse;
 import vio.barie.core.dto.parking.ParkingMetricsRequest;
+import vio.barie.core.dto.parking.VehicleMetricsResponse;
 import vio.barie.core.entity.ParkingDeviceEntity;
 import vio.barie.core.entity.ParkingMessageEntity;
 import vio.barie.core.repository.ParkingDeviceRepository;
@@ -49,19 +50,22 @@ public class ParkingMonitorController {
                 .findTop50ByDeviceIdOrderByCreatedAtDesc(deviceId);
     }
 
-//    @GetMapping("/parking/metrics")
-//    public List<> parkingMetrics (@RequestParam ParkingMetricsRequest pmr) {
-//
-//    }
+    @GetMapping("/parking/vehicle-metrics")
+    public Result<VehicleMetricsResponse> parkingMetrics (
+            @RequestParam(required = false) Integer buildingId
+    ) {
+        VehicleMetricsResponse response = parkingSessionService.getVehicleMetrics(buildingId);
+        return Result.ok(response);
+    }
 
     @GetMapping("/parking/hourly-traffic")
-    public Result<List<HourlyTrafficResponse>> getHourlyTraffic ( @RequestParam LocalDateTime startDate,
-                                                                  @RequestParam LocalDateTime endDate,
-                                                                  @RequestParam(required = false) Integer parkingLotId) {
+    public Result<List<HourlyTrafficResponse>> getHourlyTraffic (@RequestParam(required = false) Integer buildingId,
+                                                                 @RequestParam LocalDateTime startDate,
+                                                                 @RequestParam LocalDateTime endDate) {
         ParkingMetricsRequest request = new ParkingMetricsRequest();
         request.setStartDate(startDate);
         request.setEndDate(endDate);
-        request.setParkingLotId(parkingLotId);
+        request.setBuildingId(buildingId);
         if (request.getEndDate().isBefore(request.getStartDate())) {
             throw new IllegalArgumentException("End date must be after start date");
         }
