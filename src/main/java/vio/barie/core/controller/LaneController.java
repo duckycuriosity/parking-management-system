@@ -105,10 +105,10 @@ public class LaneController {
     }
 
     @GetMapping("/lane-latest-activity")
-    public Result<List<LaneActivityDTO>> getLaneLatestActivity () {
+    public Result<List<LaneActivityDTO>> getLaneLatestActivity (@RequestParam(required = false) Integer laneId) {
         return Result.ok(
                 "Success",
-                laneService.getLaneLatestAction()
+                laneService.getLaneLatestAction(laneId)
         );
     }
 

@@ -186,20 +186,21 @@ public class ParkingSessionService {
         // Lấy dữ liệu từ repository
         List<Object[]> entriesResult = parkingSessionRepository.countEntriesByHour(
                 request.getBuildingId(),
+                request.getParkingLotId(),
                 request.getStartDate(),
                 request.getEndDate()
         );
 
         List<Object[]> exitsResult = parkingSessionRepository.countExitsByHour(
                 request.getBuildingId(),
+                request.getParkingLotId(),
                 request.getStartDate(),
                 request.getEndDate()
         );
 
-        // Chuyển đổi sang Map với key là datetime đầy đủ
         Map<String, Long> entriesMap = new HashMap<>();
         for (Object[] row : entriesResult) {
-            String datetime = (String) row[0]; // "2026-06-13 18:00:00"
+            String datetime = (String) row[0];
             Long count = ((Number) row[1]).longValue();
             entriesMap.put(datetime, count);
         }
@@ -229,9 +230,9 @@ public class ParkingSessionService {
             if (runningParked < 0) runningParked = 0;
 
             HourlyTrafficResponse dto = new HourlyTrafficResponse();
-            dto.setDateTime(dateTime);                    // "2026-06-13 18:00"
-            dto.setDate(dateTime.substring(0, 10));       // "2026-06-13"
-            dto.setHour(dateTime.substring(11, 16));      // "18:00"
+            dto.setDateTime(dateTime);
+            dto.setDate(dateTime.substring(0, 10));
+            dto.setHour(dateTime.substring(11, 16));
             dto.setEntries(entries);
             dto.setExits(exits);
             dto.setCurrentParked(runningParked);

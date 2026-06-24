@@ -306,7 +306,7 @@ public class LaneService {
             barrierCameraRepository.save(mapping);
         }
     }
-    public List<LaneActivityDTO> getLaneLatestAction() {
-        return laneRepository.findLatestActivityPerLane();
+    public List<LaneActivityDTO> getLaneLatestAction(Integer laneId) {
+        return laneRepository.findLatestActivityPerLane(laneId);
     }
 }
