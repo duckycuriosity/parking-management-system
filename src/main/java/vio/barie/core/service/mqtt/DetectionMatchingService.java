@@ -33,7 +33,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 public class DetectionMatchingService {
 
     private static final long MATCH_WINDOW_MS = 120_000L; // 2 minutes
-    private static final Duration PLATE_DEDUP_TTL = Duration.ofMinutes(2);
+    private static final Duration PLATE_DEDUP_TTL = Duration.ofSeconds(30);
 
     private static final Logger logger = LoggerFactory.getLogger(DetectionMatchingService.class);
 
