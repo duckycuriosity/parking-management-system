@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.*;
 
 import vio.barie.core.common.OperatingStatus;
 import vio.barie.core.dto.Result;
+import vio.barie.core.dto.parking.CurrentParkingSessionCountResponse;
 import vio.barie.core.dto.parking.HourlyTrafficResponse;
 import vio.barie.core.dto.parking.ParkingMetricsRequest;
 import vio.barie.core.dto.parking.VehicleMetricsResponse;
@@ -60,12 +61,14 @@ public class ParkingMonitorController {
 
     @GetMapping("/parking/hourly-traffic")
     public Result<List<HourlyTrafficResponse>> getHourlyTraffic (@RequestParam(required = false) Integer buildingId,
+                                                                 @RequestParam(required = false) Integer parkingLotId,
                                                                  @RequestParam LocalDateTime startDate,
                                                                  @RequestParam LocalDateTime endDate) {
         ParkingMetricsRequest request = new ParkingMetricsRequest();
         request.setStartDate(startDate);
         request.setEndDate(endDate);
         request.setBuildingId(buildingId);
+        request.setParkingLotId(parkingLotId);
         if (request.getEndDate().isBefore(request.getStartDate())) {
             throw new IllegalArgumentException("End date must be after start date");
         }
@@ -74,6 +77,13 @@ public class ParkingMonitorController {
         }
         List<HourlyTrafficResponse> response = parkingSessionService.getHourlyStatistics(request);
         return Result.ok(response);
+    }
+
+    @GetMapping("/parking/current-session-metrics")
+    public Result<CurrentParkingSessionCountResponse> getCurrentParkingMetrics (@RequestParam(required = false) Integer buildingId, @RequestParam(required = false) Integer parkingLotId) {
+        return Result.ok(
+                parkingSessionService.getCurrentParkingSessionCount(buildingId, parkingLotId)
+        );
     }
 
 }
