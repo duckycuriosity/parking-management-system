@@ -4,6 +4,9 @@ import lombok.Data;
 import vio.barie.core.utils.DetectionType;
 import vio.barie.core.utils.DirectionType;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Data
 public class PendingEventDetection {
     String entryBarrierId;
@@ -20,4 +23,6 @@ public class PendingEventDetection {
     String plateNumber;
     String aiPlateId;
     long timestampMs;
+
+    private List<EventImageInfo> listImageInfo = new ArrayList<>();
 }

@@ -5,8 +5,12 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import vio.barie.core.common.SessionType;
+import vio.barie.core.dto.parking.EventImageInfo;
 import vio.barie.core.entity.base.BaseEntity;
 
 @Entity
@@ -53,8 +57,12 @@ public class ParkingSessionEntity extends BaseEntity {
 
     @Column(name = "ticket_id")
     private Long ticketId;
-    
+
     @Enumerated(EnumType.STRING)
     @Column(name = "session_type", nullable = false)
     private SessionType sessionType; // 'DAY', 'MONTH', 'QUARTER'
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "image_info", columnDefinition = "jsonb")
+    private List<EventImageInfo> imageInfo;
 }

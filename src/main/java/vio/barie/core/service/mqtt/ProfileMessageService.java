@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import vio.barie.core.dto.parking.EventImageInfo;
+import vio.barie.core.dto.parking.ImageDetail;
 import vio.barie.core.dto.parking.PendingEventDetection;
 import vio.barie.core.entity.*;
 import vio.barie.core.repository.BarrierCameraRepository;
@@ -17,6 +19,8 @@ import vio.barie.core.repository.ParkingCustomerRepository;
 import vio.barie.core.utils.DetectionType;
 import vio.barie.core.utils.DirectionType;
 
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -112,6 +116,14 @@ public class ProfileMessageService {
             }
             pd.setTimestampMs(System.currentTimeMillis());
 
+            EventImageInfo faceImgInfo = extractImageInfo(event, "face");
+            if (faceImgInfo != null) {
+                log.info(">>> Thành công parse lấy ảnh: {}", faceImgInfo);
+                pd.getListImageInfo().add(faceImgInfo);
+            } else {
+                log.error(">>> Lỗi parse JSON: Không tìm thấy trường image Face trong payload!");
+            }
+
             aiEventBuffer.addFaceEvent(pd);
         } catch (Exception ex) {
             logger.error("ProfileMessageService: failed to handle profile event — payload={} error={}", event,
@@ -119,4 +131,31 @@ public class ProfileMessageService {
             parkingMessageService.publishErrorWhenHandlingEvent(ex.getMessage(), "", DetectionType.FACE);
         }
     }
+
+    private EventImageInfo extractImageInfo(JsonNode event, String eventType) {
+        JsonNode dataNode = event.path(eventType);
+        if (dataNode.isMissingNode()) {
+            return null;
+        }
+        long lastTimeEpoch = event.path("lastTime").asLong(System.currentTimeMillis() / 1000);
+        String timestamp = Instant.ofEpochSecond(lastTimeEpoch).toString();
+        List<ImageDetail> details = new ArrayList<>();
+
+        String rootImage = dataNode.path("image").asText(null);
+        if (rootImage != null) {
+            details.add(new ImageDetail(rootImage, timestamp, "root"));
+        }
+        String cropImage = dataNode.path("cropImage").asText(null);
+        if (cropImage != null) {
+            details.add(new ImageDetail(cropImage, timestamp, "crop"));
+        }
+        if (details.isEmpty()) {
+            return null;
+        }
+        EventImageInfo info = new EventImageInfo();
+        info.setEventType(eventType);
+        info.setImageInfo(details);
+        return info;
+    }
+
 }
