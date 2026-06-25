@@ -17,6 +17,13 @@ public class DashboardStatsResponseInOut {
     private long totalEntry;
 
     private long totalSessionTypeCount;
-
-    private Map<String, Long> sessionTypeDetails;
+    private long totalSessionDay;
+    private long totalSessionMonth;
+    private long totalSessionQuarter;
+    private long dayCar;
+    private long dayMotorbike;
+    private long monthCar;
+    private long monthMotorbike;
+    private long quarterCar;
+    private long quarterMotorbike;
 }

@@ -172,14 +172,15 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate);
 
-    @Query("SELECT s.sessionType AS sessionType, COUNT(s.id) AS total " +
+    @Query("SELECT s.sessionType AS sessionType,v.vehicleType AS vehicleType, COUNT(s.id) AS total " +
             "FROM ParkingSessionEntity s " +
+            "JOIN s.vehicle v " +
             "WHERE s.sessionType IS NOT NULL " +
             "AND s.entryTime >= :startDate AND s.entryTime <= :endDate " +
             "AND (:parkingLotId IS NULL OR s.parkingLot.id = :parkingLotId) " +
             "AND (:buildingId IS NULL OR s.parkingLot.building.id = :buildingId) " +
-            "GROUP BY s.sessionType")
-    List<SessionStatProjection> countSessionTypeDetails(
+            "GROUP BY s.sessionType, v.vehicleType")
+    List<SessionStatProjection> countSessionAndVehicleStats(
             @Param("buildingId") Long buildingId,
             @Param("parkingLotId") Long parkingLotId,
             @Param("startDate") LocalDateTime startDate,
