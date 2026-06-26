@@ -326,26 +326,53 @@ public class ParkingSessionService {
     ) {
         LocalDateTime startOfDay = LocalDate.now().atStartOfDay(); // 00:00
         LocalDateTime endOfDay = LocalDate.now().atTime(LocalTime.MAX); // 23:59:59
-        
+
         // tính toán traffic ra vào
         long totalEntry = parkingSessionRepository.countTotalEntries(buildingId, parkingLotId, startOfDay, endOfDay);
         long totalExit = parkingSessionRepository.countTotalExits(buildingId, parkingLotId, startOfDay, endOfDay);
 
         // thống kê phiên
         long totalSessionTypeCount = parkingSessionRepository.countTotalSessionTypes(buildingId, parkingLotId, startOfDay, endOfDay);
-        List<SessionStatProjection> sessionStatsList = parkingSessionRepository.countSessionTypeDetails(buildingId, parkingLotId, startOfDay, endOfDay);
+        // lấy danh sách loại phiên, loại xe
+        List<SessionStatProjection> sessionStatsList = parkingSessionRepository.countSessionAndVehicleStats(buildingId, parkingLotId, startOfDay, endOfDay);
 
-        Map<String, Long> sessionTypeDetails = sessionStatsList.stream()
-                .collect(Collectors.toMap(
-                        proj -> proj.getSessionType() != null ? proj.getSessionType().toString() : "UNKNOWN",
-                        SessionStatProjection::getTotal
-                ));
+        long dayCar = 0, dayMotorbike = 0;
+        long monthCar = 0, monthMotorbike = 0;
+        long quarterCar = 0, quarterMotorbike = 0;
+
+        for (SessionStatProjection stat : sessionStatsList) {
+            String sessionType = stat.getSessionType(); // DAY, MONTH, QUARTER
+            String vehicleType = stat.getVehicleType(); // CAR, MOTORBIKE
+            long count = stat.getTotal() != null ? stat.getTotal() : 0;
+
+            if ("CAR".equalsIgnoreCase(vehicleType)) {
+                if ("DAY".equals(sessionType)) dayCar = count;
+                else if ("MONTH".equals(sessionType)) monthCar = count;
+                else if ("QUARTER".equals(sessionType)) quarterCar = count;
+            } else if ("MOTORBIKE".equalsIgnoreCase(vehicleType)) {
+                if ("DAY".equals(sessionType)) dayMotorbike = count;
+                else if ("MONTH".equals(sessionType)) monthMotorbike = count;
+                else if ("QUARTER".equals(sessionType)) quarterMotorbike = count;
+            }
+        }
         return DashboardStatsResponseInOut.builder()
                 .totalTraffic(totalEntry + totalExit)
                 .totalEntry(totalEntry)
                 .totalExit(totalExit)
                 .totalSessionTypeCount(totalSessionTypeCount)
-                .sessionTypeDetails(sessionTypeDetails)
+
+                .dayCar(dayCar)
+                .dayMotorbike(dayMotorbike)
+                .totalSessionDay(dayCar + dayMotorbike)
+
+                .monthCar(monthCar)
+                .monthMotorbike(monthMotorbike)
+                .totalSessionMonth(monthCar + monthMotorbike)
+
+                .quarterCar(quarterCar)
+                .quarterMotorbike(quarterMotorbike)
+                .totalSessionQuarter(quarterCar + quarterMotorbike)
+
                 .build();
     }
 
