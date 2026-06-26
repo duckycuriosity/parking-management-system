@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import vio.barie.core.entity.PaymentEntity;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -137,7 +138,7 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
                 COUNT(p.id)                             AS transaction_count,
                 COALESCE(SUM(p.amount), 0)              AS revenue
             FROM payment p
-            WHERE DATE(p.paid_at)::text NOT IN (:excludeDates)
+            WHERE DATE(p.paid_at) NOT IN (:excludeDates)
               AND p.status = 'PAID'
               AND p.paid_at >= :startDate
               AND p.paid_at < :endDate
@@ -147,5 +148,5 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
     List<Object[]> findDailyRevenue(
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate")   LocalDateTime endDate,
-            @Param("excludeDates") List<String> excludeDates);
+            @Param("excludeDates") List<LocalDate> excludeDates);
 }

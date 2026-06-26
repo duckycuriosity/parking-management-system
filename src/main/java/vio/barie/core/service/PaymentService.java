@@ -195,19 +195,20 @@ public class PaymentService {
         // Display format "dd/MM/yyyy" matches what TO_CHAR returns from DB
         DateTimeFormatter displayFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-        List<String> allDates = getDateListBetween(from, to); // "yyyy-MM-dd"
-        List<String> excludeDates = new ArrayList<>();
+        List<LocalDate> allDates = getDateListBetween(from, to); // "yyyy-MM-dd"
+        List<LocalDate> excludeDates = new ArrayList<>();
         List<RevenueReportResponse.DailyDetail> details = new ArrayList<>();
 
-        for (String dateKey : allDates) {
-            if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(dateKey))) {
+        for (LocalDate dateKey : allDates) {
+            if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(dateKey.toString()))) {
+                log.debug("FOUND REDIS DATE KEY : {} !",dateKey);
                 // StringRedisTemplate stores all values as String — must parse explicitly
-                String countStr = (String) stringRedisTemplate.opsForHash().get(dateKey, "transactionCount");
-                String revenueStr = (String) stringRedisTemplate.opsForHash().get(dateKey, "revenue");
+                String countStr = (String) stringRedisTemplate.opsForHash().get(dateKey.toString(), "transactionCount");
+                String revenueStr = (String) stringRedisTemplate.opsForHash().get(dateKey.toString(), "revenue");
                 if (countStr != null && revenueStr != null) {
                     excludeDates.add(dateKey);
                     details.add(RevenueReportResponse.DailyDetail.builder()
-                            .date(LocalDate.parse(dateKey, redisKeyFmt).format(displayFmt))
+                            .date(dateKey.format(displayFmt))
                             .transactionCount(Long.parseLong(countStr))
                             .revenue(new BigDecimal(revenueStr))
                             .build());
@@ -265,13 +266,12 @@ public class PaymentService {
                 .build();
     }
 
-    public static List<String> getDateListBetween(LocalDateTime from, LocalDateTime to) {
-        List<String> result = new ArrayList<>();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    public static List<LocalDate> getDateListBetween(LocalDateTime from, LocalDateTime to) {
+        List<LocalDate> result = new ArrayList<>();
 
         LocalDateTime current = from;
         while (current.isBefore(to)) {
-            result.add(current.toLocalDate().format(formatter));
+            result.add(current.toLocalDate());
             current = current.plusDays(1);
         }
 
