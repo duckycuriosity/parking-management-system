@@ -18,7 +18,5 @@ public class EventImageInfo {
 
     @JsonProperty("image_info")
     private List<ImageDetail> imageInfo = new ArrayList<>();
-
-   
 }
 

@@ -104,10 +104,7 @@ public class DetectionMatchingService {
             }
 
             PendingEventDetection matched = findAndRemoveMatch(buffer, detection);
-            if (matched != null) {
-                log.info(">>> Dữ liệu từ REDIS lấy ra - Ảnh của matched: {}", matched.getListImageInfo());
-                log.info(">>> Dữ liệu từ MQTT mới xuất hiện - Ảnh của detection: {}", detection.getListImageInfo());
-            }
+
             if (matched == null) {
                 redisTemplate.opsForList().rightPush(matchKey, detection);
                 redisTemplate.expire(matchKey, Duration.ofSeconds(MATCH_WINDOW_MS / 1000 + 30));
@@ -118,7 +115,6 @@ public class DetectionMatchingService {
 
             redisTemplate.opsForList().remove(matchKey, 1, matched);
             PendingEventDetection merged = mergeEvents(matched, detection);
-            log.info(">>> Sau khi merge - Số lượng object ảnh: {}", merged.getListImageInfo().size());
             logger.info("ingest: matched events type={} direction={} key={}",
                     merged.getType(), merged.getDirectionType(), matchKey);
             emitMatch(merged);
@@ -228,7 +224,7 @@ public class DetectionMatchingService {
             }
 
             if (detection.getListImageInfo() != null && !detection.getListImageInfo().isEmpty()) {
-                session.setImageInfo(detection.getListImageInfo());
+                session.setEntryImageInfo(detection.getListImageInfo());
                 log.info(">>> Chuẩn bị lưu db: Có {} cụm ảnh được gán vào Session", detection.getListImageInfo().size());
             } else {
                 log.error(">>> Không có ảnh lưu db!");
@@ -279,9 +275,9 @@ public class DetectionMatchingService {
 
             // Fetch open session for this vehicle+customer
             ParkingSessionEntity openSession = parkingSessionRepository
-                    .findFirstByVehicleIdAndEntryCustomerIdAndExitTimeIsNullOrderByEntryTimeDesc(
-                            vehicle.getId(), customer.getId())
+                    .findFirstByVehicleIdAndExitTimeIsNullOrderByEntryTimeDesc(vehicle.getId())
                     .orElse(null);
+
 
             if (openSession == null) {
                 logger.warn("handleExitEvent: no open parking session found for vehicle={} customer={}",
@@ -309,17 +305,8 @@ public class DetectionMatchingService {
             openSession.setExitTime(exitTime);
             openSession.setExitLane(lane);
             openSession.setExitBarrier(barrierId);
+            openSession.setExitImageInfo(detection.getListImageInfo());
 
-            List<EventImageInfo> existingImages = openSession.getImageInfo();
-            if (existingImages == null) {
-                existingImages = new ArrayList<>();
-            }
-
-            if (detection.getListImageInfo() != null && !detection.getListImageInfo().isEmpty()) {
-                existingImages.addAll(detection.getListImageInfo());
-            }
-
-            openSession.setImageInfo(detection.getListImageInfo());
             parkingSessionRepository.save(openSession);
 
             logger.info("handleExitEvent: session closed id={} plate={} customer={} sessionType={} ticketId={}",

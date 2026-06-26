@@ -63,6 +63,10 @@ public class ParkingSessionEntity extends BaseEntity {
     private SessionType sessionType; // 'DAY', 'MONTH', 'QUARTER'
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "image_info", columnDefinition = "jsonb")
-    private List<EventImageInfo> imageInfo;
+    @Column(name = "entry_image_info", columnDefinition = "jsonb")
+    private List<EventImageInfo> entryImageInfo;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "exit_image_info", columnDefinition = "jsonb")
+    private List<EventImageInfo> exitImageInfo;
 }
