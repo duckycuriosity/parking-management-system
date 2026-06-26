@@ -137,7 +137,8 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
                 COUNT(p.id)                             AS transaction_count,
                 COALESCE(SUM(p.amount), 0)              AS revenue
             FROM payment p
-            WHERE p.status = 'PAID'
+            WHERE DATE(p.paid_at)::text NOT IN (:excludeDates)
+              AND p.status = 'PAID'
               AND p.paid_at >= :startDate
               AND p.paid_at < :endDate
             GROUP BY DATE(p.paid_at)
@@ -145,5 +146,6 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
             """, nativeQuery = true)
     List<Object[]> findDailyRevenue(
             @Param("startDate") LocalDateTime startDate,
-            @Param("endDate")   LocalDateTime endDate);
+            @Param("endDate")   LocalDateTime endDate,
+            @Param("excludeDates") List<String> excludeDates);
 }

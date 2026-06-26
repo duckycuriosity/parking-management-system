@@ -2,6 +2,7 @@ package vio.barie.core.dto.payment;
 
 import lombok.Builder;
 import lombok.Data;
+import org.springframework.data.domain.Page;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -12,7 +13,7 @@ public class RevenueReportResponse {
     private BigDecimal totalRevenue;
     private BigDecimal avgDailyRevenue;
     private long totalTransactions;
-    private List<DailyDetail> dailyDetails;
+    private Page<DailyDetail> dailyDetails;
 
     @Data
     @Builder
