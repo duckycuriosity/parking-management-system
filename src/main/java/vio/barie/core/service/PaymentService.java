@@ -197,6 +197,8 @@ public class PaymentService {
 
         List<LocalDate> allDates = getDateListBetween(from, to); // "yyyy-MM-dd"
         List<LocalDate> excludeDates = new ArrayList<>();
+        excludeDates.add(LocalDate.now().plusDays(1));
+
         List<RevenueReportResponse.DailyDetail> details = new ArrayList<>();
 
         for (LocalDate dateKey : allDates) {
