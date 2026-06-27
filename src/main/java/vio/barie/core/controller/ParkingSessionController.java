@@ -135,13 +135,6 @@ public class ParkingSessionController {
         try {
             DashboardStatsResponseInOut response = parkingSessionService.getDashboardStatisInOut(
                     buildingId, parkingLotId);
-
-            log.info("[getParkingSessionStatistics] RESULT → totalTraffic={}, totalEntry={}, totalExit={}, totalSessionTypes={}",
-                    response.getTotalTraffic(),
-                    response.getTotalEntry(),
-                    response.getTotalExit(),
-                    response.getTotalSessionTypeCount());
-
             return ResponseEntity.ok(response);
 
         } catch (IllegalArgumentException ex) {

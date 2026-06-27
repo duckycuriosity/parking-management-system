@@ -26,4 +26,7 @@ public class DashboardStatsResponseInOut {
     private long monthMotorbike;
     private long quarterCar;
     private long quarterMotorbike;
+    private long totalSessionMonthAndQuarter;
+    private long totalSessionMonThAndQuarterCar;
+    private long totalSessionMonThAndQuarterMotorbike;
 }
