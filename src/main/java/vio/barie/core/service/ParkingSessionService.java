@@ -349,6 +349,7 @@ public class ParkingSessionService {
                 if ("DAY".equals(sessionType)) dayCar = count;
                 else if ("MONTH".equals(sessionType)) monthCar = count;
                 else if ("QUARTER".equals(sessionType)) quarterCar = count;
+
             } else if ("MOTORBIKE".equalsIgnoreCase(vehicleType)) {
                 if ("DAY".equals(sessionType)) dayMotorbike = count;
                 else if ("MONTH".equals(sessionType)) monthMotorbike = count;
@@ -373,6 +374,9 @@ public class ParkingSessionService {
                 .quarterMotorbike(quarterMotorbike)
                 .totalSessionQuarter(quarterCar + quarterMotorbike)
 
+                .totalSessionMonThAndQuarterCar(monthCar + quarterCar)
+                .totalSessionMonThAndQuarterMotorbike(monthMotorbike + quarterMotorbike)
+                .totalSessionMonthAndQuarter(monthCar + quarterCar + monthMotorbike + quarterMotorbike)
                 .build();
     }
 
