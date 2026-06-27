@@ -7,8 +7,14 @@ import java.util.Optional;
 
 public interface VehicleRepository extends JpaRepository<VehicleEntity, Long> {
     Optional<VehicleEntity> findByPlateNumber(String plateNumber);
+
     Optional<VehicleEntity> findByAiIdentityPlateId(String aiIdentityPlateId);
-    boolean existsByPlateNumber (String plateNumber);
+
+    boolean existsByPlateNumber(String plateNumber);
+
     VehicleEntity findPlateByPlateNumber(String plateNumber);
-    Optional<VehicleEntity> findVehicleById (Long id);
+
+    VehicleEntity findFirstByPlateNumberOrderByIdDesc(String plateNumber);
+
+    Optional<VehicleEntity> findVehicleById(Long id);
 }

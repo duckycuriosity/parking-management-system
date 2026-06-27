@@ -82,8 +82,10 @@ public class PaymentController {
     @GetMapping("/report")
     public Result<RevenueReportResponse> getRevenueReport(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        return Result.ok(paymentService.getRevenueReport(startDate, endDate));
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return Result.ok(paymentService.getRevenueReport(startDate, endDate, page, size));
     }
 
     @GetMapping("/report/export")

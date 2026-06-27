@@ -3,9 +3,12 @@ package vio.barie.core.service;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.Nullable;
 import jakarta.persistence.Tuple;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.*;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,14 +54,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.Calendar;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 
 import vio.barie.core.dto.payment.RevenueReportResponse;
 
@@ -71,6 +69,7 @@ public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final PaymentGateway paymentGateway; // inject adapter vào đây
+    private final StringRedisTemplate stringRedisTemplate;
 
     @Transactional
     public PaymentEntity createSessionPayment(
@@ -187,19 +186,59 @@ public class PaymentService {
     }
 
     @Transactional(readOnly = true)
-    public RevenueReportResponse getRevenueReport(LocalDate startDate, LocalDate endDate) {
+    public RevenueReportResponse getRevenueReport(LocalDate startDate, LocalDate endDate, int page, int size) {
         LocalDateTime from = startDate.atStartOfDay();
         LocalDateTime to = endDate.plusDays(1).atStartOfDay();
 
-        List<Object[]> rows = paymentRepository.findDailyRevenue(from, to);
+        // Redis keys use ISO format "yyyy-MM-dd" — matches Postgres DATE::text for exclude comparison
+        DateTimeFormatter redisKeyFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        // Display format "dd/MM/yyyy" matches what TO_CHAR returns from DB
+        DateTimeFormatter displayFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-        List<RevenueReportResponse.DailyDetail> details = rows.stream()
-                .map(row -> RevenueReportResponse.DailyDetail.builder()
-                        .date((String) row[0])
-                        .transactionCount(((Number) row[1]).longValue())
-                        .revenue(new BigDecimal(row[2].toString()))
-                        .build())
-                .collect(Collectors.toList());
+        List<LocalDate> allDates = getDateListBetween(from, to); // "yyyy-MM-dd"
+        List<LocalDate> excludeDates = new ArrayList<>();
+        excludeDates.add(LocalDate.now().plusDays(1));
+
+        List<RevenueReportResponse.DailyDetail> details = new ArrayList<>();
+
+        for (LocalDate dateKey : allDates) {
+            if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(dateKey.toString()))) {
+                log.debug("FOUND REDIS DATE KEY : {} !",dateKey);
+                // StringRedisTemplate stores all values as String — must parse explicitly
+                String countStr = (String) stringRedisTemplate.opsForHash().get(dateKey.toString(), "transactionCount");
+                String revenueStr = (String) stringRedisTemplate.opsForHash().get(dateKey.toString(), "revenue");
+                if (countStr != null && revenueStr != null) {
+                    excludeDates.add(dateKey);
+                    details.add(RevenueReportResponse.DailyDetail.builder()
+                            .date(dateKey.format(displayFmt))
+                            .transactionCount(Long.parseLong(countStr))
+                            .revenue(new BigDecimal(revenueStr))
+                            .build());
+                }
+            }
+        }
+
+        List<Object[]> rows = paymentRepository.findDailyRevenue(from, to, excludeDates);
+        for (Object[] row : rows) {
+            String displayDate = (String) row[0]; // "dd/MM/yyyy" from TO_CHAR in SQL
+            long count = ((Number) row[1]).longValue();
+            BigDecimal revenue = new BigDecimal(row[2].toString());
+
+            details.add(RevenueReportResponse.DailyDetail.builder()
+                    .date(displayDate)
+                    .transactionCount(count)
+                    .revenue(revenue)
+                    .build());
+
+            // Cache with ISO key so exclude list matches Postgres DATE::text on next call
+            String dateKey = LocalDate.parse(displayDate, displayFmt).format(redisKeyFmt);
+            stringRedisTemplate.opsForHash().put(dateKey, "transactionCount", String.valueOf(count));
+            stringRedisTemplate.opsForHash().put(dateKey, "revenue", revenue.toPlainString());
+        }
+
+        // Sort descending (newest first) — same order as the DB query
+        details.sort((a, b) -> LocalDate.parse(b.getDate(), displayFmt)
+                .compareTo(LocalDate.parse(a.getDate(), displayFmt)));
 
         BigDecimal totalRevenue = details.stream()
                 .map(RevenueReportResponse.DailyDetail::getRevenue)
@@ -214,16 +253,52 @@ public class PaymentService {
                 ? totalRevenue.divide(BigDecimal.valueOf(daysInRange), 0, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
 
+        List<RevenueReportResponse.DailyDetail> pageContent = paginate(details, page, size);
+        Page<RevenueReportResponse.DailyDetail> pagedDetails = new PageImpl<>(
+                pageContent,
+                PageRequest.of(page, Math.max(size, 1)),
+                details.size()
+        );
+
         return RevenueReportResponse.builder()
                 .totalRevenue(totalRevenue)
                 .avgDailyRevenue(avgDailyRevenue)
                 .totalTransactions(totalTransactions)
-                .dailyDetails(details)
+                .dailyDetails(pagedDetails)
                 .build();
     }
 
+    public static List<LocalDate> getDateListBetween(LocalDateTime from, LocalDateTime to) {
+        List<LocalDate> result = new ArrayList<>();
+
+        LocalDateTime current = from;
+        while (current.isBefore(to)) {
+            result.add(current.toLocalDate());
+            current = current.plusDays(1);
+        }
+
+        return result;
+    }
+
+    public static <T> List<T> paginate(List<T> list, int page, int size) {
+        if (list == null || list.isEmpty() || size <= 0 || page < 0) {
+            return Collections.emptyList();
+        }
+
+        int fromIndex = page * size;
+
+        if (fromIndex >= list.size()) {
+            return Collections.emptyList();
+        }
+
+        int toIndex = Math.min(fromIndex + size, list.size());
+
+        return list.subList(fromIndex, toIndex);
+    }
+
+    @Transactional
     public byte[] exportRevenueReportToExcel(LocalDate startDate, LocalDate endDate) {
-        RevenueReportResponse report = getRevenueReport(startDate, endDate);
+        RevenueReportResponse report = getRevenueReport(startDate, endDate, 0, Integer.MAX_VALUE);
         DateTimeFormatter displayFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
         try (XSSFWorkbook wb = new XSSFWorkbook();

@@ -1,6 +1,7 @@
 package vio.barie.core.service.mqtt;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -9,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import vio.barie.core.common.TicketStatus;
 import vio.barie.core.common.SessionType;
 import vio.barie.core.config.exception.ServiceException;
+import vio.barie.core.dto.parking.EventImageInfo;
 import vio.barie.core.dto.parking.PendingEventDetection;
 import vio.barie.core.dto.payment.CreatePaymentRequest;
 import vio.barie.core.dto.payment.CreatePaymentResponse;
@@ -22,12 +24,14 @@ import vio.barie.core.utils.DirectionType;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.redis.core.RedisTemplate;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DetectionMatchingService {
@@ -100,6 +104,7 @@ public class DetectionMatchingService {
             }
 
             PendingEventDetection matched = findAndRemoveMatch(buffer, detection);
+
             if (matched == null) {
                 redisTemplate.opsForList().rightPush(matchKey, detection);
                 redisTemplate.expire(matchKey, Duration.ofSeconds(MATCH_WINDOW_MS / 1000 + 30));
@@ -218,6 +223,12 @@ public class DetectionMatchingService {
                 session.setSessionType(SessionType.DAY);
             }
 
+            if (detection.getListImageInfo() != null && !detection.getListImageInfo().isEmpty()) {
+                session.setEntryImageInfo(detection.getListImageInfo());
+                log.info(">>> Chuẩn bị lưu db: Có {} cụm ảnh được gán vào Session", detection.getListImageInfo().size());
+            } else {
+                log.error(">>> Không có ảnh lưu db!");
+            }
             parkingSessionRepository.save(session);
             logger.info("handleEntryEvent: session created id={} plate={} customer={} sessionType={} ticketId={}",
                     session.getId(), vehicle.getPlateNumber(), customer.getId(),
@@ -264,9 +275,9 @@ public class DetectionMatchingService {
 
             // Fetch open session for this vehicle+customer
             ParkingSessionEntity openSession = parkingSessionRepository
-                    .findFirstByVehicleIdAndEntryCustomerIdAndExitTimeIsNullOrderByEntryTimeDesc(
-                            vehicle.getId(), customer.getId())
+                    .findFirstByVehicleIdAndExitTimeIsNullOrderByEntryTimeDesc(vehicle.getId())
                     .orElse(null);
+
 
             if (openSession == null) {
                 logger.warn("handleExitEvent: no open parking session found for vehicle={} customer={}",
@@ -294,6 +305,8 @@ public class DetectionMatchingService {
             openSession.setExitTime(exitTime);
             openSession.setExitLane(lane);
             openSession.setExitBarrier(barrierId);
+            openSession.setExitImageInfo(detection.getListImageInfo());
+
             parkingSessionRepository.save(openSession);
 
             logger.info("handleExitEvent: session closed id={} plate={} customer={} sessionType={} ticketId={}",
@@ -356,15 +369,13 @@ public class DetectionMatchingService {
         StringBuilder key = new StringBuilder();
         if (detection.getDirectionType().equals(DirectionType.ENTRY)) {
             key.append(detection.getEntryLaneId());
-        }
-        else if (detection.getDirectionType().equals(DirectionType.EXIT)) {
+        } else if (detection.getDirectionType().equals(DirectionType.EXIT)) {
             key.append(detection.getExitLaneId());
         } else throw new ServiceException("Lane of PendingEventDetection should not be null");
 
         if (detection.getType().equals(DetectionType.FACE)) {
             key.append(":").append(detection.getProfileId());
-        }
-        else if (detection.getType().equals(DetectionType.PLATE)) {
+        } else if (detection.getType().equals(DetectionType.PLATE)) {
             key.append(":").append(detection.getPlateNumber());
         } else throw new ServiceException("Detection type of PendingEventDetection should not be null");
 
@@ -378,8 +389,8 @@ public class DetectionMatchingService {
         if (barrierId == null || barrierId.isBlank() || laneId == null) {
             return null;
         }
-
-        return "detection:pending:" + direction + ":" + barrierId + ":" + laneId;
+        // e thêm LOCAL_DEV để test dưới local bang mqtt mà k bị ảnh hưởng bởi server onl
+        return "detection:pending:LOCAL_DEV" + direction + ":" + barrierId + ":" + laneId;
     }
 
     private Long resolveLaneId(PendingEventDetection detection) {
@@ -432,6 +443,13 @@ public class DetectionMatchingService {
         merged.setExitCameraId(first.getExitCameraId() != null ? first.getExitCameraId() : second.getExitCameraId());
         merged.setExitLaneId(first.getExitLaneId() != null ? first.getExitLaneId() : second.getExitLaneId());
         merged.setTimestampMs(Math.max(first.getTimestampMs(), second.getTimestampMs()));
+
+        if (first.getListImageInfo() != null) {
+            merged.getListImageInfo().addAll(first.getListImageInfo());
+        }
+        if (second.getListImageInfo() != null) {
+            merged.getListImageInfo().addAll(second.getListImageInfo());
+        }
         return merged;
     }
 
@@ -452,7 +470,7 @@ public class DetectionMatchingService {
     }
 
     private PendingEventDetection findAndRemoveMatch(List<PendingEventDetection> events,
-            PendingEventDetection incoming) {
+                                                     PendingEventDetection incoming) {
         PendingEventDetection match = null;
         long bestDelta = Long.MAX_VALUE;
 
@@ -495,7 +513,7 @@ public class DetectionMatchingService {
         return (left.getType() == vio.barie.core.utils.DetectionType.FACE
                 && right.getType() == vio.barie.core.utils.DetectionType.PLATE)
                 || (left.getType() == vio.barie.core.utils.DetectionType.PLATE
-                        && right.getType() == vio.barie.core.utils.DetectionType.FACE);
+                && right.getType() == vio.barie.core.utils.DetectionType.FACE);
     }
 
     private TicketEntity findValidMonthlyTicket(Long vehicleId) {
