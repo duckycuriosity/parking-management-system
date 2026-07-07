@@ -38,54 +38,56 @@ public interface LaneRepository extends JpaRepository<LaneEntity, Long> {
     boolean existsByParkingLot_Building_Id(Long buildingId);
 
     @Query(value = """
-        WITH latest_activity AS (
-            SELECT 
-                lane_id,
-                action_type,
-                action_time,
-                parking_lot_id,
-                vehicle_id,
-                ROW_NUMBER() OVER (PARTITION BY lane_id ORDER BY action_time DESC) AS rn
-            FROM (
+                WITH latest_activity AS (
+                    SELECT 
+                        lane_id,
+                        action_type,
+                        action_time,
+                        parking_lot_id,
+                        vehicle_id,
+                        ROW_NUMBER() OVER (PARTITION BY lane_id ORDER BY action_time DESC) AS rn
+                    FROM (
+                        SELECT 
+                            entry_lane_id AS lane_id,
+                            'ENTRY' AS action_type,
+                            entry_time AS action_time,
+                            parking_lot_id,
+                            vehicle_id
+                        FROM parking_session
+                        WHERE entry_lane_id IS NOT NULL
+                            AND (:laneId IS NULL OR entry_lane_id = :laneId)
+            
+                        UNION ALL
+            
+                        SELECT 
+                            exit_lane_id AS lane_id,
+                            'EXIT' AS action_type,
+                            exit_time AS action_time,
+                            parking_lot_id,
+                            vehicle_id
+                        FROM parking_session
+                        WHERE exit_lane_id IS NOT NULL
+                            AND (:laneId IS NULL OR exit_lane_id = :laneId)
+                    ) t
+                )
                 SELECT 
-                    entry_lane_id AS lane_id,
-                    'ENTRY' AS action_type,
-                    entry_time AS action_time,
-                    parking_lot_id,
-                    vehicle_id
-                FROM parking_session
-                WHERE entry_lane_id IS NOT NULL
-                    AND (:laneId IS NULL OR entry_lane_id = :laneId)
-                
-                UNION ALL
-                
-                SELECT 
-                    exit_lane_id AS lane_id,
-                    'EXIT' AS action_type,
-                    exit_time AS action_time,
-                    parking_lot_id,
-                    vehicle_id
-                FROM parking_session
-                WHERE exit_lane_id IS NOT NULL
-                    AND (:laneId IS NULL OR exit_lane_id = :laneId)
-            ) t
-        )
-        SELECT 
-            la.lane_id AS laneId,
-            l.name AS laneName,
-            l.type AS laneType,
-            la.action_type AS lastAction,
-            la.action_time AS lastActionTime,
-            la.parking_lot_id AS parkingLotId,
-            la.vehicle_id AS vehicleId,
-            v.plate_number AS plateNumber,
-            v.vehicle_type AS vehicleType
-        FROM latest_activity la
-        JOIN lane l ON la.lane_id = l.id
-        LEFT JOIN vehicle v ON la.vehicle_id = v.id
-        WHERE la.rn = 1
-            AND (:laneId IS NULL OR la.lane_id = :laneId)
-        ORDER BY la.lane_id
-    """, nativeQuery = true)
+                    la.lane_id AS laneId,
+                    l.name AS laneName,
+                    l.type AS laneType,
+                    la.action_type AS lastAction,
+                    la.action_time AS lastActionTime,
+                    la.parking_lot_id AS parkingLotId,
+                    la.vehicle_id AS vehicleId,
+                    v.plate_number AS plateNumber,
+                    v.vehicle_type AS vehicleType,
+                    (SELECT COUNT(id) FROM lane) AS totalLane,
+                    (SELECT COUNT(id) FROM lane WHERE status = 'ACTIVE') AS laneActive
+                FROM latest_activity la
+                JOIN lane l ON la.lane_id = l.id
+                LEFT JOIN vehicle v ON la.vehicle_id = v.id
+                WHERE la.rn = 1
+                    AND (:laneId IS NULL OR la.lane_id = :laneId)
+                ORDER BY la.lane_id
+            """, nativeQuery = true)
     List<LaneActivityDTO> findLatestActivityPerLane(@Param("laneId") Integer laneId);
 }
