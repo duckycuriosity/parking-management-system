@@ -20,4 +20,6 @@ public class LaneActivityDTO {
     private Long vehicleId;
     private String plateNumber;
     private String vehicleType;
+    private Long totalLane;
+    private Long laneActive;
 }
