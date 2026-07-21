@@ -1,6 +1,5 @@
 package vio.barie.core.service.smoothing;
 
-import cn.hutool.json.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.redisson.api.RLock;
 import org.redisson.api.RMap;
@@ -13,7 +12,6 @@ import vio.barie.core.dto.parking.PendingEventDetection;
 import vio.barie.core.utils.DetectionType;
 import vio.barie.core.utils.DirectionType;
 
-import javax.swing.text.html.Option;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -26,7 +24,6 @@ import java.util.concurrent.TimeUnit;
 public class SmoothingAIEvents {
   private static final Logger logger = LoggerFactory.getLogger(SmoothingAIEvents.class);
   private final RedissonClient redissonClient;
-  private final ObjectMapper objectMapper;
 
   @Value("${barrier.detection.session-ttl-seconds:150}")
   private long sessionTtlSeconds;

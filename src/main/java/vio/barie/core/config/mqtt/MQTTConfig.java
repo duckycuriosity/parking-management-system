@@ -21,6 +21,12 @@ public class MQTTConfig {
     @Value("${mqtt.host}")
     private String broker;
 
+    @Value("${mqtt.username}")
+    private String username;
+
+    @Value("${mqtt.password}")
+    private String password;
+
     @Value("${mqtt.client-id}")
     private String clientId;
 
@@ -36,6 +42,12 @@ public class MQTTConfig {
     @Bean
     public MqttConnectOptions mqttConnectOptions() {
         MqttConnectOptions options = new MqttConnectOptions();
+        if (username != null && !username.isEmpty()) {
+            options.setUserName(username);
+        }
+        if (password != null && !password.isEmpty()) {
+            options.setPassword(password.toCharArray());
+        }
         options.setServerURIs(new String[] { broker });
         options.setAutomaticReconnect(true);
         // Conservative defaults for unstable networks; tune as needed

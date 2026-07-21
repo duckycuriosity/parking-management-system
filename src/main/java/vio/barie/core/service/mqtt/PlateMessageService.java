@@ -13,6 +13,8 @@ import vio.barie.core.dto.parking.ImageDetail;
 import vio.barie.core.dto.parking.PendingEventDetection;
 import vio.barie.core.entity.*;
 import vio.barie.core.repository.*;
+import vio.barie.core.service.filter.AiEventQualityFilter;
+import vio.barie.core.service.filter.QualityCheckResult;
 import vio.barie.core.utils.DetectionType;
 import vio.barie.core.utils.DirectionType;
 
@@ -43,6 +45,7 @@ public class PlateMessageService {
     private final ParkingMessageService parkingMessageService;
     private final BarrierRepository barrierRepository;
     private final DetectionMatchingService detectionMatchingService;
+    private final AiEventQualityFilter aiEventQualityFilter;
     private final UUID uuid = UUID.randomUUID();
 
     @Transactional
@@ -51,13 +54,22 @@ public class PlateMessageService {
             Long cameraCode = event.path("cameraId").asLong();
             String plateNumber = event.path("plate").path("plate").asText(null);
             String cameraUUID = event.path("cameraUUID").asText();
-            Boolean isVerified = event.path("plate").path("isVerified").asBoolean(false);
-            Integer labelTypeVehicle = event.path("object").path("label").asInt();
 
             if (plateNumber == null || cameraUUID == null) {
                 logger.warn("PlateHandler: plate event has no plateNumber — cameraId={}", cameraCode);
                 return;
             }
+
+            QualityCheckResult qualityCheckResult = aiEventQualityFilter.evaluatePlate(event);
+
+            if (!qualityCheckResult.accepted()) {
+                logger.debug("ProfileHandler: plate event rejected - reason={} value ={} cameraUUID={}", qualityCheckResult.reason(), qualityCheckResult.value(), cameraUUID);
+                return;
+            }
+
+            Boolean isVerified = event.path("plate").path("isVerified").asBoolean(false);
+            Integer labelTypeVehicle = event.path("object").path("label").asInt();
+            Double confidence = event.path("plate").path("confidence").asDouble();
 
             CameraEntity aiCamera = cameraRepository.findCameraByUUID(cameraUUID).orElse(null);
             if (aiCamera == null) {

@@ -16,6 +16,8 @@ import vio.barie.core.repository.BarrierCameraRepository;
 import vio.barie.core.repository.BarrierRepository;
 import vio.barie.core.repository.CameraRepository;
 import vio.barie.core.repository.ParkingCustomerRepository;
+import vio.barie.core.service.filter.AiEventQualityFilter;
+import vio.barie.core.service.filter.QualityCheckResult;
 import vio.barie.core.utils.DetectionType;
 import vio.barie.core.utils.DirectionType;
 
@@ -36,6 +38,7 @@ public class ProfileMessageService {
     private final BarrierCameraRepository barrierCameraRepository;
     private final ParkingMessageService parkingMessageService;
     private final BarrierRepository barrierRepository;
+    private final AiEventQualityFilter aiEventQualityFilter;
     private final static Logger logger = LoggerFactory.getLogger(ProfileMessageService.class);
 
     @Transactional
@@ -43,14 +46,24 @@ public class ProfileMessageService {
         try {
             Long cameraCode = event.path("cameraId").asLong();
             String cameraUUID = event.path("cameraUUID").asText();
-            Integer profileId = event.path("face").path("profileId").asInt();
-            String profileName = event.path("face").path("profileName").asText(null);
 
             if (cameraUUID == null) {
                 logger.warn("ProfileHandler: face event has no profileId — cameraId={}", cameraCode);
                 parkingMessageService.publishErrorWhenHandlingEvent("Camera UUID is missing in event", "", DetectionType.FACE);
                 return;
             }
+
+            QualityCheckResult qualityCheckResult = aiEventQualityFilter.evaluateFace(event);
+
+            if (!qualityCheckResult.accepted()) {
+                logger.debug("ProfileHandler: face event rejected - reason={} value ={} cameraUUID={}", qualityCheckResult.reason(), qualityCheckResult.value(), cameraUUID);
+                return;
+            }
+
+            Integer profileId = event.path("face").path("profileId").asInt();
+            String profileName = event.path("face").path("profileName").asText(null);
+            Double confidence = event.path("face").path("confidence").asDouble();
+            String imageUrl = event.path("images").path("fullFrame").path("accessUrl").asText();
 
             CameraEntity aiCamera = cameraRepository.findCameraByUUID(cameraUUID).orElse(null);
             if (aiCamera == null) {
