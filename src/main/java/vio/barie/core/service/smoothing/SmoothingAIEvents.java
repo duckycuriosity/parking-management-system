@@ -58,24 +58,24 @@ public class SmoothingAIEvents {
       if (isNewVehicle) {
         Map<String, String> fresh = new HashMap<>();
         fresh.put("plateNumber", plateDetection.getPlateNumber());
-        fresh.put("confidence", String.valueOf(plateDetection.getConfidence()));
-        fresh.put("aiPlateId", plateDetection.getAiPlateId());
+        fresh.put("confidence", String.valueOf(confidence));
+        fresh.put("aiPlateId", nullToEmpty(plateDetection.getAiPlateId()));
         fresh.put("firstSeenMs", String.valueOf(eventTimeMs));
         fresh.put("lastSeenMs", String.valueOf(eventTimeMs));
         fresh.put("count", "1");
-        fresh.put("imageJson", plateDetection.getImage());
+        fresh.put("imageJson", nullToEmpty(plateDetection.getImage()));
         session.clear();
         session.putAll(fresh);
         logger.debug("ingestPlate: new session key={} plate={}", sessionKey, plateDetection.getPlateNumber());
       } else {
-        double currentConfidence = Double.parseDouble(session.get("confidence"));
+        double currentConfidence = parseDoubleSafe(session.get("confidence"));
         session.put("lastSeenMs", String.valueOf(eventTimeMs));
-        session.put("count", String.valueOf(Integer.parseInt(session.get("count")) + 1));
+        session.put("count", String.valueOf(parseIntSafe(session.get("count")) + 1));
         if (confidence > currentConfidence) {
           session.put("plateNumber", plateDetection.getPlateNumber());
-          session.put("confidence", String.valueOf(plateDetection.getConfidence()));
-          session.put("aiPlateId", plateDetection.getAiPlateId());
-          session.put("imageJson", plateDetection.getImage());
+          session.put("confidence", String.valueOf(confidence));
+          session.put("aiPlateId", nullToEmpty(plateDetection.getAiPlateId()));
+          session.put("imageJson", nullToEmpty(plateDetection.getImage()));
         }
       }
       session.expire(Duration.ofSeconds(sessionTtlSeconds));

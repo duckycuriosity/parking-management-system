@@ -146,21 +146,20 @@ public class ProfileMessageService {
     }
 
     private EventImageInfo extractImageInfo(JsonNode event, String eventType) {
-        JsonNode dataNode = event.path(eventType);
-        if (dataNode.isMissingNode()) {
+        JsonNode images = event.path("images");
+        if (images.isMissingNode()) {
             return null;
         }
-        long lastTimeEpoch = event.path("lastTime").asLong(System.currentTimeMillis() / 1000);
-        String timestamp = Instant.ofEpochSecond(lastTimeEpoch).toString();
+        String timestamp = event.path("eventTime").asText(Instant.now().toString());
         List<ImageDetail> details = new ArrayList<>();
 
-        String rootImage = dataNode.path("image").asText(null);
-        if (rootImage != null) {
-            details.add(new ImageDetail(rootImage, timestamp, "root"));
+        String fullFrameUrl = images.path("fullFrame").path("accessUrl").asText(null);
+        if (fullFrameUrl != null) {
+            details.add(new ImageDetail(fullFrameUrl, timestamp, "root"));
         }
-        String cropImage = dataNode.path("cropImage").asText(null);
-        if (cropImage != null) {
-            details.add(new ImageDetail(cropImage, timestamp, "crop"));
+        String faceCropUrl = images.path("faceCrop").path("accessUrl").asText(null);
+        if (faceCropUrl != null) {
+            details.add(new ImageDetail(faceCropUrl, timestamp, "crop"));
         }
         if (details.isEmpty()) {
             return null;
