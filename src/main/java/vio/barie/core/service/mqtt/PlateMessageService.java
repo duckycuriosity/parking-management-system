@@ -13,6 +13,8 @@ import vio.barie.core.dto.parking.ImageDetail;
 import vio.barie.core.dto.parking.PendingEventDetection;
 import vio.barie.core.entity.*;
 import vio.barie.core.repository.*;
+import vio.barie.core.service.filter.AiEventQualityFilter;
+import vio.barie.core.service.filter.QualityCheckResult;
 import vio.barie.core.utils.DetectionType;
 import vio.barie.core.utils.DirectionType;
 
@@ -43,21 +45,31 @@ public class PlateMessageService {
     private final ParkingMessageService parkingMessageService;
     private final BarrierRepository barrierRepository;
     private final DetectionMatchingService detectionMatchingService;
+    private final AiEventQualityFilter aiEventQualityFilter;
     private final UUID uuid = UUID.randomUUID();
 
     @Transactional
     public void handle(JsonNode event) {
         try {
             Long cameraCode = event.path("cameraId").asLong();
-            String plateNumber = event.path("plate").path("plate").asText(null);
+            String plateNumber = event.path("plate").path("plateNumber").asText(null);
             String cameraUUID = event.path("cameraUUID").asText();
-            Boolean isVerified = event.path("plate").path("isVerified").asBoolean(false);
-            Integer labelTypeVehicle = event.path("object").path("label").asInt();
 
             if (plateNumber == null || cameraUUID == null) {
                 logger.warn("PlateHandler: plate event has no plateNumber — cameraId={}", cameraCode);
                 return;
             }
+
+            QualityCheckResult qualityCheckResult = aiEventQualityFilter.evaluatePlate(event);
+
+            if (!qualityCheckResult.accepted()) {
+                logger.debug("ProfileHandler: plate event rejected - reason={} value ={} cameraUUID={}", qualityCheckResult.reason(), qualityCheckResult.value(), cameraUUID);
+                return;
+            }
+
+            Boolean isVerified = event.path("plate").path("isVerified").asBoolean(false);
+            Integer labelTypeVehicle = event.path("object").path("label").asInt();
+            Double confidence = event.path("plate").path("confidence").asDouble();
 
             CameraEntity aiCamera = cameraRepository.findCameraByUUID(cameraUUID).orElse(null);
             if (aiCamera == null) {
@@ -100,14 +112,14 @@ public class PlateMessageService {
             if (vehicle != null) {
                 TicketEntity ticket = ticketRepository.findByVehicleIdAndStatus(vehicle.getId(), TicketStatus.ACTIVE).orElse(null);
                 if (ticket != null) {
-                    handleRegisteredVehicle(ticket, vehicle, plateNumber, cameraInLane, barrier.get(), laneId, direction, cameraUUID, plateImgInfo);
+                    handleRegisteredVehicle(ticket, vehicle, plateNumber, cameraInLane, barrier.get(), laneId, direction, cameraUUID, plateImgInfo, confidence);
                     return;
                 }
             }
 
 
             // Otherwise handle as guest/unregistered vehicle
-            handleUnregisteredVehicle(plateNumber, cameraInLane, barrier.get(), laneId, direction, labelTypeVehicle, plateImgInfo);
+            handleUnregisteredVehicle(plateNumber, cameraInLane, barrier.get(), laneId, direction, labelTypeVehicle, plateImgInfo, confidence);
         } catch (Exception ex) {
             log.error("PlateMessageService: failed to handle plate event — payload={} error={}", event, ex.getMessage(),
                     ex);
@@ -121,7 +133,8 @@ public class PlateMessageService {
      */
     private void handleRegisteredVehicle(TicketEntity ticket, VehicleEntity vehicle, String plateNumber,
                                          CameraEntity cameraInLane, BarrierEntity barrier,
-                                         long laneId, DirectionType direction, String cameraUUID, EventImageInfo plateImgInfo) {
+                                         long laneId, DirectionType direction, String cameraUUID, EventImageInfo plateImgInfo,
+                                         Double confidence) {
         try {
             ParkingCustomerEntity customer = ticket.getCustomer();
 
@@ -134,7 +147,7 @@ public class PlateMessageService {
             }
 
             PendingEventDetection event = buildPendingEventForRegistered(
-                    vehicle, customer, plateNumber, cameraInLane, barrier, laneId, direction, plateImgInfo);
+                    vehicle, customer, plateNumber, cameraInLane, barrier, laneId, direction, plateImgInfo, confidence);
 
             if (direction == DirectionType.ENTRY) {
                 // For registered customers at entry: immediately process without face matching.
@@ -168,7 +181,8 @@ public class PlateMessageService {
      * Always buffer event and wait for face matching logic to create session
      */
     private void handleUnregisteredVehicle(String plateNumber, CameraEntity cameraInLane,
-                                           BarrierEntity barrier, long laneId, DirectionType direction, Integer vehicleType, EventImageInfo plateImgInfo) {
+                                           BarrierEntity barrier, long laneId, DirectionType direction, Integer vehicleType, EventImageInfo plateImgInfo,
+                                           Double confidence) {
         try {
             if (!vehicleRepository.existsByPlateNumber(plateNumber)) {
                 logger.info("Vehicle with plate={} exists but no active ticket — treating as unregistered",
@@ -177,7 +191,7 @@ public class PlateMessageService {
             }
 
             PendingEventDetection event = buildPendingEventForUnregistered(
-                    plateNumber, cameraInLane, barrier, laneId, direction, plateImgInfo);
+                    plateNumber, cameraInLane, barrier, laneId, direction, plateImgInfo, confidence);
 
             if (direction == DirectionType.ENTRY) {
                 // Notify entry of unregistered vehicle
@@ -208,7 +222,8 @@ public class PlateMessageService {
                                                                  BarrierEntity barrier,
                                                                  long laneId,
                                                                  DirectionType direction,
-                                                                 EventImageInfo plateImgInfo) {
+                                                                 EventImageInfo plateImgInfo,
+                                                                 Double confidence) {
         PendingEventDetection event = new PendingEventDetection();
         event.setPlateNumber(plateNumber);
         // aiIdentityPlateId can be a numeric id or UUID string from AI; keep as String
@@ -217,6 +232,7 @@ public class PlateMessageService {
         event.setTimestampMs(System.currentTimeMillis());
         event.setProfileId(customer.getAiProfileId());
         event.setDirectionType(direction);
+        event.setConfidence(confidence);
 
         if (direction == DirectionType.ENTRY) {
             event.setEntryBarrierId(barrier.getBarrierId());
@@ -241,12 +257,14 @@ public class PlateMessageService {
                                                                    BarrierEntity barrier,
                                                                    long laneId,
                                                                    DirectionType direction,
-                                                                   EventImageInfo plateImgInfo) {
+                                                                   EventImageInfo plateImgInfo,
+                                                                   Double confidence) {
         PendingEventDetection event = new PendingEventDetection();
         event.setType(DetectionType.PLATE);
         event.setPlateNumber(plateNumber);
         event.setTimestampMs(System.currentTimeMillis());
         event.setDirectionType(direction);
+        event.setConfidence(confidence);
 
         if (direction == DirectionType.ENTRY) {
             event.setEntryBarrierId(barrier.getBarrierId());
@@ -290,21 +308,20 @@ public class PlateMessageService {
     }
 
     private EventImageInfo extractImageInfo(JsonNode event, String evenType) {
-        JsonNode dataNode = event.path(evenType);
-        if (dataNode.isMissingNode()) {
+        JsonNode images = event.path("images");
+        if (images.isMissingNode()) {
             return null;
         }
-        long lastTimeEpoch = event.path("lastTime").asLong(System.currentTimeMillis() / 1000);
-        String timestamp = Instant.ofEpochSecond(lastTimeEpoch).toString();
+        String timestamp = event.path("eventTime").asText(Instant.now().toString());
         List<ImageDetail> details = new ArrayList<>();
 
-        String rootImage = dataNode.path("image").asText(null);
-        if (rootImage != null) {
-            details.add(new ImageDetail(rootImage, timestamp, "root"));
+        String fullFrameUrl = images.path("fullFrame").path("accessUrl").asText(null);
+        if (fullFrameUrl != null) {
+            details.add(new ImageDetail(fullFrameUrl, timestamp, "root"));
         }
-        String cropImage = dataNode.path("cropImage").asText(null);
-        if (cropImage != null) {
-            details.add(new ImageDetail(cropImage, timestamp, "crop"));
+        String plateCropUrl = images.path("plateCrop").path("accessUrl").asText(null);
+        if (plateCropUrl != null) {
+            details.add(new ImageDetail(plateCropUrl, timestamp, "crop"));
         }
         if (details.isEmpty()) {
             return null;

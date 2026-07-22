@@ -35,6 +35,16 @@ ai:
     base-url: http://192.168.168.30:8088
     cookie-key: uO50EwSqoolz1OzU
     face-image-url: http://192.168.168.30:8088/api/FaceImage/
+  quality:
+    face:
+      min-quality-score: 0.5
+      min-det-score: 0.6
+      min-blur-score: 30
+      max-yaw-deg: 45
+      max-pitch-deg: 45
+      require-usable: true
+    plate:
+      min-quality-score: 0.5
 logging:
   level:
     org.flywaydb: DEBUG
