@@ -24,5 +24,8 @@ public class PendingEventDetection {
     String aiPlateId;
     long timestampMs;
 
+    Double confidence;
+    String image;
+
     private List<EventImageInfo> listImageInfo = new ArrayList<>();
 }

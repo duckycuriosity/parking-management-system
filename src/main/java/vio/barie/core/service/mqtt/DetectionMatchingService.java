@@ -59,87 +59,87 @@ public class DetectionMatchingService {
      * events and emit only when both sides of the same barrier/direction pair
      * arrive.
      */
-    public void ingest(PendingEventDetection detection) {
-        if (detection == null) {
-            logger.warn("ingest: received null detection");
-            ioTService.publishErrorWhenHandlingEvent("Received null detection", "",
-                    detection != null ? detection.getType() : null);
-            return;
-        }
+//    public void ingest(PendingEventDetection detection) {
+//        if (detection == null) {
+//            logger.warn("ingest: received null detection");
+//            ioTService.publishErrorWhenHandlingEvent("Received null detection", "",
+//                    detection != null ? detection.getType() : null);
+//            return;
+//        }
+//
+//        String dedupKey = buildDedupKey(detection);
+//        Boolean isNew = stringRedisTemplate.opsForValue()
+//                .setIfAbsent(dedupKey, "1", PLATE_DEDUP_TTL);
+//        if (Boolean.FALSE.equals(isNew)) {
+//            logger.debug("ingest: duplicate suppressed within 5min — key={}", dedupKey);
+//            return;
+//        } else {
+//            logger.debug("ingest: new detection processed — key={}", dedupKey);
+//        }
+//
+//        try {
+//            if (detection.getDirectionType() == null) {
+//                logger.warn("ingest: detection has no direction — type={}", detection.getType());
+//                ioTService.publishErrorWhenHandlingEvent("Detection has no direction", "", detection.getType());
+//                return;
+//            }
+//
+//            String matchKey = buildMatchKey(detection);
+//            if (matchKey == null) {
+//                logger.warn(
+//                        "ingest: cannot resolve barrier for detection type={} direction={} cameraId={} plate={} profileId={}",
+//                        detection.getType(), detection.getDirectionType(),
+//                        detection.getDirectionType() == DirectionType.ENTRY ? detection.getEntryCameraId()
+//                                : detection.getExitCameraId(),
+//                        detection.getPlateNumber(), detection.getProfileId());
+//                ioTService.publishErrorWhenHandlingEvent("Cannot resolve barrier for detection", "",
+//                        detection.getType());
+//                return;
+//            }
+//
+//            purgeExpiredEvents(matchKey, System.currentTimeMillis());
+//            List<PendingEventDetection> buffer = redisTemplate.opsForList().range(matchKey, 0, -1);
+//            if (buffer == null) {
+//                buffer = Collections.emptyList();
+//            }
+//
+//            PendingEventDetection matched = findAndRemoveMatch(buffer, detection);
+//
+//            if (matched == null) {
+//                redisTemplate.opsForList().rightPush(matchKey, detection);
+//                redisTemplate.expire(matchKey, Duration.ofSeconds(MATCH_WINDOW_MS / 1000 + 30));
+//                logger.debug("ingest: buffered unmatched event type={} direction={} key={}",
+//                        detection.getType(), detection.getDirectionType(), matchKey);
+//                return;
+//            }
+//
+//            redisTemplate.opsForList().remove(matchKey, 1, matched);
+//            PendingEventDetection merged = mergeEvents(matched, detection);
+//            logger.info("ingest: matched events type={} direction={} key={}",
+//                    merged.getType(), merged.getDirectionType(), matchKey);
+//            emitMatch(merged);
+//        } catch (Exception ex) {
+//            logger.error("ingest: failed to process detection — type={} direction={}: {}",
+//                    detection.getType(), detection.getDirectionType(), ex.getMessage(), ex);
+//        }
+//    }
+//
+//
+//    public void clearEntryBuffer(String barrierId, Long laneId) {
+//        if (barrierId == null || laneId == null) return;
+//        String key = "detection:pending:ENTRY:" + barrierId + ":" + laneId;
+//        redisTemplate.delete(key);
+//        logger.info("clearEntryBuffer: cleared stale face buffer for key={}", key);
+//    }
+//
+//    public void clearExitBuffer(String barrierId, Long laneId) {
+//        if (barrierId == null || laneId == null) return;
+//        String key = "detection:pending:EXIT:" + barrierId + ":" + laneId;
+//        redisTemplate.delete(key);
+//        logger.info("clearExitBuffer: cleared stale face buffer for key={}", key);
+//    }
 
-        String dedupKey = buildDedupKey(detection);
-        Boolean isNew = stringRedisTemplate.opsForValue()
-                .setIfAbsent(dedupKey, "1", PLATE_DEDUP_TTL);
-        if (Boolean.FALSE.equals(isNew)) {
-            logger.debug("ingest: duplicate suppressed within 5min — key={}", dedupKey);
-            return;
-        } else {
-            logger.debug("ingest: new detection processed — key={}", dedupKey);
-        }
-
-        try {
-            if (detection.getDirectionType() == null) {
-                logger.warn("ingest: detection has no direction — type={}", detection.getType());
-                ioTService.publishErrorWhenHandlingEvent("Detection has no direction", "", detection.getType());
-                return;
-            }
-
-            String matchKey = buildMatchKey(detection);
-            if (matchKey == null) {
-                logger.warn(
-                        "ingest: cannot resolve barrier for detection type={} direction={} cameraId={} plate={} profileId={}",
-                        detection.getType(), detection.getDirectionType(),
-                        detection.getDirectionType() == DirectionType.ENTRY ? detection.getEntryCameraId()
-                                : detection.getExitCameraId(),
-                        detection.getPlateNumber(), detection.getProfileId());
-                ioTService.publishErrorWhenHandlingEvent("Cannot resolve barrier for detection", "",
-                        detection.getType());
-                return;
-            }
-
-            purgeExpiredEvents(matchKey, System.currentTimeMillis());
-            List<PendingEventDetection> buffer = redisTemplate.opsForList().range(matchKey, 0, -1);
-            if (buffer == null) {
-                buffer = Collections.emptyList();
-            }
-
-            PendingEventDetection matched = findAndRemoveMatch(buffer, detection);
-
-            if (matched == null) {
-                redisTemplate.opsForList().rightPush(matchKey, detection);
-                redisTemplate.expire(matchKey, Duration.ofSeconds(MATCH_WINDOW_MS / 1000 + 30));
-                logger.debug("ingest: buffered unmatched event type={} direction={} key={}",
-                        detection.getType(), detection.getDirectionType(), matchKey);
-                return;
-            }
-
-            redisTemplate.opsForList().remove(matchKey, 1, matched);
-            PendingEventDetection merged = mergeEvents(matched, detection);
-            logger.info("ingest: matched events type={} direction={} key={}",
-                    merged.getType(), merged.getDirectionType(), matchKey);
-            emitMatch(merged);
-        } catch (Exception ex) {
-            logger.error("ingest: failed to process detection — type={} direction={}: {}",
-                    detection.getType(), detection.getDirectionType(), ex.getMessage(), ex);
-        }
-    }
-
-
-    public void clearEntryBuffer(String barrierId, Long laneId) {
-        if (barrierId == null || laneId == null) return;
-        String key = "detection:pending:ENTRY:" + barrierId + ":" + laneId;
-        redisTemplate.delete(key);
-        logger.info("clearEntryBuffer: cleared stale face buffer for key={}", key);
-    }
-
-    public void clearExitBuffer(String barrierId, Long laneId) {
-        if (barrierId == null || laneId == null) return;
-        String key = "detection:pending:EXIT:" + barrierId + ":" + laneId;
-        redisTemplate.delete(key);
-        logger.info("clearExitBuffer: cleared stale face buffer for key={}", key);
-    }
-
-    private void emitMatch(PendingEventDetection detection) {
+    public void emitMatch(PendingEventDetection detection) {
         if (detection.getDirectionType() == DirectionType.ENTRY) {
             handleEntryEvent(detection);
             return;

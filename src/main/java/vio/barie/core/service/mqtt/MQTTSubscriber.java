@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Service
-public class MQTTSubcriber {
+public class MQTTSubscriber {
 
     private final MqttClient client;
     private final ProfileMessageService profileMessageService;
@@ -28,7 +28,7 @@ public class MQTTSubcriber {
     private final MqttConnectOptions mqttConnectOptions;
     private final AtomicBoolean subscriptionsRegistered = new AtomicBoolean(false);
 
-    public MQTTSubcriber(MqttClient client, ProfileMessageService profileMessageService,
+    public MQTTSubscriber(MqttClient client, ProfileMessageService profileMessageService,
             PlateMessageService plateMessageService,
             ParkingMessageService parkingMessageService, ObjectMapper objectMapper,
             @Qualifier("mqttExecutor") Executor mqttExecutor,

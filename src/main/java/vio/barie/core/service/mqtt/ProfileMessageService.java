@@ -16,6 +16,8 @@ import vio.barie.core.repository.BarrierCameraRepository;
 import vio.barie.core.repository.BarrierRepository;
 import vio.barie.core.repository.CameraRepository;
 import vio.barie.core.repository.ParkingCustomerRepository;
+import vio.barie.core.service.filter.AiEventQualityFilter;
+import vio.barie.core.service.filter.QualityCheckResult;
 import vio.barie.core.utils.DetectionType;
 import vio.barie.core.utils.DirectionType;
 
@@ -36,6 +38,7 @@ public class ProfileMessageService {
     private final BarrierCameraRepository barrierCameraRepository;
     private final ParkingMessageService parkingMessageService;
     private final BarrierRepository barrierRepository;
+    private final AiEventQualityFilter aiEventQualityFilter;
     private final static Logger logger = LoggerFactory.getLogger(ProfileMessageService.class);
 
     @Transactional
@@ -43,14 +46,24 @@ public class ProfileMessageService {
         try {
             Long cameraCode = event.path("cameraId").asLong();
             String cameraUUID = event.path("cameraUUID").asText();
-            Integer profileId = event.path("face").path("profileId").asInt();
-            String profileName = event.path("face").path("profileName").asText(null);
 
             if (cameraUUID == null) {
                 logger.warn("ProfileHandler: face event has no profileId — cameraId={}", cameraCode);
                 parkingMessageService.publishErrorWhenHandlingEvent("Camera UUID is missing in event", "", DetectionType.FACE);
                 return;
             }
+
+            QualityCheckResult qualityCheckResult = aiEventQualityFilter.evaluateFace(event);
+
+            if (!qualityCheckResult.accepted()) {
+                logger.debug("ProfileHandler: face event rejected - reason={} value ={} cameraUUID={}", qualityCheckResult.reason(), qualityCheckResult.value(), cameraUUID);
+                return;
+            }
+
+            Integer profileId = event.path("face").path("profileId").asInt();
+            String profileName = event.path("face").path("profileName").asText(null);
+            Double confidence = event.path("face").path("confidence").asDouble();
+            String imageUrl = event.path("images").path("fullFrame").path("accessUrl").asText();
 
             CameraEntity aiCamera = cameraRepository.findCameraByUUID(cameraUUID).orElse(null);
             if (aiCamera == null) {
@@ -133,21 +146,20 @@ public class ProfileMessageService {
     }
 
     private EventImageInfo extractImageInfo(JsonNode event, String eventType) {
-        JsonNode dataNode = event.path(eventType);
-        if (dataNode.isMissingNode()) {
+        JsonNode images = event.path("images");
+        if (images.isMissingNode()) {
             return null;
         }
-        long lastTimeEpoch = event.path("lastTime").asLong(System.currentTimeMillis() / 1000);
-        String timestamp = Instant.ofEpochSecond(lastTimeEpoch).toString();
+        String timestamp = event.path("eventTime").asText(Instant.now().toString());
         List<ImageDetail> details = new ArrayList<>();
 
-        String rootImage = dataNode.path("image").asText(null);
-        if (rootImage != null) {
-            details.add(new ImageDetail(rootImage, timestamp, "root"));
+        String fullFrameUrl = images.path("fullFrame").path("accessUrl").asText(null);
+        if (fullFrameUrl != null) {
+            details.add(new ImageDetail(fullFrameUrl, timestamp, "root"));
         }
-        String cropImage = dataNode.path("cropImage").asText(null);
-        if (cropImage != null) {
-            details.add(new ImageDetail(cropImage, timestamp, "crop"));
+        String faceCropUrl = images.path("faceCrop").path("accessUrl").asText(null);
+        if (faceCropUrl != null) {
+            details.add(new ImageDetail(faceCropUrl, timestamp, "crop"));
         }
         if (details.isEmpty()) {
             return null;
