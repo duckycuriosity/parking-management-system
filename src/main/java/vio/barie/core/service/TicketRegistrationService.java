@@ -32,6 +32,7 @@ import vio.barie.core.repository.VehicleRepository;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -83,7 +84,7 @@ public class TicketRegistrationService {
         AiProfileResponse profile = profileService.create(
                 req.getName(),
                 0, // groupId = 0 (default)
-                faceImage,
+                List.of(faceImage),
                 req.getCustomerEmail());
         log.info("Face registered successfully: profileId={}, uuid={}",
                 profile.getId(), profile.getUuid());
@@ -108,25 +109,27 @@ public class TicketRegistrationService {
                 }
             });
             vehicle = vehicleRecord.get();
-        } else {
-            // 5️⃣ Xe chưa có → đăng ký biển số với AI và tạo mới
-            PlateCreateRequest plateReq = new PlateCreateRequest();
-            plateReq.setPlate(req.getVehiclePlateNumber());
-            plateReq.setType(req.getVehicleType());
-            plateReq.setEnabled(true);
-
-            AiPlateResponse aiPlateResponse = plateService.create(plateReq);
-            vehicle = aiPlateResponse.getVehicle();
-            log.info("Plate registered successfully: plateId={}, uuid={}", aiPlateResponse.getId(), aiPlateResponse.getUuid());
-            log.debug("Vehicle created: vehicleId={}", vehicle.getId());
         }
+
+//        else {
+//            // 5️⃣ Xe chưa có → đăng ký biển số với AI và tạo mới
+//            PlateCreateRequest plateReq = new PlateCreateRequest();
+//            plateReq.setPlate(req.getVehiclePlateNumber());
+//            plateReq.setType(req.getVehicleType());
+//            plateReq.setEnabled(true);
+//
+//            AiPlateResponse aiPlateResponse = plateService.create(plateReq);
+//            vehicle = aiPlateResponse.getVehicle();
+//            log.info("Plate registered successfully: plateId={}, uuid={}", aiPlateResponse.getId(), aiPlateResponse.getUuid());
+//            log.debug("Vehicle created: vehicleId={}", vehicle.getId());
+//        }
 
         // 7️⃣ Create ticket
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expireAt = calculateExpireDate(req.getTicketType(), req.getStartDate());
 
         TicketEntity ticket = new TicketEntity();
-        ticket.setVehicle(vehicle);
+//        ticket.setVehicle(vehicle);
         ticket.setCustomer(customer.orElse(null));
         ticket.setTicketType(req.getTicketType());
         ticket.setRegisterAt(now);
@@ -151,9 +154,9 @@ public class TicketRegistrationService {
                 .startDate(savedTicket.getStartDate())
                 .customerId(customer.map(ParkingCustomerEntity::getId).orElse(null))
                 .customerName(customer.map(ParkingCustomerEntity::getUsername).orElse(null))
-                .vehicleId(vehicle.getId())
-                .plateNumber(vehicle.getPlateNumber())
-                .vehicleType(vehicle.getVehicleType())
+//                .vehicleId(vehicle.getId())
+//                .plateNumber(vehicle.getPlateNumber())
+//                .vehicleType(vehicle.getVehicleType())
                 .profileId(profile.getId())
                 .notes(req.getNotes())
                 .customerImageUrl(customer.map(ParkingCustomerEntity::getImageUrl).orElse(null))
@@ -163,8 +166,10 @@ public class TicketRegistrationService {
                 .message(msg.get())
                 .build();
 
+//        log.info("Monthly ticket registration completed successfully: ticketId={}, customerId={}, vehicleId={}",
+//                savedTicket.getId(), customer, vehicle.getId());
         log.info("Monthly ticket registration completed successfully: ticketId={}, customerId={}, vehicleId={}",
-                savedTicket.getId(), customer, vehicle.getId());
+                savedTicket.getId(), customer);
 
         return response;
     }
@@ -174,7 +179,7 @@ public class TicketRegistrationService {
 
         TicketEntity ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(
-                () -> new ServiceException("Không tìm ticket tương ", 404));
+                        () -> new ServiceException("Không tìm ticket tương ", 404));
 
         // chỉ cho phép gọi mã này nếu
         if (ticket.getStatus() == TicketStatus.ACTIVE) {
@@ -231,7 +236,7 @@ public class TicketRegistrationService {
         // Lấy trạng thái ticket hiện tại
         return ticketRepository.findById(ticketId)
                 .map(TicketEntity::convertToDTO)
-                .orElseThrow(() -> new ServiceException("Không tìm thấy vé tháng tương ứng!",404));
+                .orElseThrow(() -> new ServiceException("Không tìm thấy vé tháng tương ứng!", 404));
     }
 
     @Transactional
@@ -287,7 +292,7 @@ public class TicketRegistrationService {
             result.setMessage("Thay đổi vé tháng thành công. Tiến hành thanh toán để kích hoạt vé.");
             return result;
         } else {
-            throw new ServiceException("Status của vé nằm ngoài phạm vi hồ trợ của hệ thống: "+currentStatus,403);
+            throw new ServiceException("Status của vé nằm ngoài phạm vi hồ trợ của hệ thống: " + currentStatus, 403);
         }
     }
 

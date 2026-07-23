@@ -11,5 +11,9 @@ public class CameraUpdateRequest {
     @NotBlank
     private String main;
     private String sub;
-    private boolean enableRecord;
+    //    private boolean enableRecord;
+    private Double latitude;
+    private Double longitude;
+    private String mode;
+    private String protocol;
 }

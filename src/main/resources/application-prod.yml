@@ -104,7 +104,7 @@ ai:
 vms:
   core:
     base-url: http://host.docker.internal:8012/api
-    login-path: /LogIn
+    login-path: /LogInz
     data-path: /Data
     username: admin
     password: NAaW24Yc1mJyeiNH

@@ -50,7 +50,7 @@ public interface CameraRepository extends JpaRepository<CameraEntity, Long> {
     Optional<CameraEntity> findByCodeWithLane(@Param("cameraCode") String cameraCode);
 
     @Query("SELECT c FROM CameraEntity c WHERE c.aiCameraId = :aiCameraId")
-    Optional<CameraEntity> findCameraByAiCameraId(@Param("aiCameraId") Long aiCameraId);
+    Optional<CameraEntity> findCameraByAiCameraId(@Param("aiCameraId") String aiCameraId);
 
     @Query("SELECT c FROM CameraEntity c WHERE c.uuid = :cameraUUID")
     Optional<CameraEntity> findCameraByUUID(@Param("cameraUUID") String cameraUUID);

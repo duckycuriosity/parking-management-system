@@ -14,7 +14,7 @@ public class CameraResponse {
     private Long id;
     private String plateNumber;
     private String vehicleType;
-    private Long aiCameraId;
+    private String aiCameraId;
     private String name;
     private String url;
     private BaseStatus type;
@@ -29,4 +29,6 @@ public class CameraResponse {
     private double latitude;
     private double longitude;
     private String sub_url;
+    private String mode;
+    private String protocol;
 }

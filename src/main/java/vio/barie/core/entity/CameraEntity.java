@@ -14,7 +14,7 @@ import vio.barie.core.entity.base.BaseEntity;
 public class CameraEntity extends BaseEntity {
 
     @Column(name = "ai_camera_id", unique = true)
-    private Long aiCameraId;
+    private String aiCameraId;
 
     @Column(name = "name")
     private String name;
@@ -56,4 +56,11 @@ public class CameraEntity extends BaseEntity {
     @EqualsAndHashCode.Exclude
     @JoinColumn(name = "lane_id", nullable = true)
     private LaneEntity lane;
+
+    @Column(name = "mode")
+    private String mode;
+
+    @Column(name = "protocol")
+    private String protocol;
+
 }

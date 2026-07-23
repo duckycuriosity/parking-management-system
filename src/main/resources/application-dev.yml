@@ -94,7 +94,7 @@ payment:
 
 ai:
   core:
-    base-url: http://192.168.168.30:8088/api
+    base-url: http://localhost:5002/api
     user-agent: "Mozilla/5.0"
     accept: "*/*"
     cookie: key=uO50EwSqoolz1OzU
@@ -107,7 +107,7 @@ ai:
 
 vms:
   core:
-    base-url: http://192.168.168.30:8012/api
+    base-url: http://localhost:5002/api
     login-path: /LogIn
     data-path: /Data
     username: admin

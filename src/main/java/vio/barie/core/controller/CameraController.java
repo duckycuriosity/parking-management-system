@@ -28,7 +28,7 @@ public class CameraController {
 
     @PostMapping("/sync")
     public Result<List<CameraResponse>> syncCameras() {
-        List<CameraResponse> syncedList = cameraService.syncCamerasFromVms();
+        List<CameraResponse> syncedList = cameraService.syncCamerasFromAI();
         return Result.ok("Synchronized cameras from VMS successfully", syncedList);
     }
 
