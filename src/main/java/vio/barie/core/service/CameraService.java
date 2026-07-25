@@ -8,34 +8,29 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 import vio.barie.core.common.BaseStatus;
-import vio.barie.core.dto.*;
-import vio.barie.core.dto.camera.CameraCreateRequest;
-import vio.barie.core.dto.camera.CameraResponse;
+import vio.barie.core.dto.camera.*;
 import org.springframework.stereotype.Service;
-import vio.barie.core.dto.camera.CameraUpdateRequest;
 import vio.barie.core.entity.CameraEntity;
 import vio.barie.core.mapper.CameraMapper;
 import vio.barie.core.repository.CameraRepository;
+import vio.barie.core.service.AIService.AICameraService;
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @Slf4j
 @Service
 public class CameraService {
 
     private final RestClient aiRestClient;
-    private final RestClient vmsRestClient;
     private final CameraRepository cameraRepository;
     private final CameraMapper cameraMapper;
     private final ObjectMapper objectMapper;
+    private final AICameraService aiCameraService;
 
-    private final VmsTokenService vmsTokenService;
     @Value("${ai.core.base-url}")
     private String aiApiUrl;
 
@@ -63,67 +58,56 @@ public class CameraService {
 
     public CameraService(
             @Qualifier("aiRestClient") RestClient aiRestClient,
-            @Qualifier("vmsRestClient") RestClient vmsRestClient,
+            AICameraService aiCameraService,
             CameraRepository cameraRepository,
             CameraMapper cameraMapper,
-            ObjectMapper objectMapper,
-            VmsTokenService vmsTokenService
+            ObjectMapper objectMapper
 
     ) {
         this.aiRestClient = aiRestClient;
-        this.vmsRestClient = vmsRestClient;
         this.cameraRepository = cameraRepository;
+        this.aiCameraService = aiCameraService;
         this.cameraMapper = cameraMapper;
         this.objectMapper = objectMapper;
-        this.vmsTokenService = vmsTokenService;
     }
 
     @Transactional
     public CameraResponse createCamera(CameraCreateRequest clientBody) {
 
-        CameraEntity camera = new CameraEntity();
         Map<String, Object> aiPayload = new java.util.HashMap<>();
 
         aiPayload.put("name", clientBody.getName());
         aiPayload.put("url", clientBody.getMain() != null ? clientBody.getMain().trim() : "");
-        aiPayload.put("mode", clientBody.getMode());
+        aiPayload.put("mode", clientBody.getMode().getAiValue());
         aiPayload.put("protocol", clientBody.getProtocol());
 
+        AICameraActionResponse aiCameraResponse = aiCameraService.addCamera(aiPayload);
 
-        String responseBody = aiRestClient.post()
-                .uri(aiApiUrl + "/add_stream")
-                .header(HttpHeaders.ACCEPT, "*/*")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(aiPayload)
-                .retrieve()
-                .body(String.class);
-        JsonNode aiResponse = safeParseJson(responseBody);
-
+        CameraEntity camera = new CameraEntity();
         camera.setName(clientBody.getName());
         camera.setUrl(clientBody.getMain() != null ? clientBody.getMain().trim() : "");
-
-
-        if (aiResponse.isObject() && !aiResponse.isEmpty()) {
-            if (aiResponse.has("cam_id")) {
-                camera.setAiCameraId(aiResponse.path("cam_id").asText());
-            } else if (aiResponse.has("id")) {
-                camera.setAiCameraId(aiResponse.path("id").asText());
-            }
-
-            if (aiResponse.has("uuid")) {
-                camera.setUuid(aiResponse.path("uuid").asText());
-            }
-        }
+        camera.setAiCameraId(aiCameraResponse.getCamId());
+        camera.setUuid(aiCameraResponse.getUuid());
         camera.setLatitude(clientBody.getLatitude() != null ? clientBody.getLatitude() : 0.0);
         camera.setLongitude(clientBody.getLongitude() != null ? clientBody.getLongitude() : 0.0);
         camera.setSubUrl(clientBody.getSub());
-        camera.setMode(clientBody.getMode());
+        camera.setMode(clientBody.getMode().getAiValue());
         camera.setProtocol(clientBody.getProtocol());
         camera.setType(BaseStatus.ACTIVE);
         camera.setStatus(BaseStatus.ACTIVE);
 
-        CameraEntity saved = cameraRepository.save(camera);
-        return cameraMapper.toResponse(saved);
+        try {
+            CameraEntity saved = cameraRepository.save(camera);
+            return cameraMapper.toResponse(saved);
+        } catch (RuntimeException e) {
+            log.error("Save camera fail after call create camera to AI service cam_id={}", aiCameraResponse.getCamId());
+            try {
+                aiCameraService.deleteStream(aiCameraResponse.getCamId());
+            } catch (Exception rollback) {
+                log.error("Rollback AI service failed");
+            }
+            throw e;
+        }
     }
 
 
@@ -133,8 +117,23 @@ public class CameraService {
             formattedSearchKey = "%" + searchKey.trim() + "%";
         }
         List<CameraEntity> entities = cameraRepository.searchCameras(formattedSearchKey, status);
+        List<CameraResponse> responses = cameraMapper.toResponseList(entities);
+        Map<String, AICameraDetail> aiCameras = fetchAICamerasSafely();
+        for (CameraResponse res: responses) {
+            AICameraDetail detail = aiCameras.get(res.getAiCameraId());
+            if (detail != null) {
+                res.setAiStreamStatus(detail.getStatus());
+                res.setAiStreamError(detail.getError());
+                res.setFps(detail.getFps());
+                if (detail.getLiveStream() != null) {
+                    res.setLiveStreamLink(detail.getLiveStream().getLink());
+                    res.setAudioCodec(detail.getLiveStream().getAudioCodec());
+                    res.setVideoCodec(detail.getLiveStream().getVideoCodec());
+                }
+            }
+        }
 
-        return cameraMapper.toResponseList(entities);
+        return responses;
     }
 
     public CameraResponse getCameraById(Long id) {
@@ -147,9 +146,6 @@ public class CameraService {
     public CameraResponse updateCamera(Long id, CameraUpdateRequest request) {
         CameraEntity entity = cameraRepository.findByIdWithRelations(id)
                 .orElseThrow(() -> new RuntimeException("Camera not found with ID: " + id));
-
-        Map<String, Object> aiPayload = new java.util.HashMap<>();
-
 
         if (request.getName() != null) {
             entity.setName(request.getName());
@@ -167,7 +163,7 @@ public class CameraService {
             entity.setLongitude(request.getLongitude());
         }
         if (request.getMode() != null) {
-            entity.setMode(request.getMode());
+            entity.setMode(request.getMode().getAiValue());
         }
         if (request.getProtocol() != null) {
             entity.setProtocol(request.getProtocol());
@@ -175,25 +171,14 @@ public class CameraService {
 
         String aiCameraId = entity.getAiCameraId();
         if (aiCameraId != null && !aiCameraId.isBlank()) {
+            Map<String, Object> aiPayload = new java.util.HashMap<>();
             aiPayload.put("name", entity.getName());
             aiPayload.put("url", entity.getUrl());
             aiPayload.put("mode", entity.getMode());
             aiPayload.put("protocol", entity.getProtocol());
-
-            try {
-                String responseBody = aiRestClient.post()
-                        .uri(aiApiUrl + "/update_stream/" + aiCameraId)
-                        .header(HttpHeaders.ACCEPT, "*/*")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(aiPayload)
-                        .retrieve()
-                        .body(String.class);
-
-
-            } catch (Exception e) {
-                throw new RuntimeException("Không thể đồng bộ cập nhật với AI API: " + e.getMessage(), e);
-            }
-
+            aiCameraService.updateStream(aiCameraId, aiPayload);
+        } else {
+            log.warn("Camera id={} does not map AI service, but update DB", id);
         }
         CameraEntity updated = cameraRepository.save(entity);
         return cameraMapper.toResponse(updated);
@@ -205,77 +190,68 @@ public class CameraService {
                 .orElseThrow(() -> new RuntimeException("Camera not found with ID: " + id));
         String aiCameraId = entity.getAiCameraId();
         if (aiCameraId != null && !aiCameraId.isBlank()) {
-            try {
-                aiRestClient.delete()
-
-                        .uri(aiApiUrl + "/delete_stream?cam_id=" + aiCameraId)
-                        .header(HttpHeaders.ACCEPT, "*/*")
-
-                        .retrieve()
-                        .toBodilessEntity();
-
-            } catch (Exception e) {
-                throw new RuntimeException("Không thể đồng bộ xóa Camera với hệ thống VMS: " + e.getMessage(), e);
-            }
-            cameraRepository.deleteById(id);
+           aiCameraService.deleteStream(aiCameraId);
+        } else {
+            log.warn("Camera id={} does not exists", id);
         }
+        cameraRepository.deleteById(id);
     }
 
-    public StreamResponse startLiveStream(String cameraUUID) {
-        // Lấy thông tin Camera trong hệ thống
-        CameraEntity entity = cameraRepository.findCameraByUUID(cameraUUID)
-                .orElseThrow(() -> new RuntimeException("Camera not found with ID: " + cameraUUID));
-
-        //  Tạo Request gửi VMS bằng aiCameraId
-        VmsLiveStreamRequest vmsRequest = new VmsLiveStreamRequest();
-        vmsRequest.setCameraId(entity.getAiCameraId());
-        vmsRequest.setChannel(0);
-
-        //  Gọi sang VMS
-        VmsLiveStreamResponse vmsResponse = vmsTokenService.executeWithAutoLoginRetry(token ->
-                vmsRestClient.post()
-                        .uri(vmsApiUrl + "/LiveStream")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                        .header(HttpHeaders.ACCEPT, "*/*")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(vmsRequest)
-                        .retrieve()
-                        .body(VmsLiveStreamResponse.class)
-        );
-
-        // dữ liệu trả về cho FE
-        StreamResponse response = new StreamResponse();
-        response.setVideoCodec(vmsResponse.getVideoCodec());
-        response.setAudioCodec(vmsResponse.getAudioCodec());
-        response.setVideoCodecTag(vmsResponse.getVideoCodecTag());
-
-        // chuẩn hóa link WebSocket tự động bằng properties
-        if (vmsResponse.getLink() != null) {
-            String normalizedLink = vmsResponse.getLink().replace(internalWsHost, publicWsHost);
-            response.setLink(normalizedLink);
-        }
-
-        return response;
-    }
-
-    public ReportLinkResponse getReportLink(Integer identityId) {
-        ReportLinkResponse response = vmsTokenService.executeWithAutoLoginRetry(token ->
-                vmsRestClient.get()
-                        .uri(vmsApiUrl + "/ReportLink/" + identityId)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                        .accept(MediaType.APPLICATION_JSON)
-                        .retrieve()
-                        .body(ReportLinkResponse.class)
-        );
-
-        // chuẩn hóa link WebSocket tự động bằng properties
-        if (response != null && response.getLink() != null) {
-            String normalizedLink = response.getLink().replace(internalWsHost, publicWsHost);
-            response.setLink(normalizedLink);
-        }
-
-        return response;
-    }
+//    public StreamResponse startLiveStream(String cameraUUID) {
+//        // Lấy thông tin Camera trong hệ thống
+//        CameraEntity entity = cameraRepository.findCameraByUUID(cameraUUID)
+//                .orElseThrow(() -> new RuntimeException("Camera not found with ID: " + cameraUUID));
+//
+//        //  Tạo Request gửi VMS bằng aiCameraId
+//        VmsLiveStreamRequest vmsRequest = new VmsLiveStreamRequest();
+//        vmsRequest.setCameraId(entity.getAiCameraId());
+//        vmsRequest.setChannel(0);
+//
+//        //  Gọi sang VMS
+//        VmsLiveStreamResponse vmsResponse = vmsTokenService.executeWithAutoLoginRetry(token ->
+//                vmsRestClient.post()
+//                        .uri(vmsApiUrl + "/LiveStream")
+//                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+//                        .header(HttpHeaders.ACCEPT, "*/*")
+//                        .contentType(MediaType.APPLICATION_JSON)
+//                        .body(vmsRequest)
+//                        .retrieve()
+//                        .body(VmsLiveStreamResponse.class)
+//        );
+//
+//        // dữ liệu trả về cho FE
+//        StreamResponse response = new StreamResponse();
+//        response.setVideoCodec(vmsResponse.getVideoCodec());
+//        response.setAudioCodec(vmsResponse.getAudioCodec());
+//        response.setVideoCodecTag(vmsResponse.getVideoCodecTag());
+//
+//        // chuẩn hóa link WebSocket tự động bằng properties
+//        if (vmsResponse.getLink() != null) {
+//            String normalizedLink = vmsResponse.getLink().replace(internalWsHost, publicWsHost);
+//            response.setLink(normalizedLink);
+//        }
+//
+//        return response;
+//    }
+//
+//    public ReportLinkResponse getReportLink(Integer identityId) {
+//        ReportLinkResponse response = vmsTokenService.executeWithAutoLoginRetry(token ->
+//                vmsRestClient.get()
+//                        .uri(vmsApiUrl + "/ReportLink/" + identityId)
+//                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+//                        .accept(MediaType.APPLICATION_JSON)
+//                        .retrieve()
+//                        .body(ReportLinkResponse.class)
+//        );
+//
+//        // chuẩn hóa link WebSocket tự động bằng properties
+//        if (response != null && response.getLink() != null) {
+//            String normalizedLink = response.getLink().replace(internalWsHost, publicWsHost);
+//            response.setLink(normalizedLink);
+//        }
+//
+//        return response;
+//    }
 
     @Transactional
     public List<CameraResponse> syncCamerasFromAI() {
@@ -334,42 +310,12 @@ public class CameraService {
         return cameraMapper.toResponseList(syncedCameras);
     }
 
-    private JsonNode safeParseJson(String jsonString) {
-        // Kiểm tra null/empty
-        if (jsonString == null || jsonString.isBlank()) {
-            log.error("❌ Response body rỗng!");
-            throw new RuntimeException("Phản hồi từ VMS API bị rỗng");
-        }
-
+    private Map<String, AICameraDetail> fetchAICamerasSafely() {
         try {
-            JsonNode node = objectMapper.readTree(jsonString);
-
-            // Kiểm tra kết quả parse
-            if (node == null || node.isMissingNode() || node.isNull()) {
-                log.error("❌ Parse thành công nhưng kết quả null. Input: {}", jsonString);
-                throw new RuntimeException("Kết quả parse JSON là null");
-            }
-
-            log.debug("✅ Parse JSON thành công: {}", node.toString());
-            return node;
-
-        } catch (JsonMappingException e) {
-            // JSON hợp lệ cú pháp nhưng không map được
-            log.error("❌ JsonMappingException - Có thể response là array thay vì object");
-            log.error("   Nguyên nhân: {}", e.getOriginalMessage());
-            log.error("   Path lỗi: {}", e.getPath());
-            throw new RuntimeException("Cấu trúc JSON không khớp: " + e.getOriginalMessage(), e);
-
-        } catch (JsonProcessingException e) {
-            // JSON bị lỗi cú pháp
-            log.error("❌ JsonProcessingException - JSON syntax error");
-            log.error("   Nguyên nhân: {}", e.getMessage());
-            log.error("   Vị trí lỗi: line {}, offset {}",
-                    e.getLocation() != null ? e.getLocation().getLineNr() : "N/A",
-                    e.getLocation() != null ? e.getLocation().getColumnNr() : "N/A");
-            log.error("   Raw response (500 ký tự đầu): {}",
-                    jsonString.length() > 500 ? jsonString.substring(0, 500) + "..." : jsonString);
-            throw new RuntimeException("JSON không hợp lệ: " + e.getMessage(), e);
+            return aiCameraService.getCameras();
+        } catch (Exception e) {
+            log.warn("Cannot reach AI service");
+            return Map.of();
         }
     }
 }
