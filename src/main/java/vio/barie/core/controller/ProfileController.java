@@ -13,7 +13,7 @@ import java.io.IOException;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/profiles")
+@RequestMapping("/faces")
 @RequiredArgsConstructor
 public class ProfileController {
     private final ProfileService profileService;
@@ -23,9 +23,9 @@ public class ProfileController {
     public Result<AiProfileResponse> create(
             @RequestParam("name") String name,
             @RequestParam(value = "groupId", defaultValue = "0") Integer groupId,
-            @RequestParam("image") MultipartFile image) throws IOException {
+            @RequestPart("images") List<MultipartFile> images) throws IOException {
 
-        return Result.ok("Profile created successfully", profileService.create(name, groupId, image, ""));
+        return Result.ok("Profile created successfully", profileService.create(name, groupId, images, ""));
     }
 
     @GetMapping
@@ -46,11 +46,11 @@ public class ProfileController {
             @PathVariable Integer id,
             @RequestParam("name") String name,
             @RequestParam(value = "groupId", defaultValue = "0") Integer groupId,
-            @RequestParam(value = "image", required = false) MultipartFile image)
+            @RequestPart(value = "images", required = false) List<MultipartFile> images)
             throws IOException {
 
         return Result.ok("Profile updated successfully",
-                profileService.update(id, name, groupId, image));
+                profileService.update(id, name, groupId, images));
     }
 
 

@@ -174,6 +174,15 @@ public class DetectionMatchingService {
                 return;
             }
 
+            Optional<ParkingSessionEntity> alreadyOpenSession = parkingSessionRepository
+                    .findFirstByVehicleIdAndExitTimeIsNullOrderByEntryTimeDesc(vehicle.getId());
+            if (alreadyOpenSession.isPresent()) {
+                logger.info(
+                        "handleEntryEvent: vehicle {} (plate={}) already has an open session id={} — skip duplicate entry match",
+                        vehicle.getId(), vehicle.getPlateNumber(), alreadyOpenSession.get().getId());
+                return;
+            }
+
             String barrierId = detection.getEntryBarrierId();
             Long laneId = detection.getEntryLaneId();
             if (barrierId == null || laneId == null) {

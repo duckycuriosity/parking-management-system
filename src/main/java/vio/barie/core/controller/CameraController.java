@@ -28,7 +28,7 @@ public class CameraController {
 
     @PostMapping("/sync")
     public Result<List<CameraResponse>> syncCameras() {
-        List<CameraResponse> syncedList = cameraService.syncCamerasFromVms();
+        List<CameraResponse> syncedList = cameraService.syncCamerasFromAI();
         return Result.ok("Synchronized cameras from VMS successfully", syncedList);
     }
 
@@ -59,16 +59,16 @@ public class CameraController {
         return Result.ok("Camera deleted successfully", null);
     }
 
-    @GetMapping("/{uuid}/stream")
-    public Result<StreamResponse> getLiveStream(@PathVariable("uuid") String cameraUUID) {
-        StreamResponse response = cameraService.startLiveStream(cameraUUID);
-        return Result.ok("Get camera stream successfully", response);
-    }
-
-    @GetMapping("/{id}/report-link")
-    public Result<ReportLinkResponse> getReportLink(@PathVariable("id") Integer identityId) {
-        ReportLinkResponse response = cameraService.getReportLink(identityId);
-        return Result.ok("Get report link successfully", response);
-    }
+//    @GetMapping("/{uuid}/stream")
+//    public Result<StreamResponse> getLiveStream(@PathVariable("uuid") String cameraUUID) {
+//        StreamResponse response = cameraService.startLiveStream(cameraUUID);
+//        return Result.ok("Get camera stream successfully", response);
+//    }
+//
+//    @GetMapping("/{id}/report-link")
+//    public Result<ReportLinkResponse> getReportLink(@PathVariable("id") Integer identityId) {
+//        ReportLinkResponse response = cameraService.getReportLink(identityId);
+//        return Result.ok("Get report link successfully", response);
+//    }
 
 }

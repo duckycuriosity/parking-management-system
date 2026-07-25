@@ -2,6 +2,7 @@ package vio.barie.core.service;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,6 +18,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProfileService {
@@ -29,33 +31,24 @@ public class ProfileService {
     private final AiFaceApiClient aiFaceApiClient;
 
     @Transactional
-    public AiProfileResponse create(String name, Integer groupId, MultipartFile image, String email)
+    public AiProfileResponse create(String name, Integer groupId, List<MultipartFile> images, String email)
             throws IOException {
-
-        // BƯỚC 1: Crop face
-        String faceId = aiFaceApiClient.faceCrop(image);
-
-        // BƯỚC 2: Tạo profile NGAY (trước khi faceId expire)
-        AiProfileResponse created = aiFaceApiClient.createProfile(name, groupId);
-        Integer profileId = created.getId();
-
-        // BƯỚC 3: Gắn ảnh vào profile NGAY sau FaceCrop
-        aiFaceApiClient.faceImageCrop(profileId, faceId);
-
-        // BƯỚC 4: FaceCheck sau cùng (không cần thiết cho flow tạo)
-        List<AiFaceCheckResponse> faces = aiFaceApiClient.faceCheck(image);
-        if (faces.isEmpty()) {
-            throw new RuntimeException("Không phát hiện khuôn mặt trong ảnh");
+        if (images != null && images.size() > 5) {
+            throw new IllegalArgumentException("Hệ thống chỉ hỗ trợ tải lên tối đa 5 ảnh.");
         }
-
-        // Verify
-        AiProfileResponse finalProfile = aiFaceApiClient.getProfile(profileId);
-
+        AiProfileResponse finalProfile = aiFaceApiClient.createProfile(name, images);
+        if (finalProfile == null || (finalProfile.getId() == null && finalProfile.getAiProfileId() == null)) {
+            throw new RuntimeException("Tạo profile AI thất bại");
+        }
+        if (finalProfile.getId() == null && finalProfile.getAiProfileId() == null) {
+            throw new RuntimeException("Tạo profile AI thất bại (Không map được ID)");
+        }
+        Integer validId = finalProfile.getId() != null ? finalProfile.getId() : finalProfile.getAiProfileId();
+        finalProfile.setId(validId);
         ParkingCustomerEntity entity = profileMapper.toEntity(finalProfile);
-        entity.setImageUrl(customerFaceImageUrl + profileId);
+        entity.setImageUrl(customerFaceImageUrl + finalProfile.getId());
         entity.setEmail(email);
         parkingCustomerRepository.save(entity);
-
         return finalProfile;
     }
 
@@ -69,15 +62,12 @@ public class ProfileService {
 
     @Transactional
     public AiProfileResponse update(Integer id, String name, Integer groupId,
-            MultipartFile image) throws IOException {
-        // Nếu có ảnh mới → crop và gắn lại
-        if (image != null && !image.isEmpty()) {
-            String faceId = aiFaceApiClient.faceCrop(image);
-            aiFaceApiClient.faceImageCrop(id, faceId);
-        }
+                                    List<MultipartFile> images) throws IOException {
 
-        // Cập nhật tên trên AI server
-        return aiFaceApiClient.updateProfile(id, name, groupId);
+        if (images != null && images.size() > 5) {
+            throw new IllegalArgumentException("Hệ thống chỉ hỗ trợ tải lên tối đa 5 ảnh.");
+        }
+        return aiFaceApiClient.updateProfile(id, name, images);
     }
 
     @Transactional

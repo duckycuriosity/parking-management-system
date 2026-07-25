@@ -1,12 +1,17 @@
 package vio.barie.core.client;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 import vio.barie.core.dto.AiFaceCheckResponse;
+import org.springframework.util.MultiValueMap;
 import vio.barie.core.dto.AiProfileResponse;
 
 import java.io.IOException;
@@ -16,11 +21,11 @@ import java.util.List;
 @Slf4j
 @Component
 public class AiFaceApiClient {
-    @Value("${ai.face.base-url}")
+    @Value("${ai.core.base-url}")
     private String baseUrl;
-
-    @Value("${ai.face.cookie-key}")
-    private String cookieKey;
+//
+//    @Value("${ai.face.cookie-key}")
+//    private String cookieKey;
 
     private final RestTemplate restTemplate;
 
@@ -31,9 +36,9 @@ public class AiFaceApiClient {
     // Headers dùng chung cho tất cả request
     private HttpHeaders baseHeaders() {
         HttpHeaders headers = new HttpHeaders();
-        headers.set("Cookie", "key=" + cookieKey);
-        headers.set("Origin", baseUrl);
-        headers.set("Referer", baseUrl + "/profile");
+////        headers.set("Cookie", "key=" + cookieKey);
+//        headers.set("Origin", baseUrl);
+//        headers.set("Referer", baseUrl + "/profile");
         headers.set("Accept", "*/*");
         return headers;
     }
@@ -90,25 +95,6 @@ public class AiFaceApiClient {
         return faces;
     }
 
-    // → POST /api/Profile (JSON)
-    public AiProfileResponse createProfile(String name, Integer groupId) {
-        long start = System.currentTimeMillis();
-        HttpHeaders headers = baseHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-
-        String body = String.format(
-                "{\"name\":\"%s\",\"groupId\":%d}", name, groupId);
-
-        ResponseEntity<AiProfileResponse> res = restTemplate.exchange(
-                baseUrl + "/api/Profile",
-                HttpMethod.POST,
-                new HttpEntity<>(body, headers),
-                AiProfileResponse.class);
-
-        log.info("[CreateProfile] raw response: {}", res.getBody());
-        log.info("[CreateProfile] done in {}ms", System.currentTimeMillis() - start);
-        return res.getBody();
-    }
 
     // POST /api/FaceImageCrop?profileId={id}
     public void faceImageCrop(Integer profileId, String faceId) {
@@ -132,49 +118,120 @@ public class AiFaceApiClient {
         log.info("[FaceImageCrop] done in {}ms", System.currentTimeMillis() - start);
     }
 
+    // → POST /api/Profile (JSON)
+    public AiProfileResponse createProfile(String name, List<MultipartFile> images) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("name", name);
+        appendImagesToBody(body, images);
+
+        HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+        try {
+            ResponseEntity<String> res = restTemplate.exchange(
+                    baseUrl + "/faces",
+                    HttpMethod.POST,
+                    requestEntity,
+                    String.class);
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode rootNode = mapper.readTree(res.getBody());
+            JsonNode dataNode = rootNode;
+            if (rootNode.has("profile")) {
+                dataNode = rootNode.get("profile"); // Lấy đúng chữ "profile"
+            } else if (rootNode.has("data")) {
+                dataNode = rootNode.get("data");    // Dự phòng nếu có chữ "data"
+            }
+            if (dataNode.isArray() && dataNode.size() > 0) {
+                dataNode = dataNode.get(0);
+            }
+            return mapper.treeToValue(dataNode, AiProfileResponse.class);
+        } catch (Exception e) {
+            log.error("Lỗi parse JSON từ AI Server: {}", e.getMessage(), e);
+            throw new RuntimeException("Không thể đọc phản hồi từ AI Server");
+        }
+    }
+
     public AiProfileResponse getProfile(Integer profileId) {
-        long start = System.currentTimeMillis();
-        log.info("[GetProfile] calling... profileId={}", profileId);
+
         ResponseEntity<AiProfileResponse> res = restTemplate.exchange(
-                baseUrl + "/api/Profile/" + profileId,
+                baseUrl + "/faces/" + profileId,
                 HttpMethod.GET,
-                new HttpEntity<>(baseHeaders()),
+                null,
                 AiProfileResponse.class);
-        log.info("[GetProfile] done in {}ms", System.currentTimeMillis() - start);
         return res.getBody();
     }
 
     public AiProfileResponse[] getAllProfiles() {
         ResponseEntity<AiProfileResponse[]> res = restTemplate.exchange(
-                baseUrl + "/api/Profile",
+                baseUrl + "/faces",
                 HttpMethod.GET,
-                new HttpEntity<>(baseHeaders()),
+                null,
                 AiProfileResponse[].class);
         return res.getBody();
     }
 
-    public AiProfileResponse updateProfile(Integer profileId, String name, Integer groupId) {
+    public AiProfileResponse updateProfile(Integer profileId, String name, List<MultipartFile> images) {
         HttpHeaders headers = baseHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
-        String body = String.format(
-                "{\"id\":%d,\"name\":\"%s\",\"groupId\":%d}",
-                profileId, name, groupId);
-
-        ResponseEntity<AiProfileResponse> res = restTemplate.exchange(
-                baseUrl + "/api/Profile/" + profileId,
-                HttpMethod.PUT,
-                new HttpEntity<>(body, headers),
-                AiProfileResponse.class);
-        return res.getBody();
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        if (name != null) body.add("name", name);
+        appendImagesToBody(body, images);
+        HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+        try {
+            ResponseEntity<String> res = restTemplate.exchange(
+                    baseUrl + "/faces/" + profileId,
+                    HttpMethod.PUT,
+                    requestEntity,
+                    String.class);
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode rootNode = mapper.readTree(res.getBody());
+            JsonNode dataNode = rootNode;
+            if (rootNode.has("profile")) {
+                dataNode = rootNode.get("profile");
+            } else if (rootNode.has("data")) {
+                dataNode = rootNode.get("data");
+            }
+            if (dataNode.isArray() && dataNode.size() > 0) {
+                dataNode = dataNode.get(0);
+            }
+            return mapper.treeToValue(dataNode, AiProfileResponse.class);
+        } catch (Exception e) {
+            log.error("Lỗi parse JSON từ AI Server: {}", e.getMessage(), e);
+            throw new RuntimeException("Không thể đọc phản hồi từ AI Server");
+        }
     }
 
     public void deleteProfile(Integer profileId) {
         restTemplate.exchange(
-                baseUrl + "/api/Profile/" + profileId,
+                baseUrl + "/faces/" + profileId,
                 HttpMethod.DELETE,
                 new HttpEntity<>(baseHeaders()),
                 Void.class);
+    }
+
+    private void appendImagesToBody(MultiValueMap<String, Object> body, List<MultipartFile> images) {
+        if (images != null && !images.isEmpty()) {
+            // Giới hạn tối đa 5 file
+            int limit = Math.min(images.size(), 5);
+            for (int i = 0; i < limit; i++) {
+                MultipartFile file = images.get(i);
+                if (!file.isEmpty()) {
+                    try {
+                        ByteArrayResource resource = new ByteArrayResource(file.getBytes()) {
+                            @Override
+                            public String getFilename() {
+                                return file.getOriginalFilename() != null ? file.getOriginalFilename() : "image.jpg";
+                            }
+                        };
+                        body.add("images", resource);
+                    } catch (IOException e) {
+                        log.error("Lỗi đọc byte từ MultipartFile: {}", e.getMessage());
+                    }
+                }
+            }
+        }
     }
 
 }
