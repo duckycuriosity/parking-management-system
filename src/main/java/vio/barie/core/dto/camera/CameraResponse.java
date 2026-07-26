@@ -31,4 +31,12 @@ public class CameraResponse {
     private String sub_url;
     private String mode;
     private String protocol;
+
+    // adding info from ai service
+    private String aiStreamStatus;
+    private String aiStreamError;
+    private String liveStreamLink;
+    private String videoCodec;
+    private String audioCodec;
+    private Double fps;
 }
