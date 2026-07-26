@@ -10,9 +10,7 @@ import vio.barie.core.common.PaymentType;
 import vio.barie.core.common.TicketStatus;
 import vio.barie.core.common.TicketType;
 import vio.barie.core.config.exception.ServiceException;
-import vio.barie.core.dto.AiPlateResponse;
 import vio.barie.core.dto.AiProfileResponse;
-import vio.barie.core.dto.PlateCreateRequest;
 import vio.barie.core.dto.payment.CreatePaymentRequest;
 import vio.barie.core.dto.payment.CreatePaymentResponse;
 import vio.barie.core.dto.payment.PaymentInquiryResponse;
@@ -43,7 +41,6 @@ import java.util.concurrent.atomic.AtomicReference;
 public class TicketRegistrationService {
 
     private final ProfileService profileService;
-    private final PlateService plateService;
     private final ParkingCustomerRepository parkingCustomerRepository;
     private final VehicleRepository vehicleRepository;
     private final TicketRepository ticketRepository;
@@ -109,27 +106,21 @@ public class TicketRegistrationService {
                 }
             });
             vehicle = vehicleRecord.get();
+        } else {
+            // Xe chưa có → tạo mới vehicle record (đăng ký AI plate đang bị tắt)
+            VehicleEntity newVehicle = new VehicleEntity();
+            newVehicle.setPlateNumber(req.getVehiclePlateNumber());
+            newVehicle.setVehicleType(normalizeVehicleType(req.getVehicleType()));
+            vehicle = vehicleRepository.save(newVehicle);
+            log.info("Vehicle created: vehicleId={}, plateNumber={}", vehicle.getId(), vehicle.getPlateNumber());
         }
-
-//        else {
-//            // 5️⃣ Xe chưa có → đăng ký biển số với AI và tạo mới
-//            PlateCreateRequest plateReq = new PlateCreateRequest();
-//            plateReq.setPlate(req.getVehiclePlateNumber());
-//            plateReq.setType(req.getVehicleType());
-//            plateReq.setEnabled(true);
-//
-//            AiPlateResponse aiPlateResponse = plateService.create(plateReq);
-//            vehicle = aiPlateResponse.getVehicle();
-//            log.info("Plate registered successfully: plateId={}, uuid={}", aiPlateResponse.getId(), aiPlateResponse.getUuid());
-//            log.debug("Vehicle created: vehicleId={}", vehicle.getId());
-//        }
 
         // 7️⃣ Create ticket
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expireAt = calculateExpireDate(req.getTicketType(), req.getStartDate());
 
         TicketEntity ticket = new TicketEntity();
-//        ticket.setVehicle(vehicle);
+        ticket.setVehicle(vehicle);
         ticket.setCustomer(customer.orElse(null));
         ticket.setTicketType(req.getTicketType());
         ticket.setRegisterAt(now);
@@ -154,9 +145,9 @@ public class TicketRegistrationService {
                 .startDate(savedTicket.getStartDate())
                 .customerId(customer.map(ParkingCustomerEntity::getId).orElse(null))
                 .customerName(customer.map(ParkingCustomerEntity::getUsername).orElse(null))
-//                .vehicleId(vehicle.getId())
-//                .plateNumber(vehicle.getPlateNumber())
-//                .vehicleType(vehicle.getVehicleType())
+                .vehicleId(vehicle.getId())
+                .plateNumber(vehicle.getPlateNumber())
+                .vehicleType(vehicle.getVehicleType())
                 .profileId(profile.getId())
                 .notes(req.getNotes())
                 .customerImageUrl(customer.map(ParkingCustomerEntity::getImageUrl).orElse(null))
@@ -166,10 +157,8 @@ public class TicketRegistrationService {
                 .message(msg.get())
                 .build();
 
-//        log.info("Monthly ticket registration completed successfully: ticketId={}, customerId={}, vehicleId={}",
-//                savedTicket.getId(), customer, vehicle.getId());
         log.info("Monthly ticket registration completed successfully: ticketId={}, customerId={}, vehicleId={}",
-                savedTicket.getId(), customer);
+                savedTicket.getId(), customer.map(ParkingCustomerEntity::getId).orElse(null), vehicle.getId());
 
         return response;
     }
