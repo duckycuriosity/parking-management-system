@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import vio.barie.core.dto.parking.PendingEventDetection;
+import vio.barie.core.service.mqtt.ParkingMessageService;
 import vio.barie.core.utils.DetectionType;
 import vio.barie.core.utils.DirectionType;
 
@@ -24,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 public class SmoothingAIEvents {
   private static final Logger logger = LoggerFactory.getLogger(SmoothingAIEvents.class);
   private final RedissonClient redissonClient;
+  private final ParkingMessageService parkingMessageService;
 
   @Value("${barrier.detection.session-ttl-seconds:150}")
   private long sessionTtlSeconds;
@@ -108,12 +110,14 @@ public class SmoothingAIEvents {
         return Optional.empty();
       }
 
-      session.delete();
+//      session.delete();
 
       long lastSeenMs = Long.parseLong(snapshot.get("lastSeenMs"));
       long delta = Math.abs(faceDetection.getTimestampMs() - lastSeenMs);
       if (delta > businessWindowMs) {
         logger.debug("face_session__stale key={} deltaMs={}", sessionKey, delta);
+        String barrierId = faceDetection.getDirectionType().equals(DirectionType.EXIT) ? faceDetection.getExitBarrierId() : faceDetection.getEntryBarrierId();
+        parkingMessageService.publishDisplayMsg(barrierId, "Face is expired, please scan face again", true, "Scan face again", 8);
         return Optional.empty();
       }
 
