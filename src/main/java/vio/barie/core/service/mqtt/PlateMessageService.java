@@ -60,17 +60,6 @@ public class PlateMessageService {
                 return;
             }
 
-            QualityCheckResult qualityCheckResult = aiEventQualityFilter.evaluatePlate(event);
-
-            if (!qualityCheckResult.accepted()) {
-                logger.debug("ProfileHandler: plate event rejected - reason={} value ={} cameraUUID={}", qualityCheckResult.reason(), qualityCheckResult.value(), cameraUUID);
-                return;
-            }
-
-            Boolean isVerified = event.path("plate").path("isVerified").asBoolean(false);
-            Integer labelTypeVehicle = event.path("object").path("label").asInt();
-            Double confidence = event.path("plate").path("confidence").asDouble();
-
             CameraEntity aiCamera = cameraRepository.findCameraByUUID(cameraUUID).orElse(null);
             if (aiCamera == null) {
                 logger.warn("Camera not found in AI system");
@@ -97,6 +86,19 @@ public class PlateMessageService {
                 logger.error("Camera does not match any barrier");
                 return;
             }
+
+            QualityCheckResult qualityCheckResult = aiEventQualityFilter.evaluatePlate(event);
+
+            if (!qualityCheckResult.accepted()) {
+                logger.debug("PlateHandler: plate event rejected - reason={} value ={} cameraUUID={}", qualityCheckResult.reason(), qualityCheckResult.value(), cameraUUID);
+                parkingMessageService.publishErrorWhenHandlingEvent("Chua nhan dien duoc bien so", cameraUUID,
+                        DetectionType.PLATE, barrier.get().getBarrierId(), plateNumber, null);
+                return;
+            }
+
+            Boolean isVerified = event.path("plate").path("isVerified").asBoolean(false);
+            Integer labelTypeVehicle = event.path("object").path("label").asInt();
+            Double confidence = event.path("plate").path("confidence").asDouble();
 
             DirectionType direction = barrier.get().getDirection();
 

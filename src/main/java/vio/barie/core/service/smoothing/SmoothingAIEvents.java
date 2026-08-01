@@ -148,6 +148,9 @@ public class SmoothingAIEvents {
     merged.setExitBarrierId(faceDetection.getExitBarrierId());
 
     merged.setImage(faceDetection.getImage());
+    if (faceDetection.getListImageInfo() != null) {
+      merged.getListImageInfo().addAll(faceDetection.getListImageInfo());
+    }
     return merged;
   }
 

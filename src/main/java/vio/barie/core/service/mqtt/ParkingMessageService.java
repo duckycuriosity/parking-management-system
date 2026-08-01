@@ -505,6 +505,11 @@ public class ParkingMessageService {
     }
 
     public void publishErrorWhenHandlingEvent(String message, String cameraUUID, DetectionType type, String barrierId) {
+        publishErrorWhenHandlingEvent(message, cameraUUID, type, barrierId, null, null);
+    }
+
+    public void publishErrorWhenHandlingEvent(String message, String cameraUUID, DetectionType type, String barrierId,
+                                              String plateNumber, Integer profileId) {
         if (barrierId == null || barrierId.isBlank()) {
             log.warn("Cannot publish error event without barrierId: message={} cameraUUID={} type={}", message, cameraUUID, type);
             return;
@@ -517,6 +522,8 @@ public class ParkingMessageService {
             payload.setCameraUUID(cameraUUID);
             payload.setType(type);
             payload.setBarrierId(barrierId);
+            payload.setPlateNumber(plateNumber);
+            payload.setProfileId(profileId);
             String json = JSONUtil.toJsonStr(payload);
             mqttPublisher.publish(topic, json);
             log.info("Published error event to topic={}", topic);

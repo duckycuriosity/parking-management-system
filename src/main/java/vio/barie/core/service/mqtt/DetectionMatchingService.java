@@ -280,10 +280,16 @@ public class DetectionMatchingService {
 
 
             if (openSession == null) {
-                logger.warn("handleExitEvent: no open parking session found for vehicle={} customer={}",
-                        vehicle.getId(), customer.getId());
-                ioTService.publishErrorWhenHandlingEvent("No open parking session found for exit event", "",
-                        detection.getType());
+                logger.warn(
+                        "handleExitEvent: no open parking session found for vehicle={} customer={} plate={} profileId={}",
+                        vehicle.getId(), customer.getId(), vehicle.getPlateNumber(), customer.getAiProfileId());
+                ioTService.publishErrorWhenHandlingEvent(
+                        "Khong tim thay phien gui xe (parking_session) dang mo khop voi khuon mat va bien so tai lan ra",
+                        "",
+                        detection.getType(),
+                        barrierId,
+                        vehicle.getPlateNumber(),
+                        customer.getAiProfileId());
                 return;
             }
 
