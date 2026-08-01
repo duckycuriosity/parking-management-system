@@ -14,7 +14,7 @@ public class CameraResponse {
     private Long id;
     private String plateNumber;
     private String vehicleType;
-    private Long aiCameraId;
+    private String aiCameraId;
     private String name;
     private String url;
     private BaseStatus type;
@@ -29,4 +29,14 @@ public class CameraResponse {
     private double latitude;
     private double longitude;
     private String sub_url;
+    private String mode;
+    private String protocol;
+
+    // adding info from ai service
+    private String aiStreamStatus;
+    private String aiStreamError;
+    private String liveStreamLink;
+    private String videoCodec;
+    private String audioCodec;
+    private Double fps;
 }

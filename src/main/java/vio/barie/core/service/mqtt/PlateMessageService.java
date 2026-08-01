@@ -19,7 +19,6 @@ import vio.barie.core.utils.DetectionType;
 import vio.barie.core.utils.DirectionType;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -196,8 +195,9 @@ public class PlateMessageService {
                     plateNumber, cameraInLane, barrier, laneId, direction, plateImgInfo, confidence);
 
             if (direction == DirectionType.ENTRY) {
-                // Notify entry of unregistered vehicle
-                parkingMessageService.publishEntryVehicleInfo(barrier.getBarrierId(), plateNumber, LocalDateTime.now());
+                // Khong publish lenh mo/thong bao o day: barrier chi duoc mo sau khi
+                // face + plate match thanh cong va tao ParkingSessionEntity o
+                // DetectionMatchingService.handleEntryEvent (qua publishOpenCommand).
                 logger.info("ENTRY unregistered vehicle plate={} — buffering for face + plate matching", plateNumber);
             } else if (direction == DirectionType.EXIT) {
                 logger.info("EXIT unregistered vehicle plate={} — buffering for face + plate matching", plateNumber);

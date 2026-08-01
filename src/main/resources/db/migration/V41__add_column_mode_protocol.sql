@@ -1,0 +1,5 @@
+ALTER TABLE public.camera
+    ADD COLUMN IF NOT EXISTS mode VARCHAR(100);
+
+ALTER TABLE public.camera
+    ADD COLUMN IF NOT EXISTS protocol VARCHAR(100);

@@ -483,7 +483,20 @@ public class ParkingMessageService {
         log.info("Đã gửi lệnh MQTT {} tới barrierId={} (Device={})", action, barrierId, deviceId);
     }
 
-    public void publishDisplayMsg() {
+    public void publishDisplayMsg(String barrierId, String message, boolean playSound, String soundText, int duration) {
+        String deviceId = resolveDeviceId(barrierId);
+        if (deviceId == null) {
+            log.warn("publishDisplayMsg: barrierId is null or not found, skipping - barrier={}", barrierId);
+            return;
+        }
+        DisplayMsgCommand cmd = DisplayMsgCommand.builder()
+            .barrierId(barrierId)
+            .message(message)
+            .durationSeconds(duration)
+            .playSound(playSound)
+            .soundText(soundText)
+            .build();
+        publish(deviceId, cmd);
     }
 
     public void publishReconnect() {

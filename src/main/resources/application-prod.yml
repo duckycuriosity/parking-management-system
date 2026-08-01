@@ -90,7 +90,7 @@ payment:
 
 ai:
   core:
-    base-url: http://host.docker.internal:8088/api
+    base-url: http://host.docker.internal:5002/api
     user-agent: Mozilla/5.0
     accept: "*/*"
     cookie: key=uO50EwSqoolz1OzU
@@ -104,7 +104,7 @@ ai:
 vms:
   core:
     base-url: http://host.docker.internal:8012/api
-    login-path: /LogIn
+    login-path: /LogInz
     data-path: /Data
     username: admin
     password: NAaW24Yc1mJyeiNH

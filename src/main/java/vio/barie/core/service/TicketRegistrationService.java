@@ -10,9 +10,7 @@ import vio.barie.core.common.PaymentType;
 import vio.barie.core.common.TicketStatus;
 import vio.barie.core.common.TicketType;
 import vio.barie.core.config.exception.ServiceException;
-import vio.barie.core.dto.AiPlateResponse;
 import vio.barie.core.dto.AiProfileResponse;
-import vio.barie.core.dto.PlateCreateRequest;
 import vio.barie.core.dto.payment.CreatePaymentRequest;
 import vio.barie.core.dto.payment.CreatePaymentResponse;
 import vio.barie.core.dto.payment.PaymentInquiryResponse;
@@ -32,6 +30,7 @@ import vio.barie.core.repository.VehicleRepository;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -42,7 +41,6 @@ import java.util.concurrent.atomic.AtomicReference;
 public class TicketRegistrationService {
 
     private final ProfileService profileService;
-    private final PlateService plateService;
     private final ParkingCustomerRepository parkingCustomerRepository;
     private final VehicleRepository vehicleRepository;
     private final TicketRepository ticketRepository;
@@ -83,7 +81,7 @@ public class TicketRegistrationService {
         AiProfileResponse profile = profileService.create(
                 req.getName(),
                 0, // groupId = 0 (default)
-                faceImage,
+                List.of(faceImage),
                 req.getCustomerEmail());
         log.info("Face registered successfully: profileId={}, uuid={}",
                 profile.getId(), profile.getUuid());
@@ -109,16 +107,12 @@ public class TicketRegistrationService {
             });
             vehicle = vehicleRecord.get();
         } else {
-            // 5️⃣ Xe chưa có → đăng ký biển số với AI và tạo mới
-            PlateCreateRequest plateReq = new PlateCreateRequest();
-            plateReq.setPlate(req.getVehiclePlateNumber());
-            plateReq.setType(req.getVehicleType());
-            plateReq.setEnabled(true);
-
-            AiPlateResponse aiPlateResponse = plateService.create(plateReq);
-            vehicle = aiPlateResponse.getVehicle();
-            log.info("Plate registered successfully: plateId={}, uuid={}", aiPlateResponse.getId(), aiPlateResponse.getUuid());
-            log.debug("Vehicle created: vehicleId={}", vehicle.getId());
+            // Xe chưa có → tạo mới vehicle record (đăng ký AI plate đang bị tắt)
+            VehicleEntity newVehicle = new VehicleEntity();
+            newVehicle.setPlateNumber(req.getVehiclePlateNumber());
+            newVehicle.setVehicleType(normalizeVehicleType(req.getVehicleType()));
+            vehicle = vehicleRepository.save(newVehicle);
+            log.info("Vehicle created: vehicleId={}, plateNumber={}", vehicle.getId(), vehicle.getPlateNumber());
         }
 
         // 7️⃣ Create ticket
@@ -164,7 +158,7 @@ public class TicketRegistrationService {
                 .build();
 
         log.info("Monthly ticket registration completed successfully: ticketId={}, customerId={}, vehicleId={}",
-                savedTicket.getId(), customer, vehicle.getId());
+                savedTicket.getId(), customer.map(ParkingCustomerEntity::getId).orElse(null), vehicle.getId());
 
         return response;
     }
@@ -174,7 +168,7 @@ public class TicketRegistrationService {
 
         TicketEntity ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(
-                () -> new ServiceException("Không tìm ticket tương ", 404));
+                        () -> new ServiceException("Không tìm ticket tương ", 404));
 
         // chỉ cho phép gọi mã này nếu
         if (ticket.getStatus() == TicketStatus.ACTIVE) {
@@ -231,7 +225,7 @@ public class TicketRegistrationService {
         // Lấy trạng thái ticket hiện tại
         return ticketRepository.findById(ticketId)
                 .map(TicketEntity::convertToDTO)
-                .orElseThrow(() -> new ServiceException("Không tìm thấy vé tháng tương ứng!",404));
+                .orElseThrow(() -> new ServiceException("Không tìm thấy vé tháng tương ứng!", 404));
     }
 
     @Transactional
@@ -287,7 +281,7 @@ public class TicketRegistrationService {
             result.setMessage("Thay đổi vé tháng thành công. Tiến hành thanh toán để kích hoạt vé.");
             return result;
         } else {
-            throw new ServiceException("Status của vé nằm ngoài phạm vi hồ trợ của hệ thống: "+currentStatus,403);
+            throw new ServiceException("Status của vé nằm ngoài phạm vi hồ trợ của hệ thống: " + currentStatus, 403);
         }
     }
 

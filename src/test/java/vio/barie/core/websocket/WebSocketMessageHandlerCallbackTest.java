@@ -3,7 +3,6 @@ package vio.barie.core.websocket;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.socket.WebSocketSession;
-import vio.barie.core.service.VmsService;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
