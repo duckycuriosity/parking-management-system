@@ -8,4 +8,6 @@ public class MqttErrorCommand {
     private String cameraUUID;
     private DetectionType type;
     private String barrierId;
+    private String plateNumber;
+    private Integer profileId;
 }

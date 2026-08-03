@@ -53,18 +53,6 @@ public class ProfileMessageService {
                 return;
             }
 
-            QualityCheckResult qualityCheckResult = aiEventQualityFilter.evaluateFace(event);
-
-            if (!qualityCheckResult.accepted()) {
-                logger.debug("ProfileHandler: face event rejected - reason={} value ={} cameraUUID={}", qualityCheckResult.reason(), qualityCheckResult.value(), cameraUUID);
-                return;
-            }
-
-            Integer profileId = event.path("face").path("profileId").asInt();
-            String profileName = event.path("face").path("profileName").asText(null);
-            Double confidence = event.path("face").path("confidence").asDouble();
-            String imageUrl = event.path("images").path("fullFrame").path("accessUrl").asText();
-
             CameraEntity aiCamera = cameraRepository.findCameraByUUID(cameraUUID).orElse(null);
             if (aiCamera == null) {
                 logger.warn("Camera not found in AI system");
@@ -79,8 +67,6 @@ public class ProfileMessageService {
             }
 
             long laneId = cameraInLane.getLane().getId();
-            logger.debug("ProfileHandler: face event — laneId={}, profileId={}, profileName={}", laneId, profileId,
-                    profileName);
 
             Optional<BarrierEntity> barrier = barrierRepository.findBarrierByCameraIdAndRole(cameraInLane.getId(), DetectionType.FACE.toString().toLowerCase());
             if (barrier.isEmpty()) {
@@ -88,6 +74,25 @@ public class ProfileMessageService {
                 parkingMessageService.publishErrorWhenHandlingEvent("Barrier not found", cameraUUID, DetectionType.FACE);
                 return;
             }
+
+            QualityCheckResult qualityCheckResult = aiEventQualityFilter.evaluateFace(event);
+
+            if (!qualityCheckResult.accepted()) {
+                String issues = extractFaceQualityIssues(event);
+                String message = "Khong the nhan dien duoc khuon mat"
+                        + (issues.isEmpty() ? "" : " - issue: " + issues);
+                logger.debug("ProfileHandler: face event rejected - reason={} value ={} cameraUUID={}", qualityCheckResult.reason(), qualityCheckResult.value(), cameraUUID);
+                parkingMessageService.publishErrorWhenHandlingEvent(message, cameraUUID, DetectionType.FACE,
+                        barrier.get().getBarrierId());
+                return;
+            }
+
+            Integer profileId = event.path("face").path("profileId").asInt();
+            String profileName = event.path("face").path("profileName").asText(null);
+            Double confidence = event.path("face").path("confidence").asDouble();
+            String imageUrl = event.path("images").path("fullFrame").path("accessUrl").asText();
+            logger.debug("ProfileHandler: face event — laneId={}, profileId={}, profileName={}", laneId, profileId,
+                    profileName);
 
             if (!customerRepository.existsByAiProfileId(profileId)) {
                 ParkingCustomerEntity newCustomer = new ParkingCustomerEntity();
@@ -143,6 +148,16 @@ public class ProfileMessageService {
                     ex.getMessage(), ex);
             parkingMessageService.publishErrorWhenHandlingEvent(ex.getMessage(), "", DetectionType.FACE);
         }
+    }
+
+    private String extractFaceQualityIssues(JsonNode event) {
+        JsonNode issues = event.path("face").path("quality").path("issues");
+        if (!issues.isArray() || issues.isEmpty()) {
+            return "";
+        }
+        List<String> values = new ArrayList<>();
+        issues.forEach(node -> values.add(node.asText()));
+        return String.join(", ", values);
     }
 
     private EventImageInfo extractImageInfo(JsonNode event, String eventType) {

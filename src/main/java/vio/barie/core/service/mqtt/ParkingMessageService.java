@@ -483,7 +483,20 @@ public class ParkingMessageService {
         log.info("Đã gửi lệnh MQTT {} tới barrierId={} (Device={})", action, barrierId, deviceId);
     }
 
-    public void publishDisplayMsg() {
+    public void publishDisplayMsg(String barrierId, String message, boolean playSound, String soundText, int duration) {
+        String deviceId = resolveDeviceId(barrierId);
+        if (deviceId == null) {
+            log.warn("publishDisplayMsg: barrierId is null or not found, skipping - barrier={}", barrierId);
+            return;
+        }
+        DisplayMsgCommand cmd = DisplayMsgCommand.builder()
+            .barrierId(barrierId)
+            .message(message)
+            .durationSeconds(duration)
+            .playSound(playSound)
+            .soundText(soundText)
+            .build();
+        publish(deviceId, cmd);
     }
 
     public void publishReconnect() {
@@ -505,10 +518,11 @@ public class ParkingMessageService {
     }
 
     public void publishErrorWhenHandlingEvent(String message, String cameraUUID, DetectionType type, String barrierId) {
-        if (barrierId == null || barrierId.isBlank()) {
-            log.warn("Cannot publish error event without barrierId: message={} cameraUUID={} type={}", message, cameraUUID, type);
-            return;
-        }
+        publishErrorWhenHandlingEvent(message, cameraUUID, type, barrierId, null, null);
+    }
+
+    public void publishErrorWhenHandlingEvent(String message, String cameraUUID, DetectionType type, String barrierId,
+                                              String plateNumber, Integer profileId) {
 
         try {
             String topic = buildErrorTopic(barrierId);
@@ -517,6 +531,8 @@ public class ParkingMessageService {
             payload.setCameraUUID(cameraUUID);
             payload.setType(type);
             payload.setBarrierId(barrierId);
+            payload.setPlateNumber(plateNumber);
+            payload.setProfileId(profileId);
             String json = JSONUtil.toJsonStr(payload);
             mqttPublisher.publish(topic, json);
             log.info("Published error event to topic={}", topic);
@@ -528,7 +544,10 @@ public class ParkingMessageService {
     private String buildErrorTopic(String barrierId) {
         String normalizedPrefix = prefix == null ? "" : prefix.replaceAll("/+$", "");
         String normalizedError = error == null ? "/error" : error.startsWith("/") ? error : "/" + error;
-        return normalizedPrefix + "/" + barrierId + normalizedError;
+        if (barrierId != null && !barrierId.isBlank()) {
+            return normalizedPrefix + "/" + barrierId + normalizedError;
+        }
+        return normalizedPrefix  + normalizedError;
     }
 
     private String resolveDeviceId(String barrierId) {
