@@ -1,7 +1,10 @@
 package vio.barie.core.controller;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import vio.barie.core.common.BaseStatus;
 import vio.barie.core.dto.ReportLinkResponse;
 import vio.barie.core.dto.Result;
@@ -59,11 +62,10 @@ public class CameraController {
         return Result.ok("Camera deleted successfully", null);
     }
 
-//    @GetMapping("/{uuid}/stream")
-//    public Result<StreamResponse> getLiveStream(@PathVariable("uuid") String cameraUUID) {
-//        StreamResponse response = cameraService.startLiveStream(cameraUUID);
-//        return Result.ok("Get camera stream successfully", response);
-//    }
+    @GetMapping("/stream/{aiCameraId}")
+    public void getLiveStream(@PathVariable("aiCameraId") String aiCameraId, HttpServletResponse response) {
+        cameraService.aiVideoStream(aiCameraId, response);
+    }
 //
 //    @GetMapping("/{id}/report-link")
 //    public Result<ReportLinkResponse> getReportLink(@PathVariable("id") Integer identityId) {

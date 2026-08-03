@@ -39,6 +39,7 @@ import vio.barie.core.utils.Sanitize;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
+
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFFont;
@@ -141,19 +142,25 @@ public class PaymentService {
         return paymentRepository.save(payment);
     }
 
-    public CreatePaymentResponse createPaymentLink(CreatePaymentRequest req){
+    public CreatePaymentResponse createPaymentLink(CreatePaymentRequest req) {
         CreatePaymentResponse response = paymentGateway.createPaymentLink(req);
-        log.debug("CreatePaymentResponse : {}",response);
+        log.debug("CreatePaymentResponse : {}", response);
         return response;
-    };
+    }
 
-    public void handleCallback(String body){
+    ;
+
+    public void handleCallback(String body) {
         paymentGateway.handleCallback(body);
-    };
+    }
 
-    public PaymentInquiryResponse inquiryByInvoiceNo(String invoiceNo){
+    ;
+
+    public PaymentInquiryResponse inquiryByInvoiceNo(String invoiceNo) {
         return paymentGateway.inquiryByInvoiceNo(invoiceNo);
-    };
+    }
+
+    ;
 
     @Transactional(readOnly = true)
     public RevenueSummaryResponse getDailyRevenueSummary(Long parkingLotId, Long buildingId) {
@@ -175,14 +182,26 @@ public class PaymentService {
     public Page<PaymentListItemResponse> getPaymentList(Boolean success, int page, int size) {
         String statusFilter = success == null ? "ALL" : (success ? "PAID" : "OTHER");
         Page<Object[]> raw = paymentRepository.findPaymentListRaw(statusFilter, PageRequest.of(page, size));
-        return raw.map(row -> PaymentListItemResponse.builder()
-                .plateNumber((String) row[0])
-                .type((String) row[1])
-                .amount(row[2] != null ? new BigDecimal(row[2].toString()) : null)
-                .paymentMethod((String) row[3])
-                .status((String) row[4])
-                .time(row[5] instanceof Timestamp ? ((Timestamp) row[5]).toLocalDateTime() : null)
-                .build());
+        return raw.map(row -> {
+            Object timeObj = row[5];
+            LocalDateTime parsedTime = null;
+
+            if (timeObj != null) {
+                if (timeObj instanceof java.sql.Timestamp) {
+                    parsedTime = ((java.sql.Timestamp) timeObj).toLocalDateTime();
+                } else if (timeObj instanceof LocalDateTime) {
+                    parsedTime = (LocalDateTime) timeObj;
+                }
+            }
+            return PaymentListItemResponse.builder()
+                    .plateNumber((String) row[0])
+                    .type((String) row[1])
+                    .amount(row[2] != null ? new BigDecimal(row[2].toString()) : null)
+                    .paymentMethod((String) row[3])
+                    .status((String) row[4])
+                    .time(parsedTime)
+                    .build();
+        });
     }
 
     @Transactional(readOnly = true)
@@ -203,7 +222,7 @@ public class PaymentService {
 
         for (LocalDate dateKey : allDates) {
             if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(dateKey.toString()))) {
-                log.debug("FOUND REDIS DATE KEY : {} !",dateKey);
+                log.debug("FOUND REDIS DATE KEY : {} !", dateKey);
                 // StringRedisTemplate stores all values as String — must parse explicitly
                 String countStr = (String) stringRedisTemplate.opsForHash().get(dateKey.toString(), "transactionCount");
                 String revenueStr = (String) stringRedisTemplate.opsForHash().get(dateKey.toString(), "revenue");
