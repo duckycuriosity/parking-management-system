@@ -523,10 +523,6 @@ public class ParkingMessageService {
 
     public void publishErrorWhenHandlingEvent(String message, String cameraUUID, DetectionType type, String barrierId,
                                               String plateNumber, Integer profileId) {
-        if (barrierId == null || barrierId.isBlank()) {
-            log.warn("Cannot publish error event without barrierId: message={} cameraUUID={} type={}", message, cameraUUID, type);
-            return;
-        }
 
         try {
             String topic = buildErrorTopic(barrierId);
@@ -548,7 +544,10 @@ public class ParkingMessageService {
     private String buildErrorTopic(String barrierId) {
         String normalizedPrefix = prefix == null ? "" : prefix.replaceAll("/+$", "");
         String normalizedError = error == null ? "/error" : error.startsWith("/") ? error : "/" + error;
-        return normalizedPrefix + "/" + barrierId + normalizedError;
+        if (barrierId != null && !barrierId.isBlank()) {
+            return normalizedPrefix + "/" + barrierId + normalizedError;
+        }
+        return normalizedPrefix  + normalizedError;
     }
 
     private String resolveDeviceId(String barrierId) {

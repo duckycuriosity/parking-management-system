@@ -54,8 +54,10 @@ public class PlateMessageService {
             String plateNumber = event.path("plate").path("plateNumber").asText(null);
             String cameraUUID = event.path("cameraUUID").asText();
 
-            if (plateNumber == null || cameraUUID == null) {
+            if (plateNumber == null || cameraUUID == null || plateNumber.isBlank()) {
                 logger.warn("PlateHandler: plate event has no plateNumber — cameraId={}", cameraCode);
+                parkingMessageService.publishErrorWhenHandlingEvent("Plate is not valid", cameraUUID,
+                    DetectionType.PLATE);
                 return;
             }
 

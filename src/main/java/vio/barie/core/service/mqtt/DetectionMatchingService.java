@@ -302,6 +302,20 @@ public class DetectionMatchingService {
                 return;
             }
 
+            if (!openSession.getEntryCustomer().getAiProfileId().equals(detection.getProfileId())) {
+                logger.warn(
+                    "handleExitEvent: Exit customer is not matching with entry customer for vehicle={} customer={} plate={} profileId={}",
+                    vehicle.getId(), customer.getId(), vehicle.getPlateNumber(), customer.getAiProfileId());
+                ioTService.publishErrorWhenHandlingEvent(
+                    "Khuon mat nguoi di vao khong khop voi khuon mat nguoi di ra",
+                    "",
+                    detection.getType(),
+                    barrierId,
+                    vehicle.getPlateNumber(),
+                    customer.getAiProfileId());
+                return;
+            }
+
             // Fetch barrier with eager loading
             BarrierEntity barrier = barrierRepository.findByBarrierIdWithDeviceAndLaneAndParkingLot(barrierId)
                     .orElse(null);
