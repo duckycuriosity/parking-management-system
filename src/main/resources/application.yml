@@ -13,7 +13,7 @@ server:
 
 spring:
   profiles:
-    active: dev
+    active: prod
   application:
     name: core
   flyway:
@@ -33,6 +33,7 @@ ai:
     connection: close
   face:
     base-url: http://192.168.168.30:8088
+    stream-url: http://192.168.168.31:5000
     cookie-key: uO50EwSqoolz1OzU
     face-image-url: http://192.168.168.30:8088/api/FaceImage/
   quality:
