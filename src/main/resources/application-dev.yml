@@ -1,4 +1,7 @@
 spring:
+  mvc:
+    async:
+      request-timeout: -1
   data:
     redis:
       host: ${REDIS_HOST:192.168.168.30}
@@ -95,6 +98,7 @@ payment:
 ai:
   core:
     base-url: http://localhost:5002/api
+    stream-url: http://localhost:5000
     user-agent: "Mozilla/5.0"
     accept: "*/*"
     cookie: key=uO50EwSqoolz1OzU

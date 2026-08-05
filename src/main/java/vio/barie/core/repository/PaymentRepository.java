@@ -16,8 +16,11 @@ import java.util.Optional;
 
 public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
     Optional<PaymentEntity> findById(Long id);
+
     Optional<PaymentEntity> findByInvoiceNo(String invoiceNo);
+
     boolean existsById(Long id);
+
     boolean existsBySepayTxId(String sepayTxId);
 
     @Query(value = """
@@ -42,11 +45,11 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
                   )
             """, nativeQuery = true)
     Tuple sumAndCountByStatus(
-            @Param("status")       String        status,
-            @Param("from")         LocalDateTime from,
-            @Param("to")           LocalDateTime to,
-            @Param("parkingLotId") Long          parkingLotId,
-            @Param("buildingId")   Long          buildingId);
+            @Param("status") String status,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to,
+            @Param("parkingLotId") Long parkingLotId,
+            @Param("buildingId") Long buildingId);
 
 
     @Query(value = "SELECT * FROM payment " +
@@ -103,7 +106,7 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
                 END AS type,
                 p.amount,
                 p.payment_method,
-                p.status,
+                p.status,            
                 COALESCE(p.paid_at, p.created_at) AS time
             FROM payment p
             LEFT JOIN parking_session ps
@@ -122,13 +125,13 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
             ORDER BY COALESCE(p.paid_at, p.created_at) DESC NULLS LAST
             """,
             countQuery = """
-            SELECT COUNT(p.id) FROM payment p
-            WHERE (
-                :statusFilter = 'ALL'
-                OR (:statusFilter = 'PAID'  AND p.status = 'PAID')
-                OR (:statusFilter = 'OTHER' AND p.status NOT IN ('PAID', 'PENDING'))
-            )
-            """,
+                    SELECT COUNT(p.id) FROM payment p
+                    WHERE (
+                        :statusFilter = 'ALL'
+                        OR (:statusFilter = 'PAID'  AND p.status = 'PAID')
+                        OR (:statusFilter = 'OTHER' AND p.status NOT IN ('PAID', 'PENDING'))
+                    )
+                    """,
             nativeQuery = true)
     Page<Object[]> findPaymentListRaw(@Param("statusFilter") String statusFilter, Pageable pageable);
 
@@ -147,6 +150,6 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
             """, nativeQuery = true)
     List<Object[]> findDailyRevenue(
             @Param("startDate") LocalDateTime startDate,
-            @Param("endDate")   LocalDateTime endDate,
+            @Param("endDate") LocalDateTime endDate,
             @Param("excludeDates") List<LocalDate> excludeDates);
 }
