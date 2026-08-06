@@ -21,7 +21,7 @@ public class AiEventQualityFilter {
     double qualityScore = quality.path("score").asDouble(0.0);
     double detScore = quality.path("detScore").asDouble(0.0);
     double blurScore = quality.path("blurScore").asDouble(0.0);
-    double yaw = Math.abs(quality.path("yawDeg").asDouble(0.0));
+//    double yaw = Math.abs(quality.path("yawDeg").asDouble(0.0));
     double pitch = Math.abs(quality.path("pitchDeg").asDouble(0.0));
 
     if (cfg.isRequireUsable() && !usable) {
@@ -36,9 +36,9 @@ public class AiEventQualityFilter {
     if (blurScore < cfg.getMinBlurScore()) {
       return QualityCheckResult.reject("blurry", blurScore);
     }
-    if (yaw > cfg.getMaxYawDeg()) {
-      return QualityCheckResult.reject("yaw_out_of_range", yaw);
-    }
+//    if (yaw > cfg.getMaxYawDeg()) {
+//      return QualityCheckResult.reject("yaw_out_of_range", yaw);
+//    }
     if (pitch > cfg.getMaxPitchDeg()) {
       return QualityCheckResult.reject("pitch_out_of_range", pitch);
     }
