@@ -171,6 +171,8 @@ public class ParkingSessionService {
                 .statusInOut(finalStatus) // truyền enum
                 .exitLaneName(finalExitLaneName)
                 .buildingName(buildingNameStr)
+                .entryImageInfo(entity.getEntryImageInfo())
+                .exitImageInfo(entity.getExitImageInfo())
                 .build();
     }
 

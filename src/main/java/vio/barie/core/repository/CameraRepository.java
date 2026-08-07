@@ -35,7 +35,7 @@ public interface CameraRepository extends JpaRepository<CameraEntity, Long> {
             "LEFT JOIN FETCH c.lane l " +
             "LEFT JOIN FETCH l.parkingLot p " +
             "WHERE (:status IS NULL OR c.status = :status) " +
-            "AND (:searchKey IS NULL OR c.name ILIKE :searchKey)")
+            "AND (:searchKey IS NULL OR (c.name ILIKE :searchKey OR p.name ILIKE :searchKey))")
     List<CameraEntity> searchCameras(
             @Param("searchKey") String searchKey,
             @Param("status") BaseStatus status);
