@@ -6,9 +6,11 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import vio.barie.core.common.InOutStatus;
 import vio.barie.core.common.SessionType;
+import vio.barie.core.dto.parking.EventImageInfo;
 import vio.barie.core.utils.DirectionType;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @AllArgsConstructor
@@ -28,4 +30,6 @@ public class ParkingSessionDetailResponse {
     private String land;
     private String buildingName;
     private InOutStatus statusInOut;
+    private List<EventImageInfo> entryImageInfo;
+    private List<EventImageInfo> exitImageInfo;
 }

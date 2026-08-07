@@ -123,8 +123,8 @@ public class DetectionMatchingService {
 //                    detection.getType(), detection.getDirectionType(), ex.getMessage(), ex);
 //        }
 //    }
-//
-//
+
+
 //    public void clearEntryBuffer(String barrierId, Long laneId) {
 //        if (barrierId == null || laneId == null) return;
 //        String key = "detection:pending:ENTRY:" + barrierId + ":" + laneId;
@@ -138,7 +138,6 @@ public class DetectionMatchingService {
 //        redisTemplate.delete(key);
 //        logger.info("clearExitBuffer: cleared stale face buffer for key={}", key);
 //    }
-
     public void emitMatch(PendingEventDetection detection) {
         if (detection.getDirectionType() == DirectionType.ENTRY) {
             handleEntryEvent(detection);
@@ -304,15 +303,15 @@ public class DetectionMatchingService {
 
             if (!openSession.getEntryCustomer().getAiProfileId().equals(detection.getProfileId())) {
                 logger.warn(
-                    "handleExitEvent: Exit customer is not matching with entry customer for vehicle={} customer={} plate={} profileId={}",
-                    vehicle.getId(), customer.getId(), vehicle.getPlateNumber(), customer.getAiProfileId());
+                        "handleExitEvent: Exit customer is not matching with entry customer for vehicle={} customer={} plate={} profileId={}",
+                        vehicle.getId(), customer.getId(), vehicle.getPlateNumber(), customer.getAiProfileId());
                 ioTService.publishErrorWhenHandlingEvent(
-                    "Khuon mat nguoi di vao khong khop voi khuon mat nguoi di ra",
-                    "",
-                    detection.getType(),
-                    barrierId,
-                    vehicle.getPlateNumber(),
-                    customer.getAiProfileId());
+                        "Khuon mat nguoi di vao khong khop voi khuon mat nguoi di ra",
+                        "",
+                        detection.getType(),
+                        barrierId,
+                        vehicle.getPlateNumber(),
+                        customer.getAiProfileId());
                 return;
             }
 

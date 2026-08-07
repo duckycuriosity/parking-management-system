@@ -57,7 +57,7 @@ public class PlateMessageService {
             if (plateNumber == null || cameraUUID == null || plateNumber.isBlank()) {
                 logger.warn("PlateHandler: plate event has no plateNumber — cameraId={}", cameraCode);
                 parkingMessageService.publishErrorWhenHandlingEvent("Plate is not valid", cameraUUID,
-                    DetectionType.PLATE);
+                        DetectionType.PLATE);
                 return;
             }
 
@@ -151,24 +151,28 @@ public class PlateMessageService {
 
             PendingEventDetection event = buildPendingEventForRegistered(
                     vehicle, customer, plateNumber, cameraInLane, barrier, laneId, direction, plateImgInfo, confidence);
+            logger.info("{} registered vehicle plate={} customer={} — buffering for face match to get full images",
+                    direction, plateNumber, customer.getId());
+            aiEventBuffer.addPlateEvent(event);
 
-            if (direction == DirectionType.ENTRY) {
-                // For registered customers at entry: immediately process without face matching.
-                logger.info("ENTRY registered vehicle plate={} customer={} — processing immediately",
-                        plateNumber, customer.getId());
-                detectionMatchingService.handleEntryEvent(event);
-            } else if (direction == DirectionType.EXIT) {
-                // For registered customers at exit: buffer event and wait for face match
-                // to verify it's the same person who entered
-                logger.info("EXIT registered vehicle plate={} customer={} — buffering for face match",
-                        plateNumber, customer.getId());
-                aiEventBuffer.addPlateEvent(event);
-            } else {
-                parkingMessageService.publishErrorWhenHandlingEvent(
-                        "Unknown direction type for plate event", cameraUUID, DetectionType.PLATE,
-                        barrier.getBarrierId());
-                logger.warn("Unknown direction type for plate event: plate={} direction={}", plateNumber, direction);
-            }
+            // hiện tại lượt entry đang nhảy cóc bypass k cho ghép face dẫn đến thiếu ảnh, giờ bắt buộc phải vào buffer ghép mặt giống khách vãng lai
+//            if (direction == DirectionType.ENTRY) {
+//                // For registered customers at entry: immediately process without face matching.
+//                logger.info("ENTRY registered vehicle plate={} customer={} — processing immediately",
+//                        plateNumber, customer.getId());
+//                detectionMatchingService.handleEntryEvent(event);
+//            } else if (direction == DirectionType.EXIT) {
+//                // For registered customers at exit: buffer event and wait for face match
+//                // to verify it's the same person who entered
+//                logger.info("EXIT registered vehicle plate={} customer={} — buffering for face match",
+//                        plateNumber, customer.getId());
+//                aiEventBuffer.addPlateEvent(event);
+//            } else {
+//                parkingMessageService.publishErrorWhenHandlingEvent(
+//                        "Unknown direction type for plate event", cameraUUID, DetectionType.PLATE,
+//                        barrier.getBarrierId());
+//                logger.warn("Unknown direction type for plate event: plate={} direction={}", plateNumber, direction);
+//            }
 
         } catch (Exception ex) {
             parkingMessageService.publishErrorWhenHandlingEvent(
