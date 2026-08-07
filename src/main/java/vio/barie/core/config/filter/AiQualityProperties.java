@@ -13,7 +13,7 @@ public class AiQualityProperties {
     private double minQualityScore = 0.5;
     private double minDetScore = 0.6;
     private double minBlurScore = 30;
-    private double maxYawDeg = 45;
+//    private double maxYawDeg = 45;
     private double maxPitchDeg = 45;
     private boolean requireUsable = true;
   }
