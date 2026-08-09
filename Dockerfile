@@ -24,4 +24,4 @@ ENV SPRING_PROFILES_ACTIVE=prod
 
 EXPOSE 1081
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Dfile.encoding=UTF-8 -jar /app/app.jar"]
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Ho_Chi_Minh -jar /app/app.jar"]
