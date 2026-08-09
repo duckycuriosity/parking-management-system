@@ -17,11 +17,13 @@ import vio.barie.core.entity.PaymentEntity;
 import vio.barie.core.entity.VehicleEntity;
 import vio.barie.core.entity.TicketEntity;
 import vio.barie.core.repository.*;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class TicketService {
@@ -30,6 +32,7 @@ public class TicketService {
     private final PaymentRepository paymentRepo;
     private final TicketPaymentRepository ticketPaymentRepo;
     private final ParkingCustomerRepository customerRepo;
+    private final ProfileService profileService;
 
     @Transactional
     public TicketEntity registerTicket(TicketRegisterRequest req) {
@@ -110,7 +113,6 @@ public class TicketService {
     public TicketDTO getById(Long id) {
         TicketEntity entity = ticketRepo.findById(id)
                 .orElseThrow(() -> new ServiceException("Không tìm thấy dữ liệu của ticket này", 404));
-
         return TicketEntity.convertToDTO(entity);
     }
 
@@ -118,7 +120,24 @@ public class TicketService {
     public void deleteTicketById(Long id) {
         TicketEntity ticket = ticketRepo.findById(id)
                 .orElseThrow(() -> new ServiceException("Không tìm thấy dữ liệu của ticket để xóa!", 404));
+        ParkingCustomerEntity customer = ticket.getCustomer();
+        Integer aiProfileId = (customer != null) ? customer.getAiProfileId() : null;
         ticketRepo.delete(ticket);
+        log.info("Hoàn tất xóa vé ID: {}. Dữ liệu phương tiện (Vehicle) được giữ nguyên cho lịch sử.", id);
+        if (customer != null) {
+            customerRepo.delete(customer);
+            if (aiProfileId != null) {
+                try {
+                    // Bắn API xóa đích danh khuôn mặt trên AI Server
+                    profileService.delete(aiProfileId);
+                    log.info("Đã xóa đồng bộ AI Profile ID: {} thành công.", aiProfileId);
+                } catch (Exception e) {
+                    // Exception ném ra ở đây sẽ Rollback toàn bộ các lệnh delete DB ở trên
+                    log.error("Lỗi hệ thống AI khi xóa profile {}: {}", aiProfileId, e.getMessage());
+                    throw new ServiceException("Hệ thống AI đang gặp sự cố, không thể đồng bộ xóa khuôn mặt. Hủy thao tác xóa vé!", 500);
+                }
+            }
+        }
     }
 
     @Transactional(readOnly = true)

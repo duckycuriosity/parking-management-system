@@ -3,12 +3,15 @@ package vio.barie.core.mapper;
 import org.springframework.stereotype.Component;
 import vio.barie.core.dto.LaneCreateRequest;
 import vio.barie.core.dto.LaneResponse;
+import vio.barie.core.dto.camera.CameraStreamResponse;
 import vio.barie.core.entity.LaneEntity;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Component
 public class LaneMapper {
+    private static final String STREAM_BASE_URL = "/api/camera/stream/";
 
     public LaneEntity toEntity(LaneCreateRequest request) {
         LaneEntity entity = new LaneEntity();
@@ -31,8 +34,18 @@ public class LaneMapper {
             response.setParkingLotId(entity.getParkingLot().getId());
             response.setParkingLotName(entity.getParkingLot().getName());
         }
-        if (entity.getCameras() != null) {
+        if (entity.getCameras() != null && !entity.getCameras().isEmpty()) {
             response.setCameraIds(entity.getCameras().stream().map(c -> c.getId()).toList());
+            List<CameraStreamResponse> streamResponses = entity.getCameras().stream().map(cam -> {
+                CameraStreamResponse dto = new CameraStreamResponse();
+                dto.setId(cam.getId());
+                dto.setAiCameraId(cam.getAiCameraId());
+                if (cam.getAiCameraId() != null && !cam.getAiCameraId().isBlank()) {
+                    dto.setStreamUrl(STREAM_BASE_URL + cam.getAiCameraId().trim());
+                }
+                return dto;
+            }).collect(Collectors.toList());
+            response.setCameraStreams(streamResponses);
         }
         if (entity.getParkingDevices() != null && !entity.getParkingDevices().isEmpty()) {
             response.setParkingDeviceIds(entity.getParkingDevices().get(0).getId());

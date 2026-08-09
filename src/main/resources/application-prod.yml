@@ -92,6 +92,7 @@ ai:
   core:
     base-url: http://host.docker.internal:5002/api
     stream-url: http://192.168.168.31:5000
+    image-url: http://192.168.168.31:5000
     user-agent: Mozilla/5.0
     accept: "*/*"
     cookie: key=uO50EwSqoolz1OzU
