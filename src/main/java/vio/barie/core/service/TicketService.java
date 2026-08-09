@@ -1,6 +1,7 @@
 package vio.barie.core.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -33,6 +34,7 @@ public class TicketService {
     private final TicketPaymentRepository ticketPaymentRepo;
     private final ParkingCustomerRepository customerRepo;
     private final ProfileService profileService;
+    private final ParkingSessionRepository parkingSessionRepo;
 
     @Transactional
     public TicketEntity registerTicket(TicketRegisterRequest req) {
@@ -121,18 +123,31 @@ public class TicketService {
         TicketEntity ticket = ticketRepo.findById(id)
                 .orElseThrow(() -> new ServiceException("Không tìm thấy dữ liệu của ticket để xóa!", 404));
         ParkingCustomerEntity customer = ticket.getCustomer();
+
+        if (customer != null) {
+            boolean hasSession = parkingSessionRepo.existsByEntryCustomerId(customer.getId());
+            if (hasSession) {
+                throw new ServiceException("Người dùng và phương tiện đã phát sinh phiên gửi xe, không thể xóa vé", 400);
+            }
+        }
         Integer aiProfileId = (customer != null) ? customer.getAiProfileId() : null;
         ticketRepo.delete(ticket);
-        log.info("Hoàn tất xóa vé ID: {}. Dữ liệu phương tiện (Vehicle) được giữ nguyên cho lịch sử.", id);
+        ticketRepo.flush();
+        log.info("Xóa vé ID: {}. Data (Vehicle) được giữ nguyên trong db", id);
         if (customer != null) {
-            customerRepo.delete(customer);
+            try {
+                customerRepo.delete(customer);
+                customerRepo.flush();
+            } catch (DataIntegrityViolationException e) {
+                log.warn("Không thể xóa customer do ràng buộc khóa ngoại: {}", e.getMessage());
+                throw new ServiceException("Người dùng đã phát sinh data trong hệ thống, không thể xóa!", 400);
+            }
             if (aiProfileId != null) {
                 try {
-                    // Bắn API xóa đích danh khuôn mặt trên AI Server
+                    customerRepo.delete(customer);
                     profileService.delete(aiProfileId);
                     log.info("Đã xóa đồng bộ AI Profile ID: {} thành công.", aiProfileId);
                 } catch (Exception e) {
-                    // Exception ném ra ở đây sẽ Rollback toàn bộ các lệnh delete DB ở trên
                     log.error("Lỗi hệ thống AI khi xóa profile {}: {}", aiProfileId, e.getMessage());
                     throw new ServiceException("Hệ thống AI đang gặp sự cố, không thể đồng bộ xóa khuôn mặt. Hủy thao tác xóa vé!", 500);
                 }

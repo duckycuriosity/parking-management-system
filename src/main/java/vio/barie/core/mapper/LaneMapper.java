@@ -34,18 +34,8 @@ public class LaneMapper {
             response.setParkingLotId(entity.getParkingLot().getId());
             response.setParkingLotName(entity.getParkingLot().getName());
         }
-        if (entity.getCameras() != null && !entity.getCameras().isEmpty()) {
+        if (entity.getCameras() != null) {
             response.setCameraIds(entity.getCameras().stream().map(c -> c.getId()).toList());
-            List<CameraStreamResponse> streamResponses = entity.getCameras().stream().map(cam -> {
-                CameraStreamResponse dto = new CameraStreamResponse();
-                dto.setId(cam.getId());
-                dto.setAiCameraId(cam.getAiCameraId());
-                if (cam.getAiCameraId() != null && !cam.getAiCameraId().isBlank()) {
-                    dto.setStreamUrl(STREAM_BASE_URL + cam.getAiCameraId().trim());
-                }
-                return dto;
-            }).collect(Collectors.toList());
-            response.setCameraStreams(streamResponses);
         }
         if (entity.getParkingDevices() != null && !entity.getParkingDevices().isEmpty()) {
             response.setParkingDeviceIds(entity.getParkingDevices().get(0).getId());
@@ -57,4 +47,21 @@ public class LaneMapper {
     public List<LaneResponse> toResponseList(List<LaneEntity> entities) {
         return entities.stream().map(this::toResponse).toList();
     }
+
+    public List<CameraStreamResponse> toCameraStreamResponseList(List<vio.barie.core.entity.CameraEntity> cameras) {
+        if (cameras == null || cameras.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+
+        return cameras.stream().map(cam -> {
+            CameraStreamResponse response = new CameraStreamResponse();
+            response.setId(cam.getId());
+            response.setAiCameraId(cam.getAiCameraId());
+            if (cam.getAiCameraId() != null && !cam.getAiCameraId().isBlank()) {
+                response.setStreamUrl(STREAM_BASE_URL + cam.getAiCameraId().trim());
+            }
+            return response;
+        }).collect(Collectors.toList());
+    }
+
 }

@@ -23,6 +23,8 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
 
     boolean existsByParkingLot_Building_Id(Long buildingId);
 
+    boolean existsByEntryCustomerId(Long entryCustomerId);
+
     Optional<ParkingSessionEntity> findFirstByVehicleIdAndEntryCustomerIdAndExitTimeIsNullOrderByEntryTimeDesc(
             Long vehicleId,
             Long entryCustomerId);
