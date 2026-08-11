@@ -455,32 +455,25 @@ public class ParkingMessageService {
         publish(deviceId, cmd);
     }
 
-    public void publishLockUnlockCommand(String barrierId, BarrierActionType action) {
+    public void publishManualOpenCommand(String barrierId) {
         // tìm barrier trong DB để cập nhật trạng thái
-        BarrierEntity barrier = barrierRepository.findByBarrierId(barrierId).orElse(null);
-        if (barrier == null) {
-            log.warn("publishLockUnlockCommand: Barrier not found in DB with barrierId={}", barrierId);
-            return;
+        String deviceId = resolveDeviceId(barrierId);
+        if (deviceId == null) {
+            log.warn("publishManualOpenCommand: Không tìm thấy device cho barrierId={}", barrierId);
+            throw new RuntimeException("Thiết bị không online hoặc không tồn tại.");
         }
-        // cập nhật trạng thái action mới (LOCK/UNLOCK) vào DB
-        barrier.setAction(action);
-        barrierRepository.save(barrier);
-        log.info("The DB memory state has been updated to {} cho barrierId={}", action, barrierId);
-        // lấy deviceId để build topic và publish lệnh xuống thiết bị phần cứng
-        ParkingDeviceEntity device = barrier.getParkingDevice();
-        if (device == null || device.getDeviceId() == null) {
-            log.warn("publishLockUnlockCommand: Barrier chưa được gán vào Device nào — barrierId={}", barrierId);
-            return;
-        }
-        String deviceId = device.getDeviceId();
-        // gửi đi MQTT
-        LockCmdCommandResponse cmd = LockCmdCommandResponse.builder()
+        String manualSessionId = "manual_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS"));
+        OpenCmdCommand cmd = OpenCmdCommand.builder()
                 .barrierId(barrierId)
-                .action(action)
+                .sessionId(manualSessionId)
+                .reason("manual_override")
+                .playSound(true)
+                .soundFile("open_exit.wav")
+                .autoCloseSeconds(10)
                 .build();
 
         publish(deviceId, cmd);
-        log.info("Đã gửi lệnh MQTT {} tới barrierId={} (Device={})", action, barrierId, deviceId);
+        log.info("Đã gửi lệnh thủ công tới barrierId={} (Device={})", barrierId, deviceId);
     }
 
     public void publishDisplayMsg(String barrierId, String message, boolean playSound, String soundText, int duration) {
@@ -490,12 +483,12 @@ public class ParkingMessageService {
             return;
         }
         DisplayMsgCommand cmd = DisplayMsgCommand.builder()
-            .barrierId(barrierId)
-            .message(message)
-            .durationSeconds(duration)
-            .playSound(playSound)
-            .soundText(soundText)
-            .build();
+                .barrierId(barrierId)
+                .message(message)
+                .durationSeconds(duration)
+                .playSound(playSound)
+                .soundText(soundText)
+                .build();
         publish(deviceId, cmd);
     }
 
@@ -547,7 +540,7 @@ public class ParkingMessageService {
         if (barrierId != null && !barrierId.isBlank()) {
             return normalizedPrefix + "/" + barrierId + normalizedError;
         }
-        return normalizedPrefix  + normalizedError;
+        return normalizedPrefix + normalizedError;
     }
 
     private String resolveDeviceId(String barrierId) {
