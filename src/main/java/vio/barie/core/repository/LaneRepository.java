@@ -19,6 +19,9 @@ public interface LaneRepository extends JpaRepository<LaneEntity, Long> {
     @Query("SELECT l FROM LaneEntity l JOIN FETCH l.parkingLot WHERE l.id = :id")
     Optional<LaneEntity> findByIdWithParkingLot(@Param("id") Long id);
 
+    @Query("SELECT l FROM LaneEntity l LEFT JOIN FETCH l.cameras WHERE l.id = :id")
+    Optional<LaneEntity> findByIdWithCameras(@Param("id") Long id);
+
     @Query("SELECT l FROM LaneEntity l " +
             "JOIN FETCH l.parkingLot p " +
             "WHERE p.id = :parkingLotId " +

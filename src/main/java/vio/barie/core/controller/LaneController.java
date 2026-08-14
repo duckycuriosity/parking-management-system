@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import vio.barie.core.common.BaseStatus;
 import vio.barie.core.dto.*;
+import vio.barie.core.dto.camera.CameraStreamResponse;
 import vio.barie.core.service.LaneService;
 import lombok.extern.slf4j.Slf4j;
 import vio.barie.core.service.ParkingLotService;
@@ -73,6 +74,14 @@ public class LaneController {
         );
     }
 
+    @GetMapping("/{id}/cameras")
+    public Result<List<CameraStreamResponse>> getCamerasByLaneId(@PathVariable Long id) {
+        return Result.ok(
+                "Fetched cameras by lane successfully",
+                laneService.getCamerasByLaneId(id)
+        );
+    }
+
     @PutMapping("/{id}")
     public Result<LaneResponse> update(@PathVariable Long id, @Valid @RequestBody LaneCreateRequest request) {
         return Result.ok("Lane updated successfully", laneService.update(id, request));
@@ -105,7 +114,7 @@ public class LaneController {
     }
 
     @GetMapping("/lane-latest-activity")
-    public Result<List<LaneActivityDTO>> getLaneLatestActivity (@RequestParam(required = false) Integer laneId) {
+    public Result<List<LaneActivityDTO>> getLaneLatestActivity(@RequestParam(required = false) Integer laneId) {
         return Result.ok(
                 "Success",
                 laneService.getLaneLatestAction(laneId)

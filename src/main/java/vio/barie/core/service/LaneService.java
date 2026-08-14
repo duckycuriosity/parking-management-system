@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import vio.barie.core.common.BaseStatus;
 import vio.barie.core.config.exception.BusinessException;
 import vio.barie.core.dto.*;
+import vio.barie.core.dto.camera.CameraStreamResponse;
 import vio.barie.core.entity.BarrierCameraEntity;
 import vio.barie.core.entity.BarrierEntity;
 import vio.barie.core.entity.CameraEntity;
@@ -148,6 +149,13 @@ public class LaneService {
         return laneMapper.toResponseList(entities);
     }
 
+    @Transactional(readOnly = true)
+    public List<CameraStreamResponse> getCamerasByLaneId(Long laneId) {
+        LaneEntity entity = laneRepository.findByIdWithCameras(laneId)
+                .orElseThrow(() -> new BusinessException("Lane not found", "LANE_NOT_FOUND", 404));
+
+        return laneMapper.toCameraStreamResponseList(entity.getCameras());
+    }
 
     @Transactional
     public LaneResponse update(Long id, LaneCreateRequest request) {
@@ -306,6 +314,7 @@ public class LaneService {
             barrierCameraRepository.save(mapping);
         }
     }
+
     public List<LaneActivityDTO> getLaneLatestAction(Integer laneId) {
         return laneRepository.findLatestActivityPerLane(laneId);
     }

@@ -17,15 +17,15 @@ import vio.barie.core.repository.ParkingCustomerRepository;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.net.URI;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProfileService {
 
-    @Value("${ai.face.face-image-url:http://192.168.168.30:8088/api/FaceImage/}")
-    private String customerFaceImageUrl;
-
+    @Value("${ai.core.image-url}")
+    private String imageUrlAi;
     private final ParkingCustomerRepository parkingCustomerRepository;
     private final ProfileMapper profileMapper;
     private final AiFaceApiClient aiFaceApiClient;
@@ -46,7 +46,23 @@ public class ProfileService {
         Integer validId = finalProfile.getId() != null ? finalProfile.getId() : finalProfile.getAiProfileId();
         finalProfile.setId(validId);
         ParkingCustomerEntity entity = profileMapper.toEntity(finalProfile);
-        entity.setImageUrl(customerFaceImageUrl + finalProfile.getId());
+        String imageUrl = null;
+        if (finalProfile.getImages() != null && !finalProfile.getImages().isEmpty()) {
+            String rawAccessUrl = finalProfile.getImages().get(0).get("accessUrl");
+            try {
+                URI uri = new URI(rawAccessUrl);
+                String pathAndQuery = uri.getRawPath() + (uri.getRawQuery() != null ? "?" + uri.getRawQuery() : "");
+                imageUrl = imageUrlAi + pathAndQuery;
+            } catch (Exception e) {
+                log.warn("Lỗi parse URI từ AI ({}). Dùng url gốc.", rawAccessUrl);
+                imageUrl = rawAccessUrl;
+            }
+
+        } else {
+            log.error("AI Server không trả về thông tin ảnh (images array trống hoặc null) cho profileId: {}", validId);
+            throw new RuntimeException("Không lấy được hình ảnh khuôn mặt từ AI Server. Vui lòng thử lại!");
+        }
+        entity.setImageUrl(imageUrl);
         entity.setEmail(email);
         parkingCustomerRepository.save(entity);
         return finalProfile;

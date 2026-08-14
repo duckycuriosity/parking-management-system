@@ -2,6 +2,7 @@ package vio.barie.core.dto;
 
 import lombok.Data;
 import vio.barie.core.common.BaseStatus;
+import vio.barie.core.dto.camera.CameraStreamResponse;
 import vio.barie.core.utils.DirectionType;
 
 import java.util.List;
@@ -19,4 +20,5 @@ public class LaneResponse {
     private List<Long> cameraIds;
     private Long parkingDeviceIds;
     private String parkingDeviceCode;
+   
 }

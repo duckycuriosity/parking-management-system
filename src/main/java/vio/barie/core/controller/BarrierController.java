@@ -20,14 +20,12 @@ public class BarrierController {
     private final BarrierService barrierService;
     private final ParkingMessageService parkingMessageService;
 
-    @PostMapping("/{barrierId}/control")
-    public ResponseEntity<?> controlBarrier(
-            @PathVariable String barrierId,
-            @RequestParam BarrierActionType action) {
-
-        parkingMessageService.publishLockUnlockCommand(barrierId, action);
-        return ResponseEntity.ok("Control command successfully sent.");
+    @PostMapping("/{barrierId}/manual-open")
+    public Result<Void> manualOpenBarrier(@PathVariable String barrierId) {
+        parkingMessageService.publishManualOpenCommand(barrierId);
+        return Result.ok("Đã gửi lệnh mở barrier thủ công thành công.", null);
     }
+
 
     @GetMapping("/all")
     public Result<List<BarrierDetailResponse>> getAllBarrierDetails() {

@@ -58,15 +58,43 @@ public class TicketRegistrationService {
     public TicketRegistrationResponseDTO registerMonthlyTicket(
             AdminMonthlyTicketRegistrationRequest req,
             MultipartFile faceImage) throws IOException {
-
-        AtomicReference<String> msg = new AtomicReference<>("Vé tháng đăng kí thành công!");
-
         log.info("Starting monthly ticket registration for customer: {}, plate: {}",
                 req.getName(), req.getVehiclePlateNumber());
 
         // 1️⃣ Validate input
         validateRequest(req, faceImage);
 
+        // check biển só
+        Optional<VehicleEntity> vehicleRecord = vehicleRepository.findByPlateNumber(req.getVehiclePlateNumber());
+        VehicleEntity vehicle;
+
+        if (vehicleRecord.isPresent()) {
+            vehicle = vehicleRecord.get();
+            Optional<TicketEntity> latestTicketOpt = ticketRepository.findFirstByVehicleIdOrderByExpireAtDesc(vehicle.getId());
+            if (latestTicketOpt.isPresent()) {
+                TicketEntity latestTicket = latestTicketOpt.get();
+                TicketStatus status = latestTicket.getStatus();
+
+                // Trả về Exception cụ thể thay vì xóa dữ liệu cũ
+                if (status == TicketStatus.ACTIVE) {
+                    throw new ServiceException(
+                            "Biển số xe " + req.getVehiclePlateNumber() + " đã được đăng ký và vé đang có hiệu lực. Không thể đăng ký mới!", 400);
+                } else if (status == TicketStatus.DEAD) {
+                    throw new ServiceException(
+                            "Biển số xe " + req.getVehiclePlateNumber() + " đang có vé chờ thanh toán. Vui lòng thanh toán hoặc huỷ vé cũ trước!", 400);
+                } else if (status == TicketStatus.INACTIVE) {
+                    throw new ServiceException(
+                            "Biển số xe " + req.getVehiclePlateNumber() + " đã tồn tại trên hệ thống (vé cũ đã hết hạn). Vui lòng sử dụng tính năng Gia Hạn Vé (Renew) thay vì tạo mới!", 400);
+                }
+            }
+        } else {
+            // Xe chưa có → tạo mới vehicle record
+            vehicle = new VehicleEntity();
+            vehicle.setPlateNumber(req.getVehiclePlateNumber());
+            vehicle.setVehicleType(normalizeVehicleType(req.getVehicleType()));
+            vehicle = vehicleRepository.save(vehicle);
+            log.info("Vehicle created: vehicleId={}, plateNumber={}", vehicle.getId(), vehicle.getPlateNumber());
+        }
         // 2️⃣ Create or get customer
         boolean isCustomerExisting = getOrCreateCustomer(
                 req.getName(),
@@ -86,34 +114,13 @@ public class TicketRegistrationService {
         log.info("Face registered successfully: profileId={}, uuid={}",
                 profile.getId(), profile.getUuid());
 
-        Optional<ParkingCustomerEntity> customer = parkingCustomerRepository.findByAiProfileId(profile.getId());
-        if (customer.isEmpty()) {
+        Optional<ParkingCustomerEntity> customerOpt = parkingCustomerRepository.findByAiProfileId(profile.getId());
+        if (customerOpt.isEmpty()) {
             log.error("Customer not found after creation: name={}, phone={}", req.getName(), req.getPhoneNumber());
             throw new ServiceException("Customer not found after creation", 400);
         }
+        ParkingCustomerEntity customer = customerOpt.get();
 
-        // Tìm xe theo biển số
-        Optional<VehicleEntity> vehicleRecord = vehicleRepository.findByPlateNumber(req.getVehiclePlateNumber());
-        VehicleEntity vehicle;
-        if (vehicleRecord.isPresent()) {
-            ticketRepository.findTicketByVehicleId(vehicleRecord.get().getId()).ifPresent(existingTicket -> {
-                if (existingTicket.getStatus() == TicketStatus.ACTIVE) {
-                    throw new ServiceException(
-                            "Xe " + req.getVehiclePlateNumber() + " đã có vé đang hiệu lực.", 400);
-                } else {
-                    ticketRepository.delete(existingTicket);
-                    msg.set("Phát hiện vé không còn hiệu lực. Hệ thống đã tự động xóa và tạo mới vé thành công!");
-                }
-            });
-            vehicle = vehicleRecord.get();
-        } else {
-            // Xe chưa có → tạo mới vehicle record (đăng ký AI plate đang bị tắt)
-            VehicleEntity newVehicle = new VehicleEntity();
-            newVehicle.setPlateNumber(req.getVehiclePlateNumber());
-            newVehicle.setVehicleType(normalizeVehicleType(req.getVehicleType()));
-            vehicle = vehicleRepository.save(newVehicle);
-            log.info("Vehicle created: vehicleId={}, plateNumber={}", vehicle.getId(), vehicle.getPlateNumber());
-        }
 
         // 7️⃣ Create ticket
         LocalDateTime now = LocalDateTime.now();
@@ -121,7 +128,7 @@ public class TicketRegistrationService {
 
         TicketEntity ticket = new TicketEntity();
         ticket.setVehicle(vehicle);
-        ticket.setCustomer(customer.orElse(null));
+        ticket.setCustomer(customer);
         ticket.setTicketType(req.getTicketType());
         ticket.setRegisterAt(now);
         ticket.setStartDate(req.getStartDate());
@@ -143,22 +150,20 @@ public class TicketRegistrationService {
                 .registeredAt(savedTicket.getRegisterAt())
                 .expireAt(savedTicket.getExpireAt())
                 .startDate(savedTicket.getStartDate())
-                .customerId(customer.map(ParkingCustomerEntity::getId).orElse(null))
-                .customerName(customer.map(ParkingCustomerEntity::getUsername).orElse(null))
+                .customerId(customer.getId())
+                .customerName(customer.getUsername())
                 .vehicleId(vehicle.getId())
                 .plateNumber(vehicle.getPlateNumber())
                 .vehicleType(vehicle.getVehicleType())
                 .profileId(profile.getId())
                 .notes(req.getNotes())
-                .customerImageUrl(customer.map(ParkingCustomerEntity::getImageUrl).orElse(null))
-                .email(customer.map(ParkingCustomerEntity::getEmail).orElse(""))
+                .customerImageUrl(customer.getImageUrl())
+                .email(customer.getEmail())
                 .phoneNumber(savedTicket.getPhoneNumber())
                 .notes(savedTicket.getNotes())
-                .message(msg.get())
+                .message("Vé tháng đăng kí thành công! Vui lòng tiến hành thanh toán.")
                 .build();
 
-        log.info("Monthly ticket registration completed successfully: ticketId={}, customerId={}, vehicleId={}",
-                savedTicket.getId(), customer.map(ParkingCustomerEntity::getId).orElse(null), vehicle.getId());
 
         return response;
     }
