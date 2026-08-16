@@ -24,9 +24,9 @@ public class AiEventQualityFilter {
 //    double yaw = Math.abs(quality.path("yawDeg").asDouble(0.0));
     double pitch = Math.abs(quality.path("pitchDeg").asDouble(0.0));
 
-    if (cfg.isRequireUsable() && !usable) {
-      return QualityCheckResult.reject("not_usable", 0);
-    }
+//    if (cfg.isRequireUsable() && !usable) {
+//      return QualityCheckResult.reject("not_usable", 0);
+//    }
     if (qualityScore < cfg.getMinQualityScore()) {
       return QualityCheckResult.reject("low_quality_score", qualityScore);
     }
@@ -39,9 +39,9 @@ public class AiEventQualityFilter {
 //    if (yaw > cfg.getMaxYawDeg()) {
 //      return QualityCheckResult.reject("yaw_out_of_range", yaw);
 //    }
-    if (pitch > cfg.getMaxPitchDeg()) {
-      return QualityCheckResult.reject("pitch_out_of_range", pitch);
-    }
+//    if (pitch > cfg.getMaxPitchDeg()) {
+//      return QualityCheckResult.reject("pitch_out_of_range", pitch);
+//    }
 
     return QualityCheckResult.accept();
   }
