@@ -16,7 +16,8 @@ WORKDIR /app
 RUN addgroup -S spring && adduser -S spring -G spring
 
 COPY --from=builder /app/build/libs/barie-core.jar app.jar
-RUN chown spring:spring app.jar
+RUN mkdir -p /app/logs && chown -R spring:spring /app
+VOLUME ["/app/logs"]
 
 USER spring:spring
 

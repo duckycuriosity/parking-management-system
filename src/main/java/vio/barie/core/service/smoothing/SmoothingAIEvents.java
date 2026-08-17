@@ -32,17 +32,17 @@ public class SmoothingAIEvents {
     private final RedissonClient redissonClient;
     private final ParkingMessageService parkingMessageService;
     private final ObjectMapper objectMapper;
-    @Value("${barrier.detection.session-ttl-seconds:150}")
+    @Value("${barrier.detection.session-ttl-seconds:210}")
     private long sessionTtlSeconds;
 
-    @Value("${barrier.detection.business-window-ms:120000}")
+    @Value("${barrier.detection.business-window-ms:180000}")
     private long businessWindowMs;
 
     @Value("${barrier.detection.burst-gap-ms:8000}")
     private long burstGapMs;
 
-    private static final long LOCK_WAIT_MS = 2000L;
-    private static final long LOCK_LEASE_MS = 5000L;
+    private static final long LOCK_WAIT_MS = 6000L;
+    private static final long LOCK_LEASE_MS = 12000L;
 
     public void ingestPlate(PendingEventDetection plateDetection) {
         String sessionKey = buildSessionKey(plateDetection);

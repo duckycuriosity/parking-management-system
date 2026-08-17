@@ -13,7 +13,7 @@ server:
 
 spring:
   profiles:
-    active: prod
+    active: dev
   application:
     name: core
   flyway:
@@ -53,6 +53,19 @@ logging:
 parking:
   config:
     pay-per-use-tickets: DAILY,EVENT,VIP
+
+barrier:
+  detection:
+    # Cua so toi da giua lan thay plate cuoi va face khop (ms). Thuc te quan sat
+    # duoc nguoi dan xe co the mat toi ~3 phut moi co 1 frame face du chat luong,
+    # nen de 3 phut thay vi 2 phut mac dinh cu.
+    business-window-ms: 180000
+    # TTL cua session Redis (giay) - phai LON HON business-window-ms/1000,
+    # neu khong Redis se tu xoa key truoc khi logic business kip bao "stale".
+    session-ttl-seconds: 210
+    # Khoang cach toi da (ms) giua 2 message plate lien tiep de con tinh la
+    # cung 1 lan quet (burst) cua cung 1 xe.
+    burst-gap-ms: 8000
 # Swagger/OpenAPI Configuration
 springdoc:
   api-docs:
