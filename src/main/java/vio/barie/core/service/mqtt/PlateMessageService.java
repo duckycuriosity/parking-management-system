@@ -17,6 +17,7 @@ import vio.barie.core.service.filter.AiEventQualityFilter;
 import vio.barie.core.service.filter.QualityCheckResult;
 import vio.barie.core.utils.DetectionType;
 import vio.barie.core.utils.DirectionType;
+import vio.barie.core.utils.PlateNumberUtils;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -51,7 +52,7 @@ public class PlateMessageService {
     public void handle(JsonNode event) {
         try {
             Long cameraCode = event.path("cameraId").asLong();
-            String plateNumber = event.path("plate").path("plateNumber").asText(null);
+            String plateNumber = PlateNumberUtils.normalize(event.path("plate").path("plateNumber").asText(null));
             String cameraUUID = event.path("cameraUUID").asText();
 
             if (plateNumber == null || cameraUUID == null || plateNumber.isBlank()) {
