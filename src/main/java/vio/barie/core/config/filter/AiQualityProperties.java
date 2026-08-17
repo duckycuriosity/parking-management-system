@@ -15,7 +15,7 @@ public class AiQualityProperties {
     private double minBlurScore = 10;
 //    private double maxYawDeg = 45;
 //    private double maxPitchDeg = 45;
-//    private boolean requireUsable = true;
+    private boolean requireUsable = true;
   }
   @Data
   public static class PlateQuality {
