@@ -125,7 +125,7 @@ public class SmoothingAIEvents {
                 return Optional.empty();
             }
 
-//      session.delete();
+            session.delete();
 
             long lastSeenMs = Long.parseLong(snapshot.get("lastSeenMs"));
             long delta = Math.abs(faceDetection.getTimestampMs() - lastSeenMs);
