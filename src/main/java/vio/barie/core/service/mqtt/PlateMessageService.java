@@ -89,6 +89,13 @@ public class PlateMessageService {
                 return;
             }
 
+            if (!PlateNumberUtils.isValid(plateNumber)) {
+                logger.warn("PlateHandler: plate format invalid — plate={} cameraUUID={}", plateNumber, cameraUUID);
+                parkingMessageService.publishDisplayMsg(barrier.get().getBarrierId(),
+                        "Bien so khong hop le, moi quet lai", true, "Vui long quet lai bien so", 8);
+                return;
+            }
+
             QualityCheckResult qualityCheckResult = aiEventQualityFilter.evaluatePlate(event);
 
             if (!qualityCheckResult.accepted()) {

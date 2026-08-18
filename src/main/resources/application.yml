@@ -66,6 +66,9 @@ barrier:
     # Khoang cach toi da (ms) giua 2 message plate lien tiep de con tinh la
     # cung 1 lan quet (burst) cua cung 1 xe.
     burst-gap-ms: 8000
+    # Sau khi 1 luot entry/exit thanh cong, khoa lane trong khoang nay (ms) de
+    # bo qua plate/face phat sinh do xe con nam trong khung hinh camera.
+    post-match-cooldown-ms: 15000
 # Swagger/OpenAPI Configuration
 springdoc:
   api-docs:

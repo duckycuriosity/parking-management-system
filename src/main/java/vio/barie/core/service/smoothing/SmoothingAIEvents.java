@@ -44,7 +44,37 @@ public class SmoothingAIEvents {
     private static final long LOCK_WAIT_MS = 6000L;
     private static final long LOCK_LEASE_MS = 12000L;
 
+    @Value("${barrier.detection.post-match-cooldown-ms:15000}")
+    private long postMatchCooldownMs;
+
+    /**
+     * Sau khi 1 luot entry/exit xu ly xong, khoa tam lane nay trong mot khoang
+     * ngan de bo qua cac plate/face phat sinh do xe con nam trong khung hinh
+     * camera (trailing burst) - tranh tao session/error "no open session" ao.
+     */
+    public void markLaneCooldown(PendingEventDetection detection) {
+        String key = cooldownKey(detection);
+        redissonClient.getBucket(key).set("1", Duration.ofMillis(postMatchCooldownMs));
+        logger.debug("markLaneCooldown: key={} cooldownMs={}", key, postMatchCooldownMs);
+    }
+
+    private boolean isInCooldown(PendingEventDetection plateDetection) {
+        return redissonClient.getBucket(cooldownKey(plateDetection)).isExists();
+    }
+
+    private String cooldownKey(PendingEventDetection detection) {
+        DirectionType direction = detection.getDirectionType();
+        String barrierId = direction == DirectionType.ENTRY ? detection.getEntryBarrierId() : detection.getExitBarrierId();
+        Long laneId = direction == DirectionType.ENTRY ? detection.getEntryLaneId() : detection.getExitLaneId();
+        return "detection:cooldown:" + direction + ":" + barrierId + ":" + laneId;
+    }
+
     public void ingestPlate(PendingEventDetection plateDetection) {
+        if (isInCooldown(plateDetection)) {
+            logger.debug("ingestPlate: lane is in post-match cooldown, skip plate={}", plateDetection.getPlateNumber());
+            return;
+        }
+
         String sessionKey = buildSessionKey(plateDetection);
         RLock lock = redissonClient.getLock(lockKey(sessionKey));
         boolean locked = false;
