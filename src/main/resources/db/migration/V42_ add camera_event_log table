@@ -1,3 +1,4 @@
+
 CREATE TABLE camera_event_log (
   id VARCHAR(55) PRIMARY KEY,
     event_id BIGINT,
