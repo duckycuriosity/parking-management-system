@@ -1,4 +1,4 @@
-CREATE TABLE public.camera_event_log (
+CREATE TABLE camera_event_log (
   id VARCHAR(55) PRIMARY KEY,
     event_id BIGINT,
     event_type VARCHAR(255),
@@ -6,6 +6,6 @@ CREATE TABLE public.camera_event_log (
     event_time VARCHAR(255),
     model_name VARCHAR(255),
     metadata JSONB,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,3
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
