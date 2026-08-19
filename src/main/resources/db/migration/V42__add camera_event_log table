@@ -1,6 +1,6 @@
 
 
-CREATE TABLE camera_event_log (
+CREATE TABLE IF NOT EXISTS camera_event_log (
     id VARCHAR(55) PRIMARY KEY,
     event_id BIGINT,
     event_type VARCHAR(255),
