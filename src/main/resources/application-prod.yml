@@ -54,6 +54,7 @@ mqtt:
   publish-cmd-topic-prefix: "parking/v1/server"
   publish-cmd-topic-suffix: "/cmd"
   publish-error-topic-suffix: "/error"
+  publish-vehicle-topic-suffix: "/vehicle"
   receive-ai-event: "aibox/face/#"
   queue:
     core-pool-size: 5
