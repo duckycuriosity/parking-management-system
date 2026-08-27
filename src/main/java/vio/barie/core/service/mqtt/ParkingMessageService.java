@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import vio.barie.core.common.BarrierActionType;
 import vio.barie.core.common.OperatingStatus;
+import vio.barie.core.dto.LaneVehicleCommand;
 import vio.barie.core.dto.LockCmdCommandResponse;
 import vio.barie.core.dto.parking.OpenCmdCommand;
 import vio.barie.core.dto.parking.PaymentConfirmedCommand;
@@ -53,6 +54,9 @@ public class ParkingMessageService {
     private String suffix;
     @Value("${mqtt.publish-error-topic-suffix}")
     private String error;
+
+    @Value("${mqtt.publish-vehicle-topic-suffix}")
+    private String vehicleSuffix;
     private final ObjectMapper mapper = new ObjectMapper();
 
     public void handleConnect(String topic, JsonNode json) {
@@ -534,6 +538,24 @@ public class ParkingMessageService {
         }
     }
 
+    public void publishLaneVehicle(LaneVehicleCommand cmd) {
+        if (cmd.getLaneId() == null) {
+            return;
+        }
+        cmd.setServerTs(System.currentTimeMillis());
+        String topic = buildLaneTopic(cmd.getLaneId());
+        try {
+            String json = mapper.writeValueAsString(cmd);
+            mqttPublisher.publish(topic, json, true);
+        } catch (Exception e) {
+            log.error("publish vehicle info fail lane={}", cmd.getLaneId());
+        }
+    }
+    private String buildLaneTopic(Long laneId) {
+        String p = prefix == null ? "" : prefix.replaceAll("/+$", "");
+        String s = vehicleSuffix == null ? "/vehicle" : vehicleSuffix.startsWith("/") ? vehicleSuffix : "/" + vehicleSuffix;
+        return p + "/" + laneId + s;
+    }
     private String buildErrorTopic(String barrierId) {
         String normalizedPrefix = prefix == null ? "" : prefix.replaceAll("/+$", "");
         String normalizedError = error == null ? "/error" : error.startsWith("/") ? error : "/" + error;

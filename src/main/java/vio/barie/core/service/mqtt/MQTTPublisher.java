@@ -6,6 +6,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.*;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -20,6 +22,17 @@ public class MQTTPublisher {
             client.publish(topic, message);
         } catch (Exception e) {
             log.error("Publish error", e);
+        }
+    }
+
+    public void publish(String topic, String payload, boolean retained) {
+        try {
+            MqttMessage message = new MqttMessage(payload.getBytes(StandardCharsets.UTF_8));
+            message.setQos(1);
+            message.setRetained(retained);
+            client.publish(topic, message);
+        } catch (Exception e) {
+            log.error("Publish error topic={}", topic);
         }
     }
 
