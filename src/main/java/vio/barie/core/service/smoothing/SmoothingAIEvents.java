@@ -261,7 +261,7 @@ public class SmoothingAIEvents {
         boolean entry = d.getDirectionType() == DirectionType.ENTRY;
         parkingMessageService.publishLaneVehicle(LaneVehicleCommand.builder()
             .laneId(entry ? d.getEntryLaneId() : d.getExitLaneId())
-            .barrierId(entry ? Long.valueOf(d.getEntryBarrierId()) : Long.valueOf(d.getExitBarrierId()))
+            .barrierId(entry ? d.getEntryBarrierId() : d.getExitBarrierId())
             .directionType(d.getDirectionType())
             .state(state)
             .plate(plate)

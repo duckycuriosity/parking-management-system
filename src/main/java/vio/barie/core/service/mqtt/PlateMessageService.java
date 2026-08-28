@@ -122,7 +122,7 @@ public class PlateMessageService {
             String vehicleTypeStr = labelTypeVehicle.equals(VehicleType.CAR.getCode()) ? "CAR" : "MOTORBIKE";
             parkingMessageService.publishLaneVehicle(LaneVehicleCommand.builder()
                     .laneId(laneId)
-                    .barrierId(Long.valueOf(barrier.get().getBarrierId()))
+                    .barrierId(barrier.get().getBarrierId())
                     .directionType(direction)
                     .state("WAITING_FACE")
                     .plate(plateNumber)

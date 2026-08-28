@@ -15,7 +15,7 @@ public class LaneVehicleCommand {
   private String type = "lane_vehicle";
 
   @JsonProperty("lane_id") private Long laneId;
-  @JsonProperty("barrier_id") private Long barrierId;
+  @JsonProperty("barrier_id") private String barrierId;
   @JsonProperty("direction") private DirectionType directionType;
 
   @JsonProperty("state") private String state;
