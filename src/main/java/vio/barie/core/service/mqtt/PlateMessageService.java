@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import vio.barie.core.common.TicketStatus;
+import vio.barie.core.dto.LaneVehicleCommand;
 import vio.barie.core.dto.parking.EventImageInfo;
 import vio.barie.core.dto.parking.ImageDetail;
 import vio.barie.core.dto.parking.PendingEventDetection;
@@ -118,6 +119,21 @@ public class PlateMessageService {
                 log.error(">>> LỖI PARSE JSON: Không tìm thấy trường image/cropImage trong payload!");
             }
             VehicleEntity vehicle = vehicleRepository.findPlateByPlateNumber(plateNumber);
+            String vehicleTypeStr = labelTypeVehicle.equals(VehicleType.CAR.getCode()) ? "CAR" : "MOTORBIKE";
+            parkingMessageService.publishLaneVehicle(LaneVehicleCommand.builder()
+                    .laneId(laneId)
+                    .barrierId(barrier.get().getBarrierId())
+                    .directionType(direction)
+                    .state("WAITING_FACE")
+                    .plate(plateNumber)
+                    .aiPlateId(vehicle != null ? vehicle.getAiIdentityPlateId() : null)
+                    .confidence(confidence)
+                    .isVerified(isVerified)
+                    .vehicleType(vehicleTypeStr)
+                    .eventTs(event.path("eventTime").isMissingNode() ?
+                        System.currentTimeMillis() : Instant.parse(event.path("eventTime").asText()).toEpochMilli())
+                    .image(plateImgInfo != null ? plateImgInfo.getImageInfo().getFirst().getName() : "")
+                .build());
 
             // If vehicle is registered with active ticket, handle as registered customer
             if (vehicle != null) {
@@ -209,9 +225,6 @@ public class PlateMessageService {
                     plateNumber, cameraInLane, barrier, laneId, direction, plateImgInfo, confidence);
 
             if (direction == DirectionType.ENTRY) {
-                // Khong publish lenh mo/thong bao o day: barrier chi duoc mo sau khi
-                // face + plate match thanh cong va tao ParkingSessionEntity o
-                // DetectionMatchingService.handleEntryEvent (qua publishOpenCommand).
                 logger.info("ENTRY unregistered vehicle plate={} — buffering for face + plate matching", plateNumber);
             } else if (direction == DirectionType.EXIT) {
                 logger.info("EXIT unregistered vehicle plate={} — buffering for face + plate matching", plateNumber);
