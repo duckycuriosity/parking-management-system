@@ -18,6 +18,7 @@ import vio.barie.core.entity.*;
 import vio.barie.core.repository.*;
 import vio.barie.core.service.CalculatorService;
 import vio.barie.core.service.PaymentService;
+import vio.barie.core.service.smoothing.SmoothingAIEvents;
 import vio.barie.core.utils.DetectionType;
 import vio.barie.core.utils.DirectionType;
 
@@ -52,6 +53,7 @@ public class DetectionMatchingService {
     private final PaymentService paymentService;
     private final RedisTemplate<String, PendingEventDetection> redisTemplate;
     private final StringRedisTemplate stringRedisTemplate;
+    private final SmoothingAIEvents smoothingAIEvents;
 
     /**
      * Ingest a detection event and try to match it with its counterpart.
@@ -242,6 +244,7 @@ public class DetectionMatchingService {
                     session.getId(), vehicle.getPlateNumber(), customer.getId(),
                     session.getSessionType(), session.getTicketId());
             ioTService.publishOpenCommand(barrierId, session.getId(), "vehicle_entry");
+            smoothingAIEvents.markLaneCooldown(detection);
 
         } catch (Exception ex) {
             logger.error("handleEntryEvent: failed — type={}: {}", detection.getType(), ex.getMessage(), ex);
@@ -336,6 +339,7 @@ public class DetectionMatchingService {
             openSession.setExitImageInfo(detection.getListImageInfo());
 
             parkingSessionRepository.save(openSession);
+            smoothingAIEvents.markLaneCooldown(detection);
 
             logger.info("handleExitEvent: session closed id={} plate={} customer={} sessionType={} ticketId={}",
                     openSession.getId(), vehicle.getPlateNumber(), customer.getId(),

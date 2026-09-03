@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import vio.barie.core.common.TicketStatus;
+import vio.barie.core.dto.LaneVehicleCommand;
 import vio.barie.core.dto.parking.EventImageInfo;
 import vio.barie.core.dto.parking.ImageDetail;
 import vio.barie.core.dto.parking.PendingEventDetection;
@@ -17,6 +18,7 @@ import vio.barie.core.service.filter.AiEventQualityFilter;
 import vio.barie.core.service.filter.QualityCheckResult;
 import vio.barie.core.utils.DetectionType;
 import vio.barie.core.utils.DirectionType;
+import vio.barie.core.utils.PlateNumberUtils;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -51,7 +53,7 @@ public class PlateMessageService {
     public void handle(JsonNode event) {
         try {
             Long cameraCode = event.path("cameraId").asLong();
-            String plateNumber = event.path("plate").path("plateNumber").asText(null);
+            String plateNumber = PlateNumberUtils.normalize(event.path("plate").path("plateNumber").asText(null));
             String cameraUUID = event.path("cameraUUID").asText();
 
             if (plateNumber == null || cameraUUID == null || plateNumber.isBlank()) {
@@ -88,6 +90,13 @@ public class PlateMessageService {
                 return;
             }
 
+            if (!PlateNumberUtils.isValid(plateNumber)) {
+                logger.warn("PlateHandler: plate format invalid — plate={} cameraUUID={}", plateNumber, cameraUUID);
+                parkingMessageService.publishDisplayMsg(barrier.get().getBarrierId(),
+                        "Bien so khong hop le, moi quet lai", true, "Vui long quet lai bien so", 8);
+                return;
+            }
+
             QualityCheckResult qualityCheckResult = aiEventQualityFilter.evaluatePlate(event);
 
             if (!qualityCheckResult.accepted()) {
@@ -110,6 +119,21 @@ public class PlateMessageService {
                 log.error(">>> LỖI PARSE JSON: Không tìm thấy trường image/cropImage trong payload!");
             }
             VehicleEntity vehicle = vehicleRepository.findPlateByPlateNumber(plateNumber);
+            String vehicleTypeStr = labelTypeVehicle.equals(VehicleType.CAR.getCode()) ? "CAR" : "MOTORBIKE";
+            parkingMessageService.publishLaneVehicle(LaneVehicleCommand.builder()
+                    .laneId(laneId)
+                    .barrierId(barrier.get().getBarrierId())
+                    .directionType(direction)
+                    .state("WAITING_FACE")
+                    .plate(plateNumber)
+                    .aiPlateId(vehicle != null ? vehicle.getAiIdentityPlateId() : null)
+                    .confidence(confidence)
+                    .isVerified(isVerified)
+                    .vehicleType(vehicleTypeStr)
+                    .eventTs(event.path("eventTime").isMissingNode() ?
+                        System.currentTimeMillis() : Instant.parse(event.path("eventTime").asText()).toEpochMilli())
+                    .image(plateImgInfo != null ? plateImgInfo.getImageInfo().getFirst().getName() : "")
+                .build());
 
             // If vehicle is registered with active ticket, handle as registered customer
             if (vehicle != null) {
@@ -201,9 +225,6 @@ public class PlateMessageService {
                     plateNumber, cameraInLane, barrier, laneId, direction, plateImgInfo, confidence);
 
             if (direction == DirectionType.ENTRY) {
-                // Khong publish lenh mo/thong bao o day: barrier chi duoc mo sau khi
-                // face + plate match thanh cong va tao ParkingSessionEntity o
-                // DetectionMatchingService.handleEntryEvent (qua publishOpenCommand).
                 logger.info("ENTRY unregistered vehicle plate={} — buffering for face + plate matching", plateNumber);
             } else if (direction == DirectionType.EXIT) {
                 logger.info("EXIT unregistered vehicle plate={} — buffering for face + plate matching", plateNumber);

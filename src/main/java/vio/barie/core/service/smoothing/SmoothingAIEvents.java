@@ -11,6 +11,7 @@ import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import vio.barie.core.dto.LaneVehicleCommand;
 import vio.barie.core.dto.parking.EventImageInfo;
 import vio.barie.core.dto.parking.PendingEventDetection;
 import vio.barie.core.service.mqtt.ParkingMessageService;
@@ -18,6 +19,7 @@ import vio.barie.core.utils.DetectionType;
 import vio.barie.core.utils.DirectionType;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,19 +34,49 @@ public class SmoothingAIEvents {
     private final RedissonClient redissonClient;
     private final ParkingMessageService parkingMessageService;
     private final ObjectMapper objectMapper;
-    @Value("${barrier.detection.session-ttl-seconds:150}")
+    @Value("${barrier.detection.session-ttl-seconds:210}")
     private long sessionTtlSeconds;
 
-    @Value("${barrier.detection.business-window-ms:120000}")
+    @Value("${barrier.detection.business-window-ms:180000}")
     private long businessWindowMs;
 
     @Value("${barrier.detection.burst-gap-ms:8000}")
     private long burstGapMs;
 
-    private static final long LOCK_WAIT_MS = 2000L;
-    private static final long LOCK_LEASE_MS = 5000L;
+    private static final long LOCK_WAIT_MS = 6000L;
+    private static final long LOCK_LEASE_MS = 12000L;
+
+    @Value("${barrier.detection.post-match-cooldown-ms:15000}")
+    private long postMatchCooldownMs;
+
+    /**
+     * Sau khi 1 luot entry/exit xu ly xong, khoa tam lane nay trong mot khoang
+     * ngan de bo qua cac plate/face phat sinh do xe con nam trong khung hinh
+     * camera (trailing burst) - tranh tao session/error "no open session" ao.
+     */
+    public void markLaneCooldown(PendingEventDetection detection) {
+        String key = cooldownKey(detection);
+        redissonClient.getBucket(key).set("1", Duration.ofMillis(postMatchCooldownMs));
+        logger.debug("markLaneCooldown: key={} cooldownMs={}", key, postMatchCooldownMs);
+    }
+
+    private boolean isInCooldown(PendingEventDetection plateDetection) {
+        return redissonClient.getBucket(cooldownKey(plateDetection)).isExists();
+    }
+
+    private String cooldownKey(PendingEventDetection detection) {
+        DirectionType direction = detection.getDirectionType();
+        String barrierId = direction == DirectionType.ENTRY ? detection.getEntryBarrierId() : detection.getExitBarrierId();
+        Long laneId = direction == DirectionType.ENTRY ? detection.getEntryLaneId() : detection.getExitLaneId();
+        return "detection:cooldown:" + direction + ":" + barrierId + ":" + laneId;
+    }
 
     public void ingestPlate(PendingEventDetection plateDetection) {
+        if (isInCooldown(plateDetection)) {
+            logger.debug("ingestPlate: lane is in post-match cooldown, skip plate={}", plateDetection.getPlateNumber());
+            return;
+        }
+
         String sessionKey = buildSessionKey(plateDetection);
         RLock lock = redissonClient.getLock(lockKey(sessionKey));
         boolean locked = false;
@@ -70,6 +102,7 @@ public class SmoothingAIEvents {
                     logger.error("ingestPlate: failed to serialize image list for plate={}", plateDetection.getPlateNumber(), e);
                 }
             }
+            String previousPlate = session.get("plateNumber");
             if (isNewVehicle) {
                 Map<String, String> fresh = new HashMap<>();
                 fresh.put("plateNumber", plateDetection.getPlateNumber());
@@ -82,6 +115,8 @@ public class SmoothingAIEvents {
                 fresh.put("listImageInfoJson", imageListJson);
                 session.clear();
                 session.putAll(fresh);
+                publishLaneState(plateDetection, plateDetection.getPlateNumber(), confidence, 1,
+                    previousPlate, previousPlate == null ? "PROCESSING" : "REPLACED");
                 logger.debug("ingestPlate: new session key={} plate={}", sessionKey, plateDetection.getPlateNumber());
             } else {
                 double currentConfidence = parseDoubleSafe(session.get("confidence"));
@@ -93,6 +128,9 @@ public class SmoothingAIEvents {
                     session.put("aiPlateId", nullToEmpty(plateDetection.getAiPlateId()));
                     session.put("imageJson", nullToEmpty(plateDetection.getImage()));
                     session.put("listImageInfoJson", imageListJson);
+                    boolean changed = previousPlate != null && !previousPlate.equalsIgnoreCase(plateDetection.getPlateNumber());
+                    publishLaneState(plateDetection, plateDetection.getPlateNumber(), confidence, 1,
+                        changed ? previousPlate : null, changed ? "REPLACED" : "PROCESSING");
                 }
             }
             session.expire(Duration.ofSeconds(sessionTtlSeconds));
@@ -125,7 +163,7 @@ public class SmoothingAIEvents {
                 return Optional.empty();
             }
 
-//      session.delete();
+            session.delete();
 
             long lastSeenMs = Long.parseLong(snapshot.get("lastSeenMs"));
             long delta = Math.abs(faceDetection.getTimestampMs() - lastSeenMs);
@@ -135,6 +173,8 @@ public class SmoothingAIEvents {
                 parkingMessageService.publishDisplayMsg(barrierId, "Face is expired, please scan face again", true, "Scan face again", 8);
                 return Optional.empty();
             }
+            PendingEventDetection merged = mergeFaceWithPlateSession(faceDetection, snapshot);
+            publishLaneState(merged, merged.getPlateNumber(), merged.getConfidence() == null ? 0.0 : merged.getConfidence(), 0, null, "MATCHED");
 
             return Optional.of(mergeFaceWithPlateSession(faceDetection, snapshot));
 
@@ -216,5 +256,20 @@ public class SmoothingAIEvents {
         } catch (NumberFormatException e) {
             return 0;
         }
+    }
+    private void publishLaneState(PendingEventDetection d, String plate, double conf, int count, String previousPlate, String state) {
+        boolean entry = d.getDirectionType() == DirectionType.ENTRY;
+        parkingMessageService.publishLaneVehicle(LaneVehicleCommand.builder()
+            .laneId(entry ? d.getEntryLaneId() : d.getExitLaneId())
+            .barrierId(entry ? d.getEntryBarrierId() : d.getExitBarrierId())
+            .directionType(d.getDirectionType())
+            .state(state)
+            .plate(plate)
+            .aiPlateId(d.getAiPlateId())
+            .confidence(conf)
+            .previousPlate(previousPlate)
+            .eventTs(d.getTimestampMs())
+            .sessionTtlSeconds(sessionTtlSeconds)
+            .build());
     }
 }

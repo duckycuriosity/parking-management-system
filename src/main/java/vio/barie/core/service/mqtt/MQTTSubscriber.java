@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
+import vio.barie.core.entity.CameraEventLogEntity;
+import vio.barie.core.repository.CameraEventLogRepository;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -22,6 +24,7 @@ public class MQTTSubscriber {
     private final ProfileMessageService profileMessageService;
     private final PlateMessageService plateMessageService;
     private final ParkingMessageService parkingMessageService;
+    private final CameraEventLogRepository cameraEventLogRepository;
     private final ObjectMapper objectMapper;
     private final Executor mqttExecutor;
     private final MqttStartupWarmup mqttStartupWarmup;
@@ -29,15 +32,16 @@ public class MQTTSubscriber {
     private final AtomicBoolean subscriptionsRegistered = new AtomicBoolean(false);
 
     public MQTTSubscriber(MqttClient client, ProfileMessageService profileMessageService,
-            PlateMessageService plateMessageService,
-            ParkingMessageService parkingMessageService, ObjectMapper objectMapper,
-            @Qualifier("mqttExecutor") Executor mqttExecutor,
-            MqttStartupWarmup mqttStartupWarmup,
-            MqttConnectOptions mqttConnectOptions) {
+                          PlateMessageService plateMessageService,
+                          ParkingMessageService parkingMessageService, ObjectMapper objectMapper,
+                          @Qualifier("mqttExecutor") Executor mqttExecutor,
+                          MqttStartupWarmup mqttStartupWarmup,
+                          MqttConnectOptions mqttConnectOptions, CameraEventLogRepository cameraEventLogRepository) {
         this.client = client;
         this.profileMessageService = profileMessageService;
         this.plateMessageService = plateMessageService;
         this.parkingMessageService = parkingMessageService;
+        this.cameraEventLogRepository = cameraEventLogRepository;
         this.objectMapper = objectMapper;
         this.mqttExecutor = mqttExecutor; // Inject the executor for async processing
         this.mqttStartupWarmup = mqttStartupWarmup;
@@ -132,6 +136,8 @@ public class MQTTSubscriber {
     }
 
     private void dispatch(String topic, String type, JsonNode json) {
+        log.info("Dispatching MQTT message type={} topic={} data {}", type, topic,json);
+        cameraEventLogRepository.save(CameraEventLogEntity.toEntity(json));
         if (topic.equals(aiboxFaceTopic)) {
             profileMessageService.handle(json);
         } else if (topic.equals(aiboxPlateTopic)) {

@@ -43,7 +43,7 @@ public class StringCommon {
     }
 
     public static String generateId() {
-        return UuidCreator.getTimeOrdered().toString();
+        return UuidCreator.getTimeOrderedEpoch().toString();
     }
 
     public static String writeAsString(Object prefix) {

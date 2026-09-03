@@ -39,9 +39,9 @@ public class AiEventQualityFilter {
 //    if (yaw > cfg.getMaxYawDeg()) {
 //      return QualityCheckResult.reject("yaw_out_of_range", yaw);
 //    }
-    if (pitch > cfg.getMaxPitchDeg()) {
-      return QualityCheckResult.reject("pitch_out_of_range", pitch);
-    }
+//    if (pitch > cfg.getMaxPitchDeg()) {
+//      return QualityCheckResult.reject("pitch_out_of_range", pitch);
+//    }
 
     return QualityCheckResult.accept();
   }

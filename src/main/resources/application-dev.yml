@@ -60,6 +60,7 @@ mqtt:
   aibox-plate-topic: "aibox/licenseplate"
   publish-cmd-topic-prefix: "parking/v1/server"
   publish-cmd-topic-suffix: "/cmd"
+  publish-vehicle-topic-suffix: "/vehicle"
   publish-error-topic-suffix: "/error"
   receive-ai-event: "aibox/face/#"
   internet-health-check-topic: "parking/v1/server/internet-health-check"
