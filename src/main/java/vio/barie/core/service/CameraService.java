@@ -134,9 +134,45 @@ public class CameraService {
         if (searchKey != null && !searchKey.trim().isEmpty()) {
             formattedSearchKey = "%" + searchKey.trim() + "%";
         }
-        List<CameraEntity> entities = cameraRepository.searchCameras(formattedSearchKey, status);
-        List<CameraResponse> responses = cameraMapper.toResponseList(entities);
+        List<CameraEntity> entities = cameraRepository.searchCameras(formattedSearchKey, null);
+        log.info("Tìm thấy camera {} trong db", entities.size());
         Map<String, AICameraDetail> aiCameras = fetchAICamerasSafely();
+        log.info("Gọi AI serverice check xem Số lượng camera AI trả về: {}", aiCameras.size());
+        log.info("Danh sách các camera aiCamera {}", aiCameras.keySet());
+        boolean isDbUpdated = false;
+        log.info("[Bước 3] Bắt đầu đối chiếu ID và Trạng thái...");
+        for(CameraEntity entity:entities){
+            AICameraDetail detail = aiCameras.get(entity.getAiCameraId());
+            log.info("  -> Đang xét Camera DB [ID: {}], aiCameraId lưu trên DB: '{}'", entity.getId(),detail);
+            BaseStatus realStatus = entity.getStatus();
+            if (detail != null) {
+                String aiStatus = detail.getStatus();
+                log.info("     + TÌM THẤY trên AI. Trạng thái AI trả về: '{}'", aiStatus);
+                if ("live".equalsIgnoreCase(aiStatus)) {
+                    realStatus = BaseStatus.ACTIVE;
+                } else if ("error".equalsIgnoreCase(aiStatus)) {
+                    realStatus = BaseStatus.INACTIVE;
+                }else {
+                    log.warn("     + CẢNH BÁO: AI trả về trạng thái lạ '{}', giữ nguyên trạng thái cũ.", aiStatus);
+                }
+            } else {
+                log.warn("     + LỖI MAP: KHÔNG tìm thấy aiCameraId '{}' trong kết quả của AI -> Bị ép về INACTIVE", detail);
+                realStatus = BaseStatus.INACTIVE;
+            }
+            if (entity.getStatus() != realStatus) {
+                log.info("     + >>> UPDATE DB: Đổi trạng thái từ {} sang {}", entity.getStatus(), realStatus);
+                entity.setStatus(realStatus);
+                isDbUpdated = true;
+            }
+        }
+        if (isDbUpdated) {
+            log.info("[Bước 4] Có sự thay đổi trạng thái, đang lưu xuống Database...");
+            cameraRepository.saveAll(entities);
+        }else {
+            log.info("[Bước 4] Không có thay đổi nào, bỏ qua lệnh saveAll.");
+        }
+        List<CameraResponse> responses = cameraMapper.toResponseList(entities);
+        log.info("[Bước 5] Đã map xong entity sang DTO response.");
         for (CameraResponse res : responses) {
             AICameraDetail detail = aiCameras.get(res.getAiCameraId());
             if (detail != null) {
@@ -148,9 +184,18 @@ public class CameraService {
                     res.setAudioCodec(detail.getLiveStream().getAudioCodec());
                     res.setVideoCodec(detail.getLiveStream().getVideoCodec());
                 }
+
+            } else {
+                res.setAiStreamStatus("unknown");
             }
         }
-
+        if (status != null) {
+            log.info("[Bước 6] User filter status = {}. Bắt đầu lọc...", status);
+            responses = responses.stream()
+                    .filter(res -> res.getStatus() == status)
+                    .toList();
+        }
+        log.info("========== KẾT THÚC GET CAMERA LIST. Trả về {} camera ==========", responses.size());
         return responses;
     }
 

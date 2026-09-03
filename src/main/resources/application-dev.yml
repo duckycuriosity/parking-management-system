@@ -62,6 +62,11 @@ mqtt:
   publish-cmd-topic-suffix: "/cmd"
   publish-error-topic-suffix: "/error"
   receive-ai-event: "aibox/face/#"
+  internet-health-check-topic: "parking/v1/server/internet-health-check"
+  internet:
+    check:
+      interval-ms: 15000
+      disconnect-threshold: 3
   queue:
     core-pool-size: 5
     max-pool-size: 10
