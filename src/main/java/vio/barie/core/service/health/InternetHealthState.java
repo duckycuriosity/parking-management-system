@@ -1,4 +1,4 @@
-package vio.barie.core.health;
+package vio.barie.core.service.health;
 
 import lombok.Data;
 import lombok.Getter;

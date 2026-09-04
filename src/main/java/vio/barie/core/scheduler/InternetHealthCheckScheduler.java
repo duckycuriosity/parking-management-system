@@ -1,4 +1,4 @@
-package vio.barie.core.service;
+package vio.barie.core.scheduler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -7,19 +7,17 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import vio.barie.core.common.HealthStatus;
-import vio.barie.core.health.InternetHealthEventPublisher;
-import vio.barie.core.health.InternetHealthState;
-import vio.barie.core.health.SystemHealthStateStore;
+import vio.barie.core.service.mqtt.InternetHealthEventPublisher;
+import vio.barie.core.service.health.InternetHealthState;
+import vio.barie.core.service.health.SystemHealthStateStore;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
-import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class InternetHealthCheckSchedulerService {
+public class InternetHealthCheckScheduler {
     private final SystemHealthStateStore stateStore;
     private final InternetHealthEventPublisher eventPublisher;
 

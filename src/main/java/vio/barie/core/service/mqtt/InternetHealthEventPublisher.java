@@ -1,4 +1,4 @@
-package vio.barie.core.health;
+package vio.barie.core.service.mqtt;
 
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -8,7 +8,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import vio.barie.core.common.HealthStatus;
 import vio.barie.core.dto.health.InternetHealthEvent;
-import vio.barie.core.service.mqtt.MQTTPublisher;
 
 import java.time.Instant;
 
