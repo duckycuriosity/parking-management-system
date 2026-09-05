@@ -21,7 +21,7 @@ public class InternetHealthCheckScheduler {
     private final SystemHealthStateStore stateStore;
     private final InternetHealthEventPublisher eventPublisher;
 
-    @Value("${internet.check.disconnect-threshold:3}")
+    @Value("${mqtt.internet.check.disconnect-threshold:3}")
     private int disconnectThreshold;
 
     private final List<String> targets = List.of(
@@ -37,9 +37,8 @@ public class InternetHealthCheckScheduler {
         factory.setReadTimeout(3000);
         return new RestTemplate(factory);
     }
-    @Scheduled(fixedRateString = "${internet.check.interval-ms:15000}")
+    @Scheduled(fixedRateString = "${mqtt.internet.check.interval-ms:15000}")
     public void performHealthCheck() {
-        applyJitter();
 
         InternetHealthState state = stateStore.getInternetState();
         state.updateLastCheckTime();
@@ -90,14 +89,6 @@ public class InternetHealthCheckScheduler {
                     "TIME_OUT",
                     null
             );
-        }
-    }
-    private void applyJitter() {
-        try {
-            long jitter = ThreadLocalRandom.current().nextLong(2000);
-            Thread.sleep(jitter);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
         }
     }
 }

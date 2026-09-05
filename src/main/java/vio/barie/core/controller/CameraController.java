@@ -63,8 +63,8 @@ public class CameraController {
     }
 
     @GetMapping("/stream/{aiCameraId}")
-    public void getLiveStream(@PathVariable("aiCameraId") String aiCameraId, HttpServletResponse response) {
-        cameraService.aiVideoStream(aiCameraId, response);
+    public ResponseEntity<StreamingResponseBody> getLiveStream(@PathVariable("aiCameraId") String aiCameraId) {
+        return cameraService.aiVideoStream(aiCameraId);
     }
 //
 //    @GetMapping("/{id}/report-link")
