@@ -25,9 +25,7 @@ public class InternetHealthCheckScheduler {
     private int disconnectThreshold;
 
     private final List<String> targets = List.of(
-            "http://clients3.google.com/generate_204",
-            "http://1.1.1.1",
-            "http://www.google.com"
+            "http://clients3.google.com/generate_204"
     );
 
     private final RestTemplate restTemplate = createRestTemplate();
