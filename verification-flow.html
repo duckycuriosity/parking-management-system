@@ -1,0 +1,47 @@
+<title>Verification Flow</title>
+<style>
+    :root{
+      --bg:#eef0ec;
+      --surface:#ffffff;
+      --surface-2:#dfe3dc;
+      --ink:#1c2321;
+      --ink-dim:#5a655f;
+      --line:#9aa39a;
+      --line-soft:#c7cdc3;
+      --accent:#c8790f;
+      --accent-soft:#f3ddac;
+      --accent-ink:#6b4a08;
+      --rest:#3c6e63;
+      --rest-soft:#d7e6e1;
+      --rest-ink:#1f4a40;
+      font-family:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,sans-serif;
+    }
+    @media (prefers-color-scheme: dark){
+      :root:not([data-theme="light"]){
+        --bg:#14181a; --surface:#1b2023; --surface-2:#232b28;
+        --ink:#e7ebe6; --ink-dim:#a3ada6; --line:#4a564e; --line-soft:#333c37;
+        --accent:#f0a93a; --accent-soft:#3a2f14; --accent-ink:#f7cf8f;
+        --rest:#6fb3a2; --rest-soft:#1c2b28; --rest-ink:#bfe8dd;
+      }
+    }
+    :root[data-theme="dark"]{
+      --bg:#14181a; --surface:#1b2023; --surface-2:#232b28;
+      --ink:#e7ebe6; --ink-dim:#a3ada6; --line:#4a564e; --line-soft:#333c37;
+      --accent:#f0a93a; --accent-soft:#3a2f14; --accent-ink:#f7cf8f;
+      --rest:#6fb3a2; --rest-soft:#1c2b28; --rest-ink:#bfe8dd;
+    }
+
+    *{box-sizing:border-box;}
+    body{background:var(--bg);color:var(--ink);margin:0;}
+    .page{max-width:1360px;margin:0 auto;padding:48px 26px 72px;}
+
+    .eyebrow{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.12em;
+      text-transform:uppercase;color:var(--accent-ink);margin:0 0 10px;}
+    h1{font-size:33px;line-height:1.15;margin:0 0 16px;font-weight:650;text-wrap:balance;}
+    .intro{font-size:15.5px;line-height:1.6;color:var(--ink-dim);max-width:80ch;margin:0 0 8px;}
+    .intro strong{color:var(--ink);font-weight:600;}
+    .intro code, figcaption code, .footnote code{font-family:'IBM Plex Mono',monospace;}
+
+    .meta-row{display:flex;gap:28px;flex-wrap:wrap;margin:24px 0 30px;
+      font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12.5px;color:var(--ink-dim);}
+    .meta-row div{display:flex;flex-direction:column;gap:3px;}
