@@ -2,6 +2,7 @@ package vio.barie.core.dto;
 
 import lombok.Data;
 import vio.barie.core.common.BaseStatus;
+import vio.barie.core.common.VerificationMode;
 
 import java.time.LocalDateTime;
 
@@ -16,4 +17,5 @@ public class ParkingLotResponse {
     private LocalDateTime createdAt;
     private Integer maxMotorcycleCapacity;
     private Integer maxCarCapacity;
+    private VerificationMode verificationMode;
 }

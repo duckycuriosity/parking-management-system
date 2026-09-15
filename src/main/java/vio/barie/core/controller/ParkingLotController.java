@@ -9,6 +9,7 @@ import vio.barie.core.common.BaseStatus;
 import vio.barie.core.dto.ParkingLotCreateRequest;
 import vio.barie.core.dto.ParkingLotResponse;
 import vio.barie.core.dto.Result;
+import vio.barie.core.dto.UpdateVerificationModeRequest;
 import vio.barie.core.service.ParkingLotService;
 
 import java.util.List;
@@ -54,5 +55,12 @@ public class ParkingLotController {
     public Result<String> delete(@PathVariable Long id) {
         parkingLotService.delete(id);
         return Result.ok("Parking lot deleted", null);
+    }
+
+    @PatchMapping("/{id}/verification-mode")
+    public Result<ParkingLotResponse> updateVerificationMode(@PathVariable Long id,
+                                                              @Valid @RequestBody UpdateVerificationModeRequest request) {
+        return Result.ok("Verification mode updated",
+                parkingLotService.updateVerificationMode(id, request.getVerificationMode()));
     }
 }
