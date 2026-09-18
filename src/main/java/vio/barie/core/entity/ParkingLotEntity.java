@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import vio.barie.core.common.BaseStatus;
+import vio.barie.core.common.VerificationMode;
 import vio.barie.core.entity.base.BaseEntity;
 
 import java.util.List;
@@ -33,6 +34,10 @@ public class ParkingLotEntity extends BaseEntity {
 
     @Column(name = "max_car_capacity")
     private Integer maxCarCapacity;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "verification_mode", nullable = false)
+    private VerificationMode verificationMode = VerificationMode.FACE_PLATE;
 
     // Quan hệ 1-n với Lane
     @OneToMany(mappedBy = "parkingLot", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

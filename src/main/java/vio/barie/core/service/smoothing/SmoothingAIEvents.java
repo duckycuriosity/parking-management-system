@@ -144,6 +144,22 @@ public class SmoothingAIEvents {
         }
     }
 
+    /**
+     * Plate-only entry point (no face to pair with): the plate detection itself is the
+     * complete evidence, gated only by the same per-lane post-match cooldown used to
+     * suppress trailing detections after face+plate matching.
+     */
+    public Optional<PendingEventDetection> ingestPlateOnly(PendingEventDetection plateDetection) {
+        if (isInCooldown(plateDetection)) {
+            logger.debug("ingestPlateOnly: lane is in post-match cooldown, skip plate={}", plateDetection.getPlateNumber());
+            return Optional.empty();
+        }
+
+        double confidence = plateDetection.getConfidence() != null ? plateDetection.getConfidence() : 0.0;
+        publishLaneState(plateDetection, plateDetection.getPlateNumber(), confidence, 1, null, "MATCHED");
+        return Optional.of(plateDetection);
+    }
+
     public Optional<PendingEventDetection> ingestFace(PendingEventDetection faceDetection) {
         String sessionKey = buildSessionKey(faceDetection);
         RLock lock = redissonClient.getLock(lockKey(sessionKey));

@@ -4,6 +4,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import vio.barie.core.common.BaseStatus;
+import vio.barie.core.common.VerificationMode;
 import vio.barie.core.config.exception.BusinessException;
 import vio.barie.core.dto.ParkingLotCreateRequest;
 import vio.barie.core.dto.ParkingLotResponse;
@@ -109,6 +110,18 @@ public class ParkingLotService {
             entity.setMaxCarCapacity(request.getMaxCarCapacity());
 
         }
+        if (request.getVerificationMode() != null) {
+            entity.setVerificationMode(request.getVerificationMode());
+        }
+        ParkingLotEntity saved = parkingLotRepository.save(entity);
+        return parkingLotMapper.toResponse(saved);
+    }
+
+    @Transactional
+    public ParkingLotResponse updateVerificationMode(Long id, VerificationMode verificationMode) {
+        ParkingLotEntity entity = parkingLotRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("Parking lot not found", "PARKING_LOT_NOT_FOUND", 404));
+        entity.setVerificationMode(verificationMode);
         ParkingLotEntity saved = parkingLotRepository.save(entity);
         return parkingLotMapper.toResponse(saved);
     }

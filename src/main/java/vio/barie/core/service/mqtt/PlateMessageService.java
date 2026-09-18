@@ -19,6 +19,7 @@ import vio.barie.core.service.filter.QualityCheckResult;
 import vio.barie.core.utils.DetectionType;
 import vio.barie.core.utils.DirectionType;
 import vio.barie.core.utils.PlateNumberUtils;
+import vio.barie.core.verification.VerificationRouter;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -39,14 +40,13 @@ public class PlateMessageService {
 
     private final VehicleRepository vehicleRepository;
     private final CameraRepository cameraRepository;
-    private final AiMQTTEventBuffer aiEventBuffer;
     private final TicketRepository ticketRepository;
     private final ParkingCustomerRepository parkingCustomerRepository;
     private final ParkingSessionRepository parkingSessionRepository;
     private final ParkingMessageService parkingMessageService;
     private final BarrierRepository barrierRepository;
-    private final DetectionMatchingService detectionMatchingService;
     private final AiEventQualityFilter aiEventQualityFilter;
+    private final VerificationRouter verificationRouter;
     private final UUID uuid = UUID.randomUUID();
 
     @Transactional
@@ -175,29 +175,9 @@ public class PlateMessageService {
 
             PendingEventDetection event = buildPendingEventForRegistered(
                     vehicle, customer, plateNumber, cameraInLane, barrier, laneId, direction, plateImgInfo, confidence);
-            logger.info("{} registered vehicle plate={} customer={} — buffering for face match to get full images",
+            logger.info("{} registered vehicle plate={} customer={} — routing for verification",
                     direction, plateNumber, customer.getId());
-            aiEventBuffer.addPlateEvent(event);
-
-            // hiện tại lượt entry đang nhảy cóc bypass k cho ghép face dẫn đến thiếu ảnh, giờ bắt buộc phải vào buffer ghép mặt giống khách vãng lai
-//            if (direction == DirectionType.ENTRY) {
-//                // For registered customers at entry: immediately process without face matching.
-//                logger.info("ENTRY registered vehicle plate={} customer={} — processing immediately",
-//                        plateNumber, customer.getId());
-//                detectionMatchingService.handleEntryEvent(event);
-//            } else if (direction == DirectionType.EXIT) {
-//                // For registered customers at exit: buffer event and wait for face match
-//                // to verify it's the same person who entered
-//                logger.info("EXIT registered vehicle plate={} customer={} — buffering for face match",
-//                        plateNumber, customer.getId());
-//                aiEventBuffer.addPlateEvent(event);
-//            } else {
-//                parkingMessageService.publishErrorWhenHandlingEvent(
-//                        "Unknown direction type for plate event", cameraUUID, DetectionType.PLATE,
-//                        barrier.getBarrierId());
-//                logger.warn("Unknown direction type for plate event: plate={} direction={}", plateNumber, direction);
-//            }
-
+            verificationRouter.routePlateEvent(event, barrier.getParkingDevice().getLane().getParkingLot());
         } catch (Exception ex) {
             parkingMessageService.publishErrorWhenHandlingEvent(
                     "Failed to process registered vehicle event", cameraUUID, DetectionType.PLATE,
@@ -224,13 +204,8 @@ public class PlateMessageService {
             PendingEventDetection event = buildPendingEventForUnregistered(
                     plateNumber, cameraInLane, barrier, laneId, direction, plateImgInfo, confidence);
 
-            if (direction == DirectionType.ENTRY) {
-                logger.info("ENTRY unregistered vehicle plate={} — buffering for face + plate matching", plateNumber);
-            } else if (direction == DirectionType.EXIT) {
-                logger.info("EXIT unregistered vehicle plate={} — buffering for face + plate matching", plateNumber);
-            }
-
-            aiEventBuffer.addPlateEvent(event);
+            logger.info("{} unregistered vehicle plate={} — routing for verification", direction, plateNumber);
+            verificationRouter.routePlateEvent(event, barrier.getParkingDevice().getLane().getParkingLot());
 
         } catch (Exception ex) {
             parkingMessageService.publishErrorWhenHandlingEvent(

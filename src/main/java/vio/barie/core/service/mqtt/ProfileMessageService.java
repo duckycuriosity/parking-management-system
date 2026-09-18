@@ -20,6 +20,7 @@ import vio.barie.core.service.filter.AiEventQualityFilter;
 import vio.barie.core.service.filter.QualityCheckResult;
 import vio.barie.core.utils.DetectionType;
 import vio.barie.core.utils.DirectionType;
+import vio.barie.core.verification.VerificationRouter;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -34,11 +35,11 @@ public class ProfileMessageService {
 
     private final ParkingCustomerRepository customerRepository;
     private final CameraRepository cameraRepository;
-    private final AiMQTTEventBuffer aiEventBuffer;
     private final BarrierCameraRepository barrierCameraRepository;
     private final ParkingMessageService parkingMessageService;
     private final BarrierRepository barrierRepository;
     private final AiEventQualityFilter aiEventQualityFilter;
+    private final VerificationRouter verificationRouter;
     private final static Logger logger = LoggerFactory.getLogger(ProfileMessageService.class);
 
     @Transactional
@@ -142,7 +143,8 @@ public class ProfileMessageService {
                 log.error(">>> Lỗi parse JSON: Không tìm thấy trường image Face trong payload!");
             }
 
-            aiEventBuffer.addFaceEvent(pd);
+            ParkingLotEntity parkingLot = barrier.get().getParkingDevice().getLane().getParkingLot();
+            verificationRouter.routeFaceEvent(pd, parkingLot);
         } catch (Exception ex) {
             logger.error("ProfileMessageService: failed to handle profile event — payload={} error={}", event,
                     ex.getMessage(), ex);
