@@ -1,0 +1,348 @@
+<title>Barie Core Schematic</title>
+<style>
+  :root{
+    --bg:#eef0ec;
+    --surface:#ffffff;
+    --surface-2:#dfe3dc;
+    --ink:#1c2321;
+    --ink-dim:#5a655f;
+    --line:#9aa39a;
+    --line-soft:#c7cdc3;
+    --accent:#c8790f;
+    --accent-soft:#f3ddac;
+    --accent-ink:#6b4a08;
+    --debt:#a8452f;
+    --rest:#3c6e63;
+    --rest-soft:#d7e6e1;
+    font-family:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14181a;
+      --surface:#1b2023;
+      --surface-2:#232b28;
+      --ink:#e7ebe6;
+      --ink-dim:#a3ada6;
+      --line:#4a564e;
+      --line-soft:#333c37;
+      --accent:#f0a93a;
+      --accent-soft:#3a2f14;
+      --accent-ink:#f7cf8f;
+      --debt:#e07a63;
+      --rest:#6fb3a2;
+      --rest-soft:#1c2b28;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14181a;
+    --surface:#1b2023;
+    --surface-2:#232b28;
+    --ink:#e7ebe6;
+    --ink-dim:#a3ada6;
+    --line:#4a564e;
+    --line-soft:#333c37;
+    --accent:#f0a93a;
+    --accent-soft:#3a2f14;
+    --accent-ink:#f7cf8f;
+    --debt:#e07a63;
+    --rest:#6fb3a2;
+    --rest-soft:#1c2b28;
+  }
+
+  *{box-sizing:border-box;}
+  body{background:var(--bg);color:var(--ink);margin:0;}
+  .page{max-width:1300px;margin:0 auto;padding:48px 28px 72px;}
+
+  .eyebrow{
+    font-family:'IBM Plex Mono',ui-monospace,monospace;
+    font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--accent-ink);margin:0 0 10px;
+  }
+  h1{
+    font-size:34px;line-height:1.15;margin:0 0 16px;font-weight:650;
+    text-wrap:balance;
+  }
+  .intro{
+    font-size:16px;line-height:1.6;color:var(--ink-dim);max-width:74ch;margin:0 0 8px;
+  }
+  .intro strong{color:var(--ink);font-weight:600;}
+
+  .meta-row{
+    display:flex;gap:28px;flex-wrap:wrap;margin:26px 0 34px;
+    font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12.5px;color:var(--ink-dim);
+  }
+  .meta-row div{display:flex;flex-direction:column;gap:3px;}
+  .meta-row b{color:var(--ink);font-size:13.5px;font-family:'IBM Plex Sans',sans-serif;font-weight:600;}
+
+  figure{margin:0;}
+  .diagram-frame{
+    background:var(--surface);border:1px solid var(--line-soft);border-radius:10px;
+    padding:20px 20px 8px;overflow-x:auto;
+  }
+  svg{display:block;width:100%;height:auto;min-width:900px;}
+
+  figcaption{
+    font-size:13.5px;color:var(--ink-dim);line-height:1.55;margin-top:14px;max-width:80ch;
+  }
+
+  .legend{
+    display:grid;grid-template-columns:repeat(2,minmax(260px,1fr));gap:10px 32px;
+    margin-top:36px;padding-top:24px;border-top:1px solid var(--line-soft);
+  }
+  .legend h2{
+    grid-column:1/-1;font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+    font-family:'IBM Plex Mono',ui-monospace,monospace;color:var(--ink-dim);margin:0 0 4px;font-weight:500;
+  }
+  .legend-item{display:flex;align-items:center;gap:12px;font-size:13.5px;color:var(--ink);}
+  .swatch{flex:none;width:30px;height:18px;border-radius:3px;}
+  .sw-shipped{background:var(--accent-soft);border:2px solid var(--accent);}
+  .sw-target{background:var(--surface);border:2px dashed var(--line);}
+  .sw-stable{background:var(--surface-2);border:2px solid var(--ink-dim);}
+  .sw-wire{background:none;border:none;position:relative;height:10px;align-self:center;}
+  .line-sample{width:30px;height:2px;background:var(--line);align-self:center;}
+  .line-debt{width:30px;height:2px;align-self:center;background:repeating-linear-gradient(90deg,var(--debt) 0 6px,transparent 6px 10px);}
+  .line-rest{width:30px;height:2px;background:var(--rest);align-self:center;}
+
+  .footnote{
+    margin-top:28px;font-size:13px;color:var(--ink-dim);
+    font-family:'IBM Plex Mono',ui-monospace,monospace;
+  }
+  .footnote code{color:var(--ink);}
+
+  /* ---- SVG component styles ---- */
+  .box-title{font:650 20px 'IBM Plex Sans',sans-serif;fill:var(--ink);}
+  .box-tag{font:600 11px 'IBM Plex Mono',monospace;letter-spacing:.06em;}
+  .box-sub{font:400 12.5px 'IBM Plex Mono',monospace;fill:var(--ink-dim);}
+  .box-body{font:400 14px 'IBM Plex Sans',sans-serif;fill:var(--ink);}
+  .box-body-accent{font:500 14px 'IBM Plex Sans',sans-serif;fill:var(--accent-ink);}
+  .arrow-label{font:400 12.5px 'IBM Plex Sans',sans-serif;fill:var(--ink-dim);}
+  .arrow-label-strong{font:500 12.5px 'IBM Plex Sans',sans-serif;fill:var(--ink);}
+  .rest-badge-text{font:600 10.5px 'IBM Plex Mono',monospace;fill:var(--rest);}
+  .mono-small{font:400 11.5px 'IBM Plex Mono',monospace;fill:var(--ink-dim);}
+  .monolith-title{font:600 14.5px 'IBM Plex Mono',monospace;fill:var(--ink-dim);letter-spacing:.02em;}
+  .ext-title{font:600 15px 'IBM Plex Sans',sans-serif;fill:var(--ink);}
+  .ext-sub{font:400 11.5px 'IBM Plex Mono',monospace;fill:var(--ink-dim);}
+  .infra-title{font:650 17px 'IBM Plex Sans',sans-serif;fill:var(--ink);}
+  .infra-body{font:400 12.5px 'IBM Plex Sans',sans-serif;fill:var(--ink-dim);}
+  .strip-text{font:500 13.5px 'IBM Plex Sans',sans-serif;fill:var(--ink);}
+
+  .box-shipped{fill:var(--accent-soft);stroke:var(--accent);stroke-width:2.5;}
+  .box-target{fill:var(--surface);stroke:var(--line);stroke-width:2;stroke-dasharray:7 6;}
+  .box-stable{fill:var(--surface-2);stroke:var(--ink-dim);stroke-width:2;}
+  .ext-box{fill:var(--surface);stroke:var(--line-soft);stroke-width:1.5;}
+  .infra-box{fill:var(--surface);stroke:var(--line);stroke-width:1.5;}
+  .monolith-box{fill:none;stroke:var(--line);stroke-width:1.5;stroke-dasharray:3 5;}
+  .strip-box{fill:var(--rest-soft);stroke:var(--rest);stroke-width:1.5;stroke-dasharray:4 4;}
+  .rest-badge{fill:var(--rest-soft);stroke:var(--rest);stroke-width:1;}
+  .tag-shipped{fill:var(--accent-ink);}
+  .tag-target{fill:var(--ink-dim);}
+  .tag-stable{fill:var(--ink-dim);}
+
+  .wire-external{stroke:var(--line);stroke-width:1.6;fill:none;}
+  .wire-debt{stroke:var(--debt);stroke-width:1.8;fill:none;stroke-dasharray:7 5;}
+  .wire-rest{stroke:var(--rest);stroke-width:1.6;fill:none;}
+  .jump{fill:none;stroke:var(--line);stroke-width:1.6;}
+</style>
+
+<div class="page">
+  <p class="eyebrow">barie-core-service · kiến trúc hiện trạng</p>
+  <h1>Barie Core Schematic</h1>
+  <p class="intro">
+    Toàn bộ source hiện tại, nhóm theo ranh giới module mà kế hoạch tách nhỏ (Phase 2) sẽ dùng.
+    <strong>Verification</strong> đã có kiến trúc module thật từ Phase 1 (router + strategy + service dùng chung).
+    5 khối còn lại — Topology, Payment, Ticket, Reporting, Identity — vẫn là package phẳng bên trong cùng một
+    deployable, và vài chỗ gọi thẳng sang entity/service của nhau. Đó chính là phần Phase 2 cần dọn trước khi
+    tách được thành service riêng.
+  </p>
+
+  <div class="meta-row">
+    <div><b>1 deployable</b>Spring Boot, single JAR</div>
+    <div><b>1 schema</b>PostgreSQL dùng chung</div>
+    <div><b>6 khối nghiệp vụ</b>1 đã tách sạch, 5 còn phẳng</div>
+    <div><b>3 điểm coupling</b>Verification → Topology / Ticket / Payment</div>
+  </div>
+
+  <figure>
+    <div class="diagram-frame">
+<svg viewBox="0 0 1440 1000" role="img" aria-label="Sơ đồ toàn bộ barie-core-service: các hệ thống ngoài ở trên, khối monolith ở giữa chia 6 module nghiệp vụ với 3 mũi tên coupling trực tiếp từ Verification, tầng Postgres và Redis ở dưới cùng.">
+  <defs>
+    <marker id="a-ext" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="var(--line)"/>
+    </marker>
+    <marker id="a-debt" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="var(--debt)"/>
+    </marker>
+    <marker id="a-rest" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="var(--rest)"/>
+    </marker>
+  </defs>
+
+  <!-- ============ EXTERNAL ROW ============ -->
+  <g>
+    <rect class="ext-box" x="110" y="30" width="300" height="72" rx="6"/>
+    <text class="ext-title" x="130" y="58">AI Box &amp; Barrier Controller</text>
+    <text class="ext-sub" x="130" y="76">MQTT · face/plate topics, open/display cmds</text>
+
+    <rect class="ext-box" x="430" y="30" width="180" height="72" rx="6"/>
+    <text class="ext-title" x="450" y="58">Khách vãng lai</text>
+    <text class="ext-sub" x="450" y="76">quét QR để trả phí</text>
+
+    <rect class="ext-box" x="630" y="30" width="210" height="72" rx="6"/>
+    <text class="ext-title" x="650" y="58">SePay / MegaPay</text>
+    <text class="ext-sub" x="650" y="76">cổng thanh toán QR</text>
+
+    <rect class="ext-box" x="860" y="30" width="250" height="72" rx="6"/>
+    <text class="ext-title" x="880" y="58">Ops / Admin Dashboard</text>
+    <text class="ext-sub" x="880" y="76">REST + WebSocket</text>
+
+    <rect class="ext-box" x="1130" y="30" width="200" height="72" rx="6"/>
+    <text class="ext-title" x="1150" y="58">Keycloak</text>
+    <text class="ext-sub" x="1150" y="76">SSO / OAuth2</text>
+  </g>
+
+  <!-- extPhone -> extPay -->
+  <line class="wire-external" x1="610" y1="66" x2="628" y2="66" marker-end="url(#a-ext)"/>
+  <text class="arrow-label" x="530" y="20">thanh toán qua app ngân hàng / ví</text>
+
+  <!-- ============ MONOLITH ============ -->
+  <rect class="monolith-box" x="20" y="140" width="1400" height="600" rx="14"/>
+  <text class="monolith-title" x="46" y="178">barie-core-service — 1 Spring Boot deployable · 1 schema PostgreSQL</text>
+
+  <!-- extAI <-> Verification -->
+  <line class="wire-external" x1="245" y1="102" x2="245" y2="200" marker-end="url(#a-ext)"/>
+  <line class="wire-external" x1="275" y1="200" x2="275" y2="102" marker-end="url(#a-ext)"/>
+  <text class="arrow-label" x="290" y="120">MQTT: face/plate events ↓</text>
+  <text class="arrow-label" x="290" y="136">open/display cmds ↑</text>
+
+  <!-- extPay <-> Payment (orthogonal, bidirectional) -->
+  <polyline class="wire-external" points="735,102 735,158 1160,158 1160,200" marker-end="url(#a-ext)" marker-start="url(#a-ext)"/>
+  <text class="arrow-label" x="900" y="150">createPaymentLink ↔ webhook IPN</text>
+
+  <!-- extDash -> monolith (REST) -->
+  <line class="wire-rest" x1="985" y1="102" x2="985" y2="140" marker-end="url(#a-rest)"/>
+  <text class="arrow-label-strong" x="700" y="128">REST /api/** — CRUD, báo cáo, thao tác admin →</text>
+
+  <!-- extKC <-> Identity (right corridor, kept clear of the Payment/Identity boxes at x=1395) -->
+  <polyline class="wire-external" points="1230,102 1230,140 1395,140 1395,455 1372,455" marker-end="url(#a-ext)"/>
+  <text class="arrow-label" x="1145" y="125">OAuth2 password/refresh grant</text>
+
+  <!-- ============ ROW A ============ -->
+  <rect class="box-shipped" x="50" y="200" width="420" height="190" rx="8"/>
+  <text class="tag-shipped box-tag" x="70" y="222">PHASE 1 · SHIPPED</text>
+  <text class="box-title" x="70" y="248">Verification</text>
+  <text class="box-sub" x="70" y="266">package vio.barie.core.verification</text>
+  <text class="box-body" x="70" y="292">MQTTSubscriber → Profile/PlateMessageService</text>
+  <text class="box-body" x="70" y="312">VerificationRouter — mode-based dispatch</text>
+  <text class="box-body" x="70" y="332">FacePlate / PlateOnly / PlateRfid strategies</text>
+  <text class="box-body" x="70" y="352">ParkingSessionLifecycleService (session, phí, vé)</text>
+  <text class="box-body" x="70" y="372">SmoothingAIEvents — ghép Redis + cooldown</text>
+
+  <rect class="box-target" x="500" y="200" width="420" height="190" rx="8"/>
+  <rect class="rest-badge" x="850" y="212" width="52" height="18" rx="3"/>
+  <text class="rest-badge-text" x="861" y="225">REST</text>
+  <text class="tag-target box-tag" x="520" y="222">PHASE 2 · TARGET</text>
+  <text class="box-title" x="520" y="248">Topology</text>
+  <text class="box-sub" x="520" y="266">Building · ParkingLot · Camera · Device · Lane · Barrier</text>
+  <text class="box-body" x="520" y="292">Building / ParkingLot CRUD</text>
+  <text class="box-body" x="520" y="312">Camera / ParkingDevice CRUD</text>
+  <text class="box-body" x="520" y="332">Lane / Barrier + camera-role mapping</text>
+  <text class="box-body-accent" x="520" y="356">+ verification_mode admin API (Phase 1)</text>
+
+  <rect class="box-target" x="950" y="200" width="420" height="190" rx="8"/>
+  <rect class="rest-badge" x="1300" y="212" width="52" height="18" rx="3"/>
+  <text class="rest-badge-text" x="1311" y="225">REST</text>
+  <text class="tag-target box-tag" x="970" y="222">PHASE 2 · TARGET</text>
+  <text class="box-title" x="970" y="248">Payment</text>
+  <text class="box-sub" x="970" y="266">PaymentController / PaymentService</text>
+  <text class="box-body" x="970" y="292">SePay &amp; MegaPay gateway adapters</text>
+  <text class="box-body" x="970" y="312">QR create-link, webhook IPN, inquiry</text>
+  <text class="box-body" x="970" y="332">Revenue reports &amp; Excel export</text>
+
+  <!-- ============ ROW B ============ -->
+  <rect class="box-target" x="50" y="440" width="420" height="190" rx="8"/>
+  <rect class="rest-badge" x="400" y="452" width="52" height="18" rx="3"/>
+  <text class="rest-badge-text" x="411" y="465">REST</text>
+  <text class="tag-target box-tag" x="70" y="462">PHASE 2 · TARGET</text>
+  <text class="box-title" x="70" y="488">Ticket (vé tháng)</text>
+  <text class="box-sub" x="70" y="506">TicketRegistrationService / TicketService</text>
+  <text class="box-body" x="70" y="532">Đăng ký / gia hạn vé tháng</text>
+  <text class="box-body" x="70" y="552">Phát hành QR, trạng thái hết hạn</text>
+  <text class="box-body" x="70" y="572">Ticket summary cache/sync job</text>
+
+  <rect class="box-target" x="500" y="440" width="420" height="190" rx="8"/>
+  <rect class="rest-badge" x="850" y="452" width="52" height="18" rx="3"/>
+  <text class="rest-badge-text" x="861" y="465">REST</text>
+  <text class="tag-target box-tag" x="520" y="462">PHASE 2 · TARGET</text>
+  <text class="box-title" x="520" y="488">Reporting</text>
+  <text class="box-sub" x="520" y="506">ParkingMonitorController / statistics</text>
+  <text class="box-body" x="520" y="532">Dashboard thiết bị &amp; phiên gửi xe</text>
+  <text class="box-body" x="520" y="552">Thống kê ra/vào, slot còn trống</text>
+  <text class="box-body" x="520" y="572">Lưu lượng xe theo giờ</text>
+
+  <rect class="box-stable" x="950" y="440" width="420" height="190" rx="8"/>
+  <rect class="rest-badge" x="1300" y="452" width="52" height="18" rx="3"/>
+  <text class="rest-badge-text" x="1311" y="465">REST</text>
+  <text class="tag-stable box-tag" x="970" y="462">EXISTING · OUT OF SCOPE</text>
+  <text class="box-title" x="970" y="488">Identity &amp; Access</text>
+  <text class="box-sub" x="970" y="506">AuthController, admin/, RBAC</text>
+  <text class="box-body" x="970" y="532">AuthController — Keycloak token proxy</text>
+  <text class="box-body" x="970" y="552">Admin bootstrap (org / root user)</text>
+  <text class="box-body" x="970" y="572">RBAC: organize/branch/sys_user/role</text>
+
+  <!-- ============ COUPLING ARROWS (debt) ============ -->
+  <line class="wire-debt" x1="470" y1="272" x2="498" y2="272" marker-end="url(#a-debt)"/>
+  <line class="wire-debt" x1="260" y1="390" x2="260" y2="438" marker-end="url(#a-debt)"/>
+  <polyline class="wire-debt" points="400,390 400,405 1160,405 1160,388" marker-end="url(#a-debt)"/>
+  <text class="arrow-label" x="780" y="399" text-anchor="middle">PaymentService — gọi thẳng, chưa qua interface</text>
+
+  <!-- ============ WEBSOCKET STRIP ============ -->
+  <rect class="strip-box" x="50" y="650" width="1320" height="60" rx="8"/>
+  <text class="strip-text" x="72" y="675">Realtime channel (WebSocket)</text>
+  <text class="box-sub" x="72" y="694">Verification &amp; Reporting đẩy trạng thái lane/session trực tiếp lên Ops Dashboard</text>
+
+  <!-- websocket strip -> extDash (right corridor, clear of the Payment/Identity boxes and the Keycloak line) -->
+  <polyline class="wire-rest" points="1370,680 1410,680 1410,112 985,112 985,104" marker-end="url(#a-rest)"/>
+
+  <!-- ============ INFRA ROW ============ -->
+  <line class="wire-external" x1="750" y1="740" x2="750" y2="798" marker-end="url(#a-ext)"/>
+  <text class="arrow-label" x="765" y="765">JPA — dùng chung 1 schema</text>
+
+  <!-- Verification -> Redis, left corridor -->
+  <polyline class="wire-external" points="50,250 34,250 34,838 108,838" marker-end="url(#a-ext)"/>
+
+  <rect class="infra-box" x="110" y="800" width="340" height="82" rx="8"/>
+  <text class="infra-title" x="132" y="830">Redis / Redisson</text>
+  <text class="infra-body" x="132" y="850">pairing session · per-lane cooldown</text>
+  <text class="infra-body" x="132" y="866">distributed locks — chỉ Verification dùng</text>
+
+  <rect class="infra-box" x="520" y="800" width="460" height="82" rx="8"/>
+  <text class="infra-title" x="542" y="830">PostgreSQL</text>
+  <text class="infra-body" x="542" y="850">1 schema dùng chung cho cả 6 khối nghiệp vụ</text>
+  <text class="infra-body" x="542" y="866">— chưa tách theo module, chưa có data ownership riêng</text>
+
+</svg>
+    </div>
+    <figcaption>
+      Sơ đồ toàn bộ <code style="font-family:'IBM Plex Mono',monospace">barie-core-service</code>:
+      6 khối nghiệp vụ bên trong một Spring Boot deployable duy nhất, các hệ thống ngoài (AI box, khách vãng
+      lai, cổng thanh toán, dashboard, Keycloak), và tầng lưu trữ dùng chung (PostgreSQL, Redis). Ba mũi tên
+      màu gạch đứt nét là chỗ Verification (Phase 1) vẫn gọi thẳng sang entity/service của module khác —
+      đúng những chỗ Phase 2 cần rào lại bằng interface trước khi tách được thành service độc lập.
+    </figcaption>
+  </figure>
+
+  <div class="legend">
+    <h2>Chú giải</h2>
+    <div class="legend-item"><span class="swatch sw-shipped"></span>Module đã tách rõ (Phase 1 — Verification)</div>
+    <div class="legend-item"><span class="line-debt"></span>Gọi thẳng entity/service module khác — chưa có interface</div>
+    <div class="legend-item"><span class="swatch sw-target"></span>Ranh giới dự kiến ở Phase 2 (còn là package phẳng)</div>
+    <div class="legend-item"><span class="line-rest"></span>Luồng REST admin / WebSocket dashboard</div>
+    <div class="legend-item"><span class="swatch sw-stable"></span>Đã có sẵn, chưa nằm trong kế hoạch tách này</div>
+    <div class="legend-item"><span class="line-sample"></span>Kết nối với hệ thống ngoài / hạ tầng dùng chung</div>
+  </div>
+
+  <p class="footnote">
+    Chi tiết luồng xử lý bên trong Verification (routing theo verification_mode, sequence face+plate vs
+    plate-only) xem thêm ở <code>docs/verification-architecture.md</code> trong repo.
+  </p>
+</div>

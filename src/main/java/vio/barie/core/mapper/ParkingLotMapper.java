@@ -18,6 +18,9 @@ public class ParkingLotMapper {
         entity.setStatus(request.getStatus());
         entity.setMaxMotorcycleCapacity(request.getMaxMotorcycleCapacity());
         entity.setMaxCarCapacity(request.getMaxCarCapacity());
+        if (request.getVerificationMode() != null) {
+            entity.setVerificationMode(request.getVerificationMode());
+        }
         return entity;
     }
 
@@ -34,6 +37,7 @@ public class ParkingLotMapper {
         resp.setCreatedAt(entity.getCreatedAt());
         resp.setMaxMotorcycleCapacity(entity.getMaxMotorcycleCapacity());
         resp.setMaxCarCapacity(entity.getMaxCarCapacity());
+        resp.setVerificationMode(entity.getVerificationMode());
         return resp;
     }
 
