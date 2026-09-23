@@ -51,6 +51,30 @@ public class CameraEntity extends BaseEntity {
     @Column(name = "longitude")
     private Double longitude;
 
+    @Column(name = "roi_x1")
+    private Double roiX1;
+
+    @Column(name = "roi_y1")
+    private Double roiY1;
+
+    @Column(name = "roi_x2")
+    private Double roiX2;
+
+    @Column(name = "roi_y2")
+    private Double roiY2;
+
+    @Column(name = "roi_x3")
+    private Double roiX3;
+
+    @Column(name = "roi_y3")
+    private Double roiY3;
+
+    @Column(name = "roi_x4")
+    private Double roiX4;
+
+    @Column(name = "roi_y4")
+    private Double roiY4;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude

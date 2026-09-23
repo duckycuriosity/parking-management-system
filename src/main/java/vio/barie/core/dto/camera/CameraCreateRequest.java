@@ -1,12 +1,10 @@
 package vio.barie.core.dto.camera;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import vio.barie.core.common.AICameraMode;
-
-import java.util.Map;
 
 @Data
 public class CameraCreateRequest {
@@ -18,6 +16,7 @@ public class CameraCreateRequest {
     private boolean enableRecord;
     private Double latitude;
     private Double longitude;
+    private CameraRoi roi;
 
     @NotNull(message = "Mode is not allowed to blank")
     private AICameraMode mode;
