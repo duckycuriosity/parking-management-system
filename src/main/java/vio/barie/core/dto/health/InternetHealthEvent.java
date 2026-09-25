@@ -9,7 +9,7 @@ import java.time.Instant;
 @Getter
 @ToString
 public class InternetHealthEvent {
-    private String event;
+    private String type;
     private String previousStatus;
     private String status;
     private String reason;

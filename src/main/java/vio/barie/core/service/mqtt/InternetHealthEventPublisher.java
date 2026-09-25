@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import vio.barie.core.common.HealthStatus;
 import vio.barie.core.dto.health.InternetHealthEvent;
+import vio.barie.core.service.InternetHealthEventLogService;
 
 import java.time.Instant;
 
@@ -19,19 +20,19 @@ import java.time.Instant;
 public class InternetHealthEventPublisher {
     private final MQTTPublisher mqttPublisher;
     private final ObjectMapper objectMapper;
-
+    private final InternetHealthEventLogService internetLogsService;
     @Value("${mqtt.internet-health-check-topic}")
     private String topicInternetHealthCheck;
     public void publishStatusChange(HealthStatus prev, HealthStatus current, String reason, Long downtime) {
         InternetHealthEvent event = InternetHealthEvent.builder()
-                .event("INTERNET_HEALTH_CHANGED")
+                .type("INTERNET_HEALTH_CHANGED")
                 .previousStatus(prev.name())
                 .status(current.name())
                 .reason(reason)
                 .changedAt(Instant.now().toString())
                 .downtimeSeconds(downtime)
                 .build();
-
+        internetLogsService.saveEvent(event);
         try {
             // Chuyển đổi Object thành JSON String
             String payload = objectMapper.writeValueAsString(event);
