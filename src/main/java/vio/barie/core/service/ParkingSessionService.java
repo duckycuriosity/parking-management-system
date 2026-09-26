@@ -13,6 +13,9 @@ import vio.barie.core.dto.ActivitySessionResponse;
 import vio.barie.core.dto.ParkingSessionDetailResponse;
 import vio.barie.core.dto.parking.CurrentParkingSessionCountResponse;
 import vio.barie.core.dto.parking.HourlyTrafficResponse;
+import vio.barie.core.dto.parking.ParkingLotCapacityItemResponse;
+import vio.barie.core.dto.parking.ParkingLotCapacityProjection;
+import vio.barie.core.dto.parking.ParkingLotCapacityResponse;
 import vio.barie.core.dto.parking.ParkingMetricsRequest;
 import vio.barie.core.dto.parking.VehicleMetricsResponse;
 import vio.barie.core.dto.*;
@@ -384,5 +387,61 @@ public class ParkingSessionService {
 
     public CurrentParkingSessionCountResponse getCurrentParkingSessionCount(Integer buildingId, Integer parkingLotId) {
         return parkingSessionRepository.currentParkingSessionCount(buildingId, parkingLotId);
+    }
+
+    @Transactional(readOnly = true)
+    public ParkingLotCapacityResponse getCapacityByLot(Long buildingId, Long parkingLotId) {
+        List<ParkingLotCapacityProjection> capacityRows = parkingLotRepository.getCapacityByLot(buildingId, parkingLotId);
+
+        List<ParkingLotCapacityItemResponse> lots = capacityRows.stream()
+                .map(this::mapCapacityItem)
+                .collect(Collectors.toList());
+
+        long totalCapacity = lots.stream()
+                .mapToLong(ParkingLotCapacityItemResponse::getTotalCapacity)
+                .sum();
+        long totalUsed = lots.stream()
+                .mapToLong(ParkingLotCapacityItemResponse::getUsed)
+                .sum();
+
+        return ParkingLotCapacityResponse.builder()
+                .totalCapacity(totalCapacity)
+                .totalUsed(totalUsed)
+                .totalAvailable(Math.max(totalCapacity - totalUsed, 0))
+                .usageRate(calculateUsageRate(totalUsed, totalCapacity))
+                .lots(lots)
+                .build();
+    }
+
+    private ParkingLotCapacityItemResponse mapCapacityItem(ParkingLotCapacityProjection row) {
+        long motorbikeCapacity = safeLong(row.getMotorbikeCapacity());
+        long carCapacity = safeLong(row.getCarCapacity());
+        long totalCapacity = motorbikeCapacity + carCapacity;
+        long used = safeLong(row.getUsedTotal());
+
+        return ParkingLotCapacityItemResponse.builder()
+                .parkingLotId(row.getParkingLotId())
+                .parkingLotName(row.getParkingLotName())
+                .totalCapacity(totalCapacity)
+                .used(used)
+                .available(Math.max(totalCapacity - used, 0))
+                .usageRate(calculateUsageRate(used, totalCapacity))
+                .motorbikeCapacity(motorbikeCapacity)
+                .carCapacity(carCapacity)
+                .usedMotorbike(safeLong(row.getUsedMotorbike()))
+                .usedCar(safeLong(row.getUsedCar()))
+                .usedOther(safeLong(row.getUsedOther()))
+                .build();
+    }
+
+    private long safeLong(Long value) {
+        return value != null ? value : 0L;
+    }
+
+    private double calculateUsageRate(long used, long capacity) {
+        if (capacity <= 0) {
+            return 0D;
+        }
+        return Math.round((used * 10000D) / capacity) / 100D;
     }
 }
