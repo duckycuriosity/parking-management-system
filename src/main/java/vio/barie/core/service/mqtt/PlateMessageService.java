@@ -58,23 +58,23 @@ public class PlateMessageService {
 
             if (plateNumber == null || cameraUUID == null || plateNumber.isBlank()) {
                 logger.warn("PlateHandler: plate event has no plateNumber — cameraId={}", cameraCode);
-                parkingMessageService.publishErrorWhenHandlingEvent("Plate is not valid", cameraUUID,
-                        DetectionType.PLATE);
+                parkingMessageService.publishErrorWhenHandlingEvent("Không đọc được biển số từ sự kiện", cameraUUID,
+                        DetectionType.PLATE, null, null, null, "PLATE_MISSING", null);
                 return;
             }
 
             CameraEntity aiCamera = cameraRepository.findCameraByUUID(cameraUUID).orElse(null);
             if (aiCamera == null) {
                 logger.warn("Camera not found in AI system");
-                parkingMessageService.publishErrorWhenHandlingEvent("Camera not found", cameraUUID,
-                        DetectionType.PLATE);
+                parkingMessageService.publishErrorWhenHandlingEvent("Không tìm thấy camera biển số trong hệ thống hoặc chưa gán vào làn", cameraUUID,
+                        DetectionType.PLATE, null, null, null, "CAMERA_NOT_FOUND", null);
                 return;
             }
             CameraEntity cameraInLane = cameraRepository.findByIdWithLane(aiCamera.getId()).orElse(null);
             if (cameraInLane == null) {
                 logger.warn("ProfileHandler: unknown camera — cameraId={}", cameraCode);
-                parkingMessageService.publishErrorWhenHandlingEvent("Camera not found", cameraUUID,
-                        DetectionType.PLATE);
+                parkingMessageService.publishErrorWhenHandlingEvent("Không tìm thấy camera biển số trong hệ thống hoặc chưa gán vào làn", cameraUUID,
+                        DetectionType.PLATE, null, null, null, "CAMERA_NOT_FOUND", null);
                 return;
             }
 
@@ -84,16 +84,19 @@ public class PlateMessageService {
             Optional<BarrierEntity> barrier = barrierRepository.findBarrierByCameraIdAndRole(cameraInLane.getId(),
                     DetectionType.PLATE.toString().toLowerCase());
             if (barrier.isEmpty()) {
-                parkingMessageService.publishErrorWhenHandlingEvent("Camera does not match any barrier", cameraUUID,
-                        DetectionType.PLATE);
+                parkingMessageService.publishErrorWhenHandlingEvent("Không tìm thấy barrier tương ứng với camera biển số", cameraUUID,
+                        DetectionType.PLATE, null, null, null, "BARRIER_NOT_FOUND", null);
                 logger.error("Camera does not match any barrier");
                 return;
             }
 
             if (!PlateNumberUtils.isValid(plateNumber)) {
                 logger.warn("PlateHandler: plate format invalid — plate={} cameraUUID={}", plateNumber, cameraUUID);
+                parkingMessageService.publishErrorWhenHandlingEvent("Biển số không đúng quy ước biển số xe Việt Nam",
+                        cameraUUID, DetectionType.PLATE, barrier.get().getBarrierId(), plateNumber, null,
+                        "PLATE_INVALID_FORMAT", null);
                 parkingMessageService.publishDisplayMsg(barrier.get().getBarrierId(),
-                        "Bien so khong hop le, moi quet lai", true, "Vui long quet lai bien so", 8);
+                        "Biển số không hợp lệ, vui lòng quét lại", true, "Biển số không hợp lệ, vui lòng quét lại", 8);
                 return;
             }
 
@@ -101,8 +104,8 @@ public class PlateMessageService {
 
             if (!qualityCheckResult.accepted()) {
                 logger.debug("PlateHandler: plate event rejected - reason={} value ={} cameraUUID={}", qualityCheckResult.reason(), qualityCheckResult.value(), cameraUUID);
-                parkingMessageService.publishErrorWhenHandlingEvent("Chua nhan dien duoc bien so", cameraUUID,
-                        DetectionType.PLATE, barrier.get().getBarrierId(), plateNumber, null);
+                parkingMessageService.publishErrorWhenHandlingEvent("Chưa nhận diện được biển số", cameraUUID,
+                        DetectionType.PLATE, barrier.get().getBarrierId(), plateNumber, null, "PLATE_NOT_RECOGNIZED", null);
                 return;
             }
 
@@ -139,14 +142,14 @@ public class PlateMessageService {
             if (vehicle != null) {
                 TicketEntity ticket = ticketRepository.findByVehicleIdAndStatus(vehicle.getId(), TicketStatus.ACTIVE).orElse(null);
                 if (ticket != null) {
-                    handleRegisteredVehicle(ticket, vehicle, plateNumber, cameraInLane, barrier.get(), laneId, direction, cameraUUID, plateImgInfo, confidence);
+                    handleRegisteredVehicle(ticket, vehicle, plateNumber, cameraInLane, barrier.get(), laneId, direction, cameraUUID, plateImgInfo, confidence, vehicleTypeStr);
                     return;
                 }
             }
 
 
             // Otherwise handle as guest/unregistered vehicle
-            handleUnregisteredVehicle(plateNumber, cameraInLane, barrier.get(), laneId, direction, labelTypeVehicle, plateImgInfo, confidence);
+            handleUnregisteredVehicle(plateNumber, cameraInLane, barrier.get(), laneId, direction, labelTypeVehicle, plateImgInfo, confidence, vehicleTypeStr);
         } catch (Exception ex) {
             log.error("PlateMessageService: failed to handle plate event — payload={} error={}", event, ex.getMessage(),
                     ex);
@@ -161,27 +164,28 @@ public class PlateMessageService {
     private void handleRegisteredVehicle(TicketEntity ticket, VehicleEntity vehicle, String plateNumber,
                                          CameraEntity cameraInLane, BarrierEntity barrier,
                                          long laneId, DirectionType direction, String cameraUUID, EventImageInfo plateImgInfo,
-                                         Double confidence) {
+                                         Double confidence, String vehicleTypeStr) {
         try {
             ParkingCustomerEntity customer = ticket.getCustomer();
 
             if (customer == null) {
                 parkingMessageService.publishErrorWhenHandlingEvent(
-                        "Customer not found for ticket", cameraUUID, DetectionType.PLATE,
-                        barrier.getBarrierId());
+                        "Vé tháng chưa gắn với khách hàng", cameraUUID, DetectionType.PLATE,
+                        barrier.getBarrierId(), plateNumber, null, "TICKET_CUSTOMER_NOT_FOUND", null);
                 logger.warn("Customer not found for vehicle: plate={}", plateNumber);
                 return;
             }
 
             PendingEventDetection event = buildPendingEventForRegistered(
                     vehicle, customer, plateNumber, cameraInLane, barrier, laneId, direction, plateImgInfo, confidence);
+            event.setVehicleType(vehicleTypeStr);
             logger.info("{} registered vehicle plate={} customer={} — routing for verification",
                     direction, plateNumber, customer.getId());
             verificationRouter.routePlateEvent(event, barrier.getParkingDevice().getLane().getParkingLot());
         } catch (Exception ex) {
             parkingMessageService.publishErrorWhenHandlingEvent(
-                    "Failed to process registered vehicle event", cameraUUID, DetectionType.PLATE,
-                    barrier.getBarrierId());
+                    "Lỗi hệ thống khi xử lý xe đã đăng ký", cameraUUID, DetectionType.PLATE,
+                    barrier.getBarrierId(), plateNumber, null, "INTERNAL_ERROR", null);
             logger.error("handleRegisteredVehicle: failed to process registered vehicle — plate={} error={}",
                     plateNumber, ex.getMessage(), ex);
         }
@@ -193,7 +197,7 @@ public class PlateMessageService {
      */
     private void handleUnregisteredVehicle(String plateNumber, CameraEntity cameraInLane,
                                            BarrierEntity barrier, long laneId, DirectionType direction, Integer vehicleType, EventImageInfo plateImgInfo,
-                                           Double confidence) {
+                                           Double confidence, String vehicleTypeStr) {
         try {
             if (!vehicleRepository.existsByPlateNumber(plateNumber)) {
                 logger.info("Vehicle with plate={} exists but no active ticket — treating as unregistered",
@@ -203,14 +207,15 @@ public class PlateMessageService {
 
             PendingEventDetection event = buildPendingEventForUnregistered(
                     plateNumber, cameraInLane, barrier, laneId, direction, plateImgInfo, confidence);
+            event.setVehicleType(vehicleTypeStr);
 
             logger.info("{} unregistered vehicle plate={} — routing for verification", direction, plateNumber);
             verificationRouter.routePlateEvent(event, barrier.getParkingDevice().getLane().getParkingLot());
 
         } catch (Exception ex) {
             parkingMessageService.publishErrorWhenHandlingEvent(
-                    "Failed to process unregistered vehicle event", cameraInLane.getUuid(), DetectionType.PLATE,
-                    barrier.getBarrierId());
+                    "Lỗi hệ thống khi xử lý xe vãng lai", cameraInLane.getUuid(), DetectionType.PLATE,
+                    barrier.getBarrierId(), plateNumber, null, "INTERNAL_ERROR", null);
             logger.error("handleUnregisteredVehicle: failed to process unregistered vehicle — plate={} error={}",
                     plateNumber, ex.getMessage(), ex);
         }

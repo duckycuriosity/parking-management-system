@@ -17,7 +17,7 @@ public class MQTTPublisher {
 
     public void publish(String topic, String payload) {
         try {
-            MqttMessage message = new MqttMessage(payload.getBytes());
+            MqttMessage message = new MqttMessage(payload.getBytes(StandardCharsets.UTF_8));
             message.setQos(1);
             client.publish(topic, message);
         } catch (Exception e) {
