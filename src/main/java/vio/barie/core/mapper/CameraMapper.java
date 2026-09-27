@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 import vio.barie.core.common.BaseStatus;
 import vio.barie.core.dto.camera.CameraCreateRequest;
 import vio.barie.core.dto.camera.CameraResponse;
+import vio.barie.core.dto.camera.CameraRoi;
 import vio.barie.core.entity.CameraEntity;
 
 import java.util.List;
@@ -39,6 +40,7 @@ public class CameraMapper {
         response.setSub_url(entity.getSubUrl());
         response.setLatitude(entity.getLatitude());
         response.setLongitude(entity.getLongitude());
+        response.setRoi(toRoi(entity));
         response.setMode(entity.getMode());
         response.setProtocol(entity.getProtocol());
 
@@ -57,5 +59,29 @@ public class CameraMapper {
         return entities.stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    private CameraRoi toRoi(CameraEntity entity) {
+        if (entity.getRoiX1() == null
+                && entity.getRoiY1() == null
+                && entity.getRoiX2() == null
+                && entity.getRoiY2() == null
+                && entity.getRoiX3() == null
+                && entity.getRoiY3() == null
+                && entity.getRoiX4() == null
+                && entity.getRoiY4() == null) {
+            return null;
+        }
+
+        return new CameraRoi(
+                entity.getRoiX1(),
+                entity.getRoiY1(),
+                entity.getRoiX2(),
+                entity.getRoiY2(),
+                entity.getRoiX3(),
+                entity.getRoiY3(),
+                entity.getRoiX4(),
+                entity.getRoiY4()
+        );
     }
 }
