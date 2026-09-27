@@ -151,3 +151,6 @@ keycloak:
 camera:
   sync:
     interval-ms: 15000
+system:
+  metrics:
+    collection-interval-ms: 3000
