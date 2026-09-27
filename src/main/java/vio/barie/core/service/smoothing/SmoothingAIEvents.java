@@ -11,6 +11,8 @@ import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import vio.barie.core.dto.LaneEventCommand;
+import vio.barie.core.dto.LaneEventImage;
 import vio.barie.core.dto.LaneVehicleCommand;
 import vio.barie.core.dto.parking.EventImageInfo;
 import vio.barie.core.dto.parking.PendingEventDetection;
@@ -117,6 +119,8 @@ public class SmoothingAIEvents {
                 session.putAll(fresh);
                 publishLaneState(plateDetection, plateDetection.getPlateNumber(), confidence, 1,
                     previousPlate, previousPlate == null ? "PROCESSING" : "REPLACED");
+                publishPlateEvent(LaneEventCommand.VEHICLE_ARRIVING, plateDetection, confidence);
+                publishPlateEvent(LaneEventCommand.PLATE_RECOGNIZED, plateDetection, confidence);
                 logger.debug("ingestPlate: new session key={} plate={}", sessionKey, plateDetection.getPlateNumber());
             } else {
                 double currentConfidence = parseDoubleSafe(session.get("confidence"));
@@ -131,6 +135,7 @@ public class SmoothingAIEvents {
                     boolean changed = previousPlate != null && !previousPlate.equalsIgnoreCase(plateDetection.getPlateNumber());
                     publishLaneState(plateDetection, plateDetection.getPlateNumber(), confidence, 1,
                         changed ? previousPlate : null, changed ? "REPLACED" : "PROCESSING");
+                    publishPlateEvent(LaneEventCommand.PLATE_RECOGNIZED, plateDetection, confidence);
                 }
             }
             session.expire(Duration.ofSeconds(sessionTtlSeconds));
@@ -157,7 +162,25 @@ public class SmoothingAIEvents {
 
         double confidence = plateDetection.getConfidence() != null ? plateDetection.getConfidence() : 0.0;
         publishLaneState(plateDetection, plateDetection.getPlateNumber(), confidence, 1, null, "MATCHED");
+        publishPlateEvent(LaneEventCommand.VEHICLE_ARRIVING, plateDetection, confidence);
+        publishPlateEvent(LaneEventCommand.PLATE_RECOGNIZED, plateDetection, confidence);
         return Optional.of(plateDetection);
+    }
+
+    private void publishPlateEvent(String event, PendingEventDetection d, double confidence) {
+        boolean entry = d.getDirectionType() == DirectionType.ENTRY;
+        parkingMessageService.publishLaneEvent(LaneEventCommand.builder()
+            .event(event)
+            .laneId(entry ? d.getEntryLaneId() : d.getExitLaneId())
+            .barrierId(entry ? d.getEntryBarrierId() : d.getExitBarrierId())
+            .directionType(d.getDirectionType())
+            .plate(d.getPlateNumber())
+            .vehicleType(d.getVehicleType())
+            .confidence(confidence)
+            .images(LaneEventCommand.PLATE_RECOGNIZED.equals(event)
+                ? LaneEventImage.from("", d.getListImageInfo()) : null)
+            .eventTs(d.getTimestampMs())
+            .build());
     }
 
     public Optional<PendingEventDetection> ingestFace(PendingEventDetection faceDetection) {
@@ -186,7 +209,7 @@ public class SmoothingAIEvents {
             if (delta > businessWindowMs) {
                 logger.debug("face_session__stale key={} deltaMs={}", sessionKey, delta);
                 String barrierId = faceDetection.getDirectionType().equals(DirectionType.EXIT) ? faceDetection.getExitBarrierId() : faceDetection.getEntryBarrierId();
-                parkingMessageService.publishDisplayMsg(barrierId, "Face is expired, please scan face again", true, "Scan face again", 8);
+                parkingMessageService.publishDisplayMsg(barrierId, "Khuôn mặt đã hết hạn, vui lòng quét lại khuôn mặt", true, "Vui lòng quét lại khuôn mặt", 8);
                 return Optional.empty();
             }
             PendingEventDetection merged = mergeFaceWithPlateSession(faceDetection, snapshot);

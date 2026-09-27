@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vio.barie.core.common.VerificationMode;
+import vio.barie.core.dto.LaneEventImage;
 import vio.barie.core.dto.parking.PendingEventDetection;
 import vio.barie.core.entity.BarrierEntity;
 import vio.barie.core.entity.ParkingCustomerEntity;
@@ -84,8 +85,8 @@ public class FacePlateVerificationService implements VehicleVerificationService 
             if (vehicle == null || customer == null) {
                 log.warn("handleEntryEvent: missing vehicle or customer — plate={} profileId={}",
                         detection.getPlateNumber(), detection.getProfileId());
-                ioTService.publishErrorWhenHandlingEvent("Vehicle or customer not found for entry event", "",
-                        detection.getType());
+                ioTService.publishErrorWhenHandlingEvent("Không tìm thấy xe hoặc khách hàng tương ứng cho lượt vào", "", detection.getType(),
+                        detection.getEntryBarrierId(), detection.getPlateNumber(), detection.getProfileId(), "VEHICLE_OR_CUSTOMER_NOT_FOUND", null);
                 return;
             }
 
@@ -93,8 +94,8 @@ public class FacePlateVerificationService implements VehicleVerificationService 
             Long laneId = detection.getEntryLaneId();
             if (barrierId == null || laneId == null) {
                 log.warn("handleEntryEvent: missing barrier or lane info");
-                ioTService.publishErrorWhenHandlingEvent("Missing barrier or lane info for entry event", "",
-                        detection.getType());
+                ioTService.publishErrorWhenHandlingEvent("Thiếu thông tin barrier hoặc làn của lượt vào", "", detection.getType(),
+                        detection.getEntryBarrierId(), detection.getPlateNumber(), detection.getProfileId(), "LANE_INFO_MISSING", null);
                 return;
             }
 
@@ -102,15 +103,15 @@ public class FacePlateVerificationService implements VehicleVerificationService 
                     .orElse(null);
             if (barrier == null || barrier.getParkingDevice() == null || barrier.getParkingDevice().getLane() == null) {
                 log.warn("handleEntryEvent: barrier {} has no proper lane/device config", barrierId);
-                ioTService.publishErrorWhenHandlingEvent("Invalid barrier configuration for entry event", "",
-                        detection.getType());
+                ioTService.publishErrorWhenHandlingEvent("Cấu hình barrier/làn của lượt vào không hợp lệ", "", detection.getType(),
+                        detection.getEntryBarrierId(), detection.getPlateNumber(), detection.getProfileId(), "BARRIER_CONFIG_INVALID", null);
                 return;
             }
 
             if (barrier.getParkingDevice().getLane().getParkingLot() == null) {
                 log.warn("handleEntryEvent: lane {} has no parking lot", laneId);
-                ioTService.publishErrorWhenHandlingEvent("Lane has no parking lot for entry event", "",
-                        detection.getType());
+                ioTService.publishErrorWhenHandlingEvent("Làn vào chưa thuộc bãi xe nào", "", detection.getType(),
+                        detection.getEntryBarrierId(), detection.getPlateNumber(), detection.getProfileId(), "LANE_NO_PARKING_LOT", null);
                 return;
             }
 
@@ -136,8 +137,8 @@ public class FacePlateVerificationService implements VehicleVerificationService 
             if (vehicle == null || customer == null) {
                 log.warn("handleExitEvent: missing vehicle or customer — plate={} profileId={}",
                         detection.getPlateNumber(), detection.getProfileId());
-                ioTService.publishErrorWhenHandlingEvent("Vehicle or customer not found for exit event", "",
-                        detection.getType());
+                ioTService.publishErrorWhenHandlingEvent("Không tìm thấy xe hoặc khách hàng tương ứng cho lượt ra", "", detection.getType(),
+                        detection.getExitBarrierId(), detection.getPlateNumber(), detection.getProfileId(), "VEHICLE_OR_CUSTOMER_NOT_FOUND", null);
                 return;
             }
 
@@ -145,8 +146,8 @@ public class FacePlateVerificationService implements VehicleVerificationService 
             Long laneId = detection.getExitLaneId();
             if (barrierId == null || laneId == null) {
                 log.warn("handleExitEvent: missing barrier or lane info");
-                ioTService.publishErrorWhenHandlingEvent("Missing barrier or lane info for exit event", "",
-                        detection.getType());
+                ioTService.publishErrorWhenHandlingEvent("Thiếu thông tin barrier hoặc làn của lượt ra", "", detection.getType(),
+                        detection.getExitBarrierId(), detection.getPlateNumber(), detection.getProfileId(), "LANE_INFO_MISSING", null);
                 return;
             }
 
@@ -156,12 +157,13 @@ public class FacePlateVerificationService implements VehicleVerificationService 
                         "handleExitEvent: no open parking session found for vehicle={} customer={} plate={} profileId={}",
                         vehicle.getId(), customer.getId(), vehicle.getPlateNumber(), customer.getAiProfileId());
                 ioTService.publishErrorWhenHandlingEvent(
-                        "Khong tim thay phien gui xe (parking_session) dang mo khop voi khuon mat va bien so tai lan ra",
+                        "Không tìm thấy phiên gửi xe đang mở khớp với xe tại làn ra",
                         "",
                         detection.getType(),
                         barrierId,
                         vehicle.getPlateNumber(),
-                        customer.getAiProfileId());
+                        customer.getAiProfileId(),
+                        "SESSION_NOT_FOUND", null);
                 return;
             }
             ParkingSessionEntity openSession = openSessionOpt.get();
@@ -171,20 +173,22 @@ public class FacePlateVerificationService implements VehicleVerificationService 
                         "handleExitEvent: Exit customer is not matching with entry customer for vehicle={} customer={} plate={} profileId={}",
                         vehicle.getId(), customer.getId(), vehicle.getPlateNumber(), customer.getAiProfileId());
                 ioTService.publishErrorWhenHandlingEvent(
-                        "Khuon mat nguoi di vao khong khop voi khuon mat nguoi di ra",
+                        "Khuôn mặt người đi vào không khớp với khuôn mặt người đi ra",
                         "",
                         detection.getType(),
                         barrierId,
                         vehicle.getPlateNumber(),
-                        customer.getAiProfileId());
+                        customer.getAiProfileId(),
+                        "FACE_MISMATCH",
+                        LaneEventImage.from("exit_", detection.getListImageInfo()));
                 return;
             }
 
             BarrierEntity barrier = barrierRepository.findByBarrierIdWithDeviceAndLaneAndParkingLot(barrierId)
                     .orElse(null);
             if (barrier == null || barrier.getParkingDevice() == null || barrier.getParkingDevice().getLane() == null) {
-                ioTService.publishErrorWhenHandlingEvent("Invalid barrier configuration for exit event", "",
-                        detection.getType());
+                ioTService.publishErrorWhenHandlingEvent("Cấu hình barrier/làn của lượt ra không hợp lệ", "", detection.getType(),
+                        detection.getExitBarrierId(), detection.getPlateNumber(), detection.getProfileId(), "BARRIER_CONFIG_INVALID", null);
                 return;
             }
 

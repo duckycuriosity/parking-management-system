@@ -6,7 +6,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vio.barie.core.common.SessionType;
 import vio.barie.core.common.TicketStatus;
+import vio.barie.core.dto.LaneEventCommand;
+import vio.barie.core.dto.LaneEventImage;
 import vio.barie.core.dto.parking.PendingEventDetection;
+import vio.barie.core.utils.DirectionType;
 import vio.barie.core.dto.payment.CreatePaymentRequest;
 import vio.barie.core.dto.payment.CreatePaymentResponse;
 import vio.barie.core.entity.BarrierEntity;
@@ -24,6 +27,8 @@ import vio.barie.core.service.smoothing.SmoothingAIEvents;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -87,6 +92,18 @@ public class ParkingSessionLifecycleService {
                 session.getId(), vehicle.getPlateNumber(), customer != null ? customer.getId() : null,
                 session.getSessionType(), session.getTicketId());
         ioTService.publishOpenCommand(barrierId, session.getId(), "vehicle_entry");
+        ioTService.publishLaneEvent(LaneEventCommand.builder()
+                .event(LaneEventCommand.ENTRY_SUCCESS)
+                .laneId(lane.getId())
+                .barrierId(barrierId)
+                .directionType(DirectionType.ENTRY)
+                .plate(vehicle.getPlateNumber())
+                .vehicleType(vehicle.getVehicleType())
+                .profileId(customer != null ? customer.getAiProfileId() : null)
+                .sessionId(session.getId())
+                .images(LaneEventImage.from("entry_", detection.getListImageInfo()))
+                .eventTs(System.currentTimeMillis())
+                .build());
         smoothingAIEvents.markLaneCooldown(detection);
         return Optional.of(session);
     }
@@ -106,6 +123,20 @@ public class ParkingSessionLifecycleService {
         openSession.setExitImageInfo(detection.getListImageInfo());
 
         parkingSessionRepository.save(openSession);
+        List<LaneEventImage> exitImages = new ArrayList<>(LaneEventImage.from("entry_", openSession.getEntryImageInfo()));
+        exitImages.addAll(LaneEventImage.from("exit_", detection.getListImageInfo()));
+        ioTService.publishLaneEvent(LaneEventCommand.builder()
+                .event(LaneEventCommand.EXIT_SUCCESS)
+                .laneId(lane.getId())
+                .barrierId(barrierId)
+                .directionType(DirectionType.EXIT)
+                .plate(vehicle.getPlateNumber())
+                .vehicleType(vehicle.getVehicleType())
+                .profileId(customer != null ? customer.getAiProfileId() : null)
+                .sessionId(openSession.getId())
+                .images(exitImages)
+                .eventTs(System.currentTimeMillis())
+                .build());
         smoothingAIEvents.markLaneCooldown(detection);
 
         log.info("closeExit: session closed id={} plate={} customer={} sessionType={} ticketId={}",

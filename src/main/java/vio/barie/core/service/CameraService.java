@@ -68,6 +68,9 @@ public class CameraService {
         aiPayload.put("url", clientBody.getMain() != null ? clientBody.getMain().trim() : "");
         aiPayload.put("mode", clientBody.getMode().getAiValue());
         aiPayload.put("protocol", clientBody.getProtocol());
+        if (clientBody.getRoi() != null) {
+            aiPayload.put("roi", clientBody.getRoi());
+        }
 
         AICameraActionResponse aiCameraResponse = aiCameraService.addCamera(aiPayload);
 
@@ -78,6 +81,7 @@ public class CameraService {
         camera.setUuid(aiCameraResponse.getUuid());
         camera.setLatitude(clientBody.getLatitude() != null ? clientBody.getLatitude() : 0.0);
         camera.setLongitude(clientBody.getLongitude() != null ? clientBody.getLongitude() : 0.0);
+        setEntityRoi(camera, clientBody.getRoi());
         camera.setSubUrl(clientBody.getSub());
         camera.setMode(clientBody.getMode().getAiValue());
         camera.setProtocol(clientBody.getProtocol());
@@ -153,6 +157,9 @@ public class CameraService {
         if (request.getLongitude() != null) {
             entity.setLongitude(request.getLongitude());
         }
+        if (request.getRoi() != null) {
+            setEntityRoi(entity, request.getRoi());
+        }
         if (request.getMode() != null) {
             entity.setMode(request.getMode().getAiValue());
         }
@@ -167,6 +174,10 @@ public class CameraService {
             aiPayload.put("url", entity.getUrl());
             aiPayload.put("mode", entity.getMode());
             aiPayload.put("protocol", entity.getProtocol());
+            CameraRoi roi = getEntityRoi(entity);
+            if (roi != null) {
+                aiPayload.put("roi", roi);
+            }
             aiCameraService.updateStream(aiCameraId, aiPayload);
         } else {
             log.warn("Camera id={} does not map AI service, but update DB", id);
@@ -290,6 +301,9 @@ public class CameraService {
                     entity.setUuid(camData.path("uuid").asText());
                     entity.setUrl(camData.path("main").asText());
                     entity.setSubUrl(camData.path("sub").asText());
+                    if (camData.has("roi") && !camData.get("roi").isNull()) {
+                        setEntityRoi(entity, objectMapper.treeToValue(camData.get("roi"), CameraRoi.class));
+                    }
 
                     String aiStatus = camData.path("status").asText();
 
@@ -325,5 +339,40 @@ public class CameraService {
             log.warn("Cannot reach AI service");
             return Map.of();
         }
+    }
+
+    private void setEntityRoi(CameraEntity entity, CameraRoi roi) {
+        entity.setRoiX1(roi != null ? roi.getX1() : null);
+        entity.setRoiY1(roi != null ? roi.getY1() : null);
+        entity.setRoiX2(roi != null ? roi.getX2() : null);
+        entity.setRoiY2(roi != null ? roi.getY2() : null);
+        entity.setRoiX3(roi != null ? roi.getX3() : null);
+        entity.setRoiY3(roi != null ? roi.getY3() : null);
+        entity.setRoiX4(roi != null ? roi.getX4() : null);
+        entity.setRoiY4(roi != null ? roi.getY4() : null);
+    }
+
+    private CameraRoi getEntityRoi(CameraEntity entity) {
+        if (entity.getRoiX1() == null
+                && entity.getRoiY1() == null
+                && entity.getRoiX2() == null
+                && entity.getRoiY2() == null
+                && entity.getRoiX3() == null
+                && entity.getRoiY3() == null
+                && entity.getRoiX4() == null
+                && entity.getRoiY4() == null) {
+            return null;
+        }
+
+        return new CameraRoi(
+                entity.getRoiX1(),
+                entity.getRoiY1(),
+                entity.getRoiX2(),
+                entity.getRoiY2(),
+                entity.getRoiX3(),
+                entity.getRoiY3(),
+                entity.getRoiX4(),
+                entity.getRoiY4()
+        );
     }
 }
