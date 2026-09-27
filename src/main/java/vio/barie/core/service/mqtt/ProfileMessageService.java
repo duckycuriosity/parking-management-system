@@ -50,20 +50,23 @@ public class ProfileMessageService {
 
             if (cameraUUID == null) {
                 logger.warn("ProfileHandler: face event has no profileId — cameraId={}", cameraCode);
-                parkingMessageService.publishErrorWhenHandlingEvent("Camera UUID is missing in event", "", DetectionType.FACE);
+                parkingMessageService.publishErrorWhenHandlingEvent("Sự kiện khuôn mặt thiếu mã camera", "", DetectionType.FACE,
+                        null, null, null, "CAMERA_UUID_MISSING", null);
                 return;
             }
 
             CameraEntity aiCamera = cameraRepository.findCameraByUUID(cameraUUID).orElse(null);
             if (aiCamera == null) {
                 logger.warn("Camera not found in AI system");
-                parkingMessageService.publishErrorWhenHandlingEvent("Cannot found camera corresponding in system", cameraUUID, DetectionType.FACE);
+                parkingMessageService.publishErrorWhenHandlingEvent("Không tìm thấy camera trong hệ thống", cameraUUID, DetectionType.FACE,
+                        null, null, null, "CAMERA_NOT_FOUND", null);
                 return;
             }
             CameraEntity cameraInLane = cameraRepository.findByIdWithLane(aiCamera.getId()).orElse(null);
             if (cameraInLane == null) {
                 logger.warn("ProfileHandler: unknown camera — cameraId={}", cameraUUID);
-                parkingMessageService.publishErrorWhenHandlingEvent("Cannot found camera corresponding to lane", cameraUUID, DetectionType.FACE);
+                parkingMessageService.publishErrorWhenHandlingEvent("Camera chưa được gán vào làn nào", cameraUUID, DetectionType.FACE,
+                        null, null, null, "CAMERA_NOT_IN_LANE", null);
                 return;
             }
 
@@ -72,7 +75,8 @@ public class ProfileMessageService {
             Optional<BarrierEntity> barrier = barrierRepository.findBarrierByCameraIdAndRole(cameraInLane.getId(), DetectionType.FACE.toString().toLowerCase());
             if (barrier.isEmpty()) {
                 logger.warn("ProfileHandler: unknown barrier — cameraId={} — event={}", cameraUUID, event);
-                parkingMessageService.publishErrorWhenHandlingEvent("Barrier not found", cameraUUID, DetectionType.FACE);
+                parkingMessageService.publishErrorWhenHandlingEvent("Không tìm thấy barrier tương ứng với camera khuôn mặt", cameraUUID, DetectionType.FACE,
+                        null, null, null, "BARRIER_NOT_FOUND", null);
                 return;
             }
 
@@ -80,11 +84,19 @@ public class ProfileMessageService {
 
             if (!qualityCheckResult.accepted()) {
                 String issues = extractFaceQualityIssues(event);
-                String message = "Khong the nhan dien duoc khuon mat"
-                        + (issues.isEmpty() ? "" : " - issue: " + issues);
+                String message = "Không nhận diện được khuôn mặt"
+                        + (issues.isEmpty() ? "" : " - lý do: " + issues);
                 logger.debug("ProfileHandler: face event rejected - reason={} value ={} cameraUUID={}", qualityCheckResult.reason(), qualityCheckResult.value(), cameraUUID);
                 parkingMessageService.publishErrorWhenHandlingEvent(message, cameraUUID, DetectionType.FACE,
-                        barrier.get().getBarrierId());
+                        barrier.get().getBarrierId(), null, null, "FACE_NOT_RECOGNIZED", null);
+                return;
+            }
+
+            JsonNode profileIdNode = event.path("face").path("profileId");
+            if (profileIdNode.isMissingNode() || profileIdNode.isNull()) {
+                logger.debug("ProfileHandler: face event has no profileId — cameraUUID={}", cameraUUID);
+                parkingMessageService.publishErrorWhenHandlingEvent("Không nhận diện được khuôn mặt", cameraUUID,
+                        DetectionType.FACE, barrier.get().getBarrierId(), null, null, "FACE_NOT_RECOGNIZED", null);
                 return;
             }
 
@@ -130,7 +142,8 @@ public class ProfileMessageService {
                 pd.setDirectionType(DirectionType.EXIT);
             } else {
                 logger.warn("ProfileHandler: unknown barrier direction — cameraId={} direction={} event={}", cameraUUID, barrierDirection, event);
-                parkingMessageService.publishErrorWhenHandlingEvent("Unknown barrier direction", cameraUUID, DetectionType.FACE);
+                parkingMessageService.publishErrorWhenHandlingEvent("Barrier chưa được cấu hình hướng vào/ra", cameraUUID, DetectionType.FACE,
+                        null, null, null, "BARRIER_DIRECTION_UNKNOWN", null);
                 return;
             }
             pd.setTimestampMs(System.currentTimeMillis());
@@ -148,7 +161,8 @@ public class ProfileMessageService {
         } catch (Exception ex) {
             logger.error("ProfileMessageService: failed to handle profile event — payload={} error={}", event,
                     ex.getMessage(), ex);
-            parkingMessageService.publishErrorWhenHandlingEvent(ex.getMessage(), "", DetectionType.FACE);
+            parkingMessageService.publishErrorWhenHandlingEvent("Lỗi hệ thống khi xử lý sự kiện khuôn mặt", "", DetectionType.FACE,
+                    null, null, null, "INTERNAL_ERROR", null);
         }
     }
 
