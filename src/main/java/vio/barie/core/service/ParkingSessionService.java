@@ -28,6 +28,7 @@ import vio.barie.core.utils.VehicleType;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -255,6 +256,7 @@ public class ParkingSessionService {
                 .entryLaneName(entryName)
                 .entryTime(entity.getEntryTime())
                 .exitTime(entity.getExitTime())
+                .parkingDuration(formatParkingDuration(entity.getEntryTime(), entity.getExitTime()))
                 .sessionType(sessionType)
                 .typeVehicle(entity.getVehicle() != null ? entity.getVehicle().getVehicleType() : null)
                 .fee(formattedFee)
@@ -281,6 +283,28 @@ public class ParkingSessionService {
                 .referenceCode(payment != null ? payment.getReferenceCode() : null)
                 .sepayTxId(payment != null ? payment.getSepayTxId() : null)
                 .build();
+    }
+
+    private String formatParkingDuration(LocalDateTime entryTime, LocalDateTime exitTime) {
+        if (entryTime == null) {
+            return null;
+        }
+
+        LocalDateTime endTime = exitTime != null ? exitTime : LocalDateTime.now();
+        long totalSeconds = Duration.between(entryTime, endTime).getSeconds();
+        if (totalSeconds < 0) {
+            totalSeconds = 0;
+        }
+
+        long days = totalSeconds / (24 * 60 * 60);
+        long hours = (totalSeconds % (24 * 60 * 60)) / (60 * 60);
+        long minutes = (totalSeconds % (60 * 60)) / 60;
+        long seconds = totalSeconds % 60;
+
+        if (days > 0) return String.format("%dd%dh%dm%ds", days, hours, minutes, seconds);
+        if (hours > 0) return String.format("%dh%dm%ds", hours, minutes, seconds);
+        if (minutes > 0) return String.format("%dm%ds", minutes, seconds);
+        return String.format("%ds", seconds);
     }
 
     public VehicleMetricsResponse getVehicleMetrics(Integer buildingId) {

@@ -24,6 +24,7 @@ public class ParkingSessionPaymentDetailResponse {
     private String exitLaneName;
     private LocalDateTime entryTime;
     private LocalDateTime exitTime;
+    private String parkingDuration;
     private SessionType sessionType;
     private String typeVehicle;
     private String fee;
