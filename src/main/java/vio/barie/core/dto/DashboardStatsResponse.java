@@ -4,9 +4,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import vio.barie.core.common.VehicleStatus;
-
-import java.util.Map;
 
 @Data
 @AllArgsConstructor
@@ -29,6 +26,18 @@ public class DashboardStatsResponse {
         private long totalMotorbike;
         private long totalCar;
         private long totalOther;
+        private VehicleTypeBreakdown motorbike;
+        private VehicleTypeBreakdown car;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    @Builder
+    public static class VehicleTypeBreakdown {
+        private long total;
+        private long subscription;
+        private long walkIn;
     }
 
 }
