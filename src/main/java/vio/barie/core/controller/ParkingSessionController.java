@@ -107,6 +107,17 @@ public class ParkingSessionController {
         return pageable;
     }
 
+    private Pageable buildPageable(int page, int size, String sortBy, String sortDirection) {
+        String resolvedSortBy = sortBy != null && !sortBy.isBlank() ? sortBy : "entryTime";
+        String resolvedSortDirection = sortDirection != null && !sortDirection.isBlank() ? sortDirection : "DESC";
+
+        return PageRequest.of(
+                page,
+                size,
+                Sort.by(Sort.Direction.fromString(resolvedSortDirection), resolvedSortBy)
+        );
+    }
+
     @GetMapping("/parking-lot/{parkingLotId}")
     public ResponseEntity<Page<ParkingSessionDetailResponse>> getParkingSessionsByParkingLot(
             @PathVariable Long parkingLotId,
@@ -117,10 +128,12 @@ public class ParkingSessionController {
             @RequestParam(value = "exitLaneId", required = false) Long exitLaneId,
             @RequestParam(value = "statusInOut", required = false) String statusInOut,
             @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "10") int size
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(name = "sortBy", defaultValue = "entryTime", required = false) String sortBy,
+            @RequestParam(name = "sortDirection", defaultValue = "DESC", required = false) String sortDirection
     ) {
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "entryTime"));
+        Pageable pageable = buildPageable(page, size, sortBy, sortDirection);
         Page<ParkingSessionDetailResponse> response = parkingSessionService.getIdParkingSessionByParkingLot(
                 parkingLotId, searchKey, sessionType, typeVehicle, entryLaneId, exitLaneId, statusInOut, pageable);
         return ResponseEntity.ok(response);
@@ -138,10 +151,12 @@ public class ParkingSessionController {
             @RequestParam(value = "startDate", required = false) String startDate,
             @RequestParam(value = "endDate", required = false) String endDate,
             @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "10") int size
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(name = "sortBy", defaultValue = "entryTime", required = false) String sortBy,
+            @RequestParam(name = "sortDirection", defaultValue = "DESC", required = false) String sortDirection
     ) {
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "entryTime"));
+        Pageable pageable = buildPageable(page, size, sortBy, sortDirection);
         LocalDateTime startDateTime = startDate != null && !startDate.isBlank()
                 ? LocalDate.parse(startDate).atStartOfDay()
                 : null;

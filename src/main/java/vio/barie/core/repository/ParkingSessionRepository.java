@@ -74,8 +74,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "AND (:exitLaneId IS NULL OR xl.id = :exitLaneId) " +
             "AND (:statusInOut IS NULL OR :statusInOut = '' " +
             "     OR (:statusInOut = 'IN' AND s.exitTime IS NULL) " +
-            "     OR (:statusInOut = 'OUT' AND s.exitTime IS NOT NULL)) " +
-            "ORDER BY s.entryTime DESC")
+            "     OR (:statusInOut = 'OUT' AND s.exitTime IS NOT NULL)) ")
     Page<ParkingSessionEntity> findIdByParkingLotWithFilters(
             @Param("parkingLotId") Long parkingLotId,
             @Param("searchKey") String searchKey,
@@ -103,8 +102,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "     OR (:statusInOut = 'IN' AND s.exitTime IS NULL) " +
             "     OR (:statusInOut = 'OUT' AND s.exitTime IS NOT NULL)) " +
             "AND s.entryTime >= :startDate " +
-            "AND s.entryTime <= :endDate " +
-            "ORDER BY s.entryTime DESC")
+            "AND s.entryTime <= :endDate ")
     Page<ParkingSessionEntity> findPaymentDetailSessionsWithFilters(
             @Param("parkingLotId") Long parkingLotId,
             @Param("searchKey") String searchKey,

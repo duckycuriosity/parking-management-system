@@ -204,9 +204,14 @@ public class ParkingSessionService {
         String finalExitLaneName = (entity.getExitTime() == null) ? null : exitName;
         String displayLand = (entity.getExitTime() == null) ? entryName : entryName + " -> " + exitName;
         String buildingNameStr = null;
+        String parkingLotNameStr = null;
         if (entity.getParkingLot() != null && entity.getParkingLot().getBuilding() != null) {
             buildingNameStr = entity.getParkingLot().getBuilding().getName();
         }
+        if (entity.getParkingLot() != null) {
+            parkingLotNameStr = entity.getParkingLot().getName();
+        }
+        String location = buildLocation(buildingNameStr, parkingLotNameStr);
 
         return ParkingSessionDetailResponse.builder()
                 .sessionId(entity.getId())
@@ -222,6 +227,8 @@ public class ParkingSessionService {
                 .statusInOut(finalStatus) // truyền enum
                 .exitLaneName(finalExitLaneName)
                 .buildingName(buildingNameStr)
+                .parkingLotName(parkingLotNameStr)
+                .location(location)
                 .entryImageInfo(entity.getEntryImageInfo())
                 .exitImageInfo(entity.getExitImageInfo())
                 .build();
@@ -246,9 +253,14 @@ public class ParkingSessionService {
         String finalExitLaneName = (entity.getExitTime() == null) ? null : exitName;
         String displayLand = (entity.getExitTime() == null) ? entryName : entryName + " -> " + exitName;
         String buildingNameStr = null;
+        String parkingLotNameStr = null;
         if (entity.getParkingLot() != null && entity.getParkingLot().getBuilding() != null) {
             buildingNameStr = entity.getParkingLot().getBuilding().getName();
         }
+        if (entity.getParkingLot() != null) {
+            parkingLotNameStr = entity.getParkingLot().getName();
+        }
+        String location = buildLocation(buildingNameStr, parkingLotNameStr);
 
         return ParkingSessionPaymentDetailResponse.builder()
                 .sessionId(entity.getId())
@@ -265,6 +277,8 @@ public class ParkingSessionService {
                 .statusInOut(finalStatus)
                 .exitLaneName(finalExitLaneName)
                 .buildingName(buildingNameStr)
+                .parkingLotName(parkingLotNameStr)
+                .location(location)
                 .entryImageInfo(entity.getEntryImageInfo())
                 .exitImageInfo(entity.getExitImageInfo())
                 .paymentId(payment != null ? payment.getId() : null)
@@ -283,6 +297,16 @@ public class ParkingSessionService {
                 .referenceCode(payment != null ? payment.getReferenceCode() : null)
                 .sepayTxId(payment != null ? payment.getSepayTxId() : null)
                 .build();
+    }
+
+    private String buildLocation(String buildingName, String parkingLotName) {
+        if (buildingName != null && parkingLotName != null) {
+            return buildingName + ", " + parkingLotName;
+        }
+        if (buildingName != null) {
+            return buildingName;
+        }
+        return parkingLotName;
     }
 
     private String formatParkingDuration(LocalDateTime entryTime, LocalDateTime exitTime) {
