@@ -121,6 +121,7 @@ public class ParkingSessionController {
     @GetMapping("/parking-lot/{parkingLotId}")
     public ResponseEntity<Page<ParkingSessionDetailResponse>> getParkingSessionsByParkingLot(
             @PathVariable Long parkingLotId,
+            @RequestParam(value = "buildingId", required = false) Long buildingId,
             @RequestParam(value = "searchKey", required = false) String searchKey,
             @RequestParam(value = "sessionType", required = false) List<String> sessionType,
             @RequestParam(value = "typeVehicle", required = false) String typeVehicle,
@@ -135,12 +136,13 @@ public class ParkingSessionController {
 
         Pageable pageable = buildPageable(page, size, sortBy, sortDirection);
         Page<ParkingSessionDetailResponse> response = parkingSessionService.getIdParkingSessionByParkingLot(
-                parkingLotId, searchKey, sessionType, typeVehicle, entryLaneId, exitLaneId, statusInOut, pageable);
+                parkingLotId, buildingId, searchKey, sessionType, typeVehicle, entryLaneId, exitLaneId, statusInOut, pageable);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/payment-details")
     public ResponseEntity<Page<ParkingSessionPaymentDetailResponse>> getParkingSessionPaymentDetailsByParkingLot(
+            @RequestParam(value = "buildingId", required = false) Long buildingId,
             @RequestParam(value = "parkingLotId", required = false) Long parkingLotId,
             @RequestParam(value = "searchKey", required = false) String searchKey,
             @RequestParam(value = "sessionType", required = false) List<String> sessionType,
@@ -164,7 +166,7 @@ public class ParkingSessionController {
                 ? LocalDate.parse(endDate).atTime(LocalTime.MAX)
                 : null;
         Page<ParkingSessionPaymentDetailResponse> response = parkingSessionService.getParkingSessionPaymentDetailsByParkingLot(
-                parkingLotId, searchKey, sessionType, typeVehicle, entryLaneId, exitLaneId, statusInOut,
+                buildingId, parkingLotId, searchKey, sessionType, typeVehicle, entryLaneId, exitLaneId, statusInOut,
                 startDateTime, endDateTime, pageable);
         return ResponseEntity.ok(response);
     }

@@ -109,12 +109,12 @@ public class ParkingSessionService {
 
     @Transactional(readOnly = true)
     public Page<ParkingSessionDetailResponse> getIdParkingSessionByParkingLot(
-            Long parkingLotId, String searchKey, List<String> sessionTypes, String typeVehicle,
+            Long parkingLotId, Long buildingId, String searchKey, List<String> sessionTypes, String typeVehicle,
             Long entryLaneId, Long exitLaneId, String statusInOut, Pageable pageable) {
 
         List<SessionType> parsedTypes = parseSessionTypes(sessionTypes);
         Page<ParkingSessionEntity> entityPage = parkingSessionRepository.findIdByParkingLotWithFilters(
-                parkingLotId, formatString(searchKey), parsedTypes, formatString(typeVehicle),
+                parkingLotId, buildingId, formatString(searchKey), parsedTypes, formatString(typeVehicle),
                 entryLaneId, exitLaneId, formatString(statusInOut), pageable);
 
         Map<Long, PaymentEntity> paymentMap = fetchPaidPaymentMap(entityPage.getContent());
@@ -123,7 +123,7 @@ public class ParkingSessionService {
 
     @Transactional(readOnly = true)
     public Page<ParkingSessionPaymentDetailResponse> getParkingSessionPaymentDetailsByParkingLot(
-            Long parkingLotId, String searchKey, List<String> sessionTypes, String typeVehicle,
+            Long buildingId, Long parkingLotId, String searchKey, List<String> sessionTypes, String typeVehicle,
             Long entryLaneId, Long exitLaneId, String statusInOut,
             LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
 
@@ -132,7 +132,7 @@ public class ParkingSessionService {
         LocalDateTime to = endDate != null ? endDate : LocalDateTime.of(9999, 12, 31, 23, 59, 59);
 
         Page<ParkingSessionEntity> entityPage = parkingSessionRepository.findPaymentDetailSessionsWithFilters(
-                parkingLotId, formatString(searchKey), parsedTypes, formatString(typeVehicle),
+                buildingId, parkingLotId, formatString(searchKey), parsedTypes, formatString(typeVehicle),
                 entryLaneId, exitLaneId, formatString(statusInOut), from, to, pageable);
 
         Map<Long, PaymentEntity> paymentMap = fetchAnyStatusPaymentMap(entityPage.getContent());

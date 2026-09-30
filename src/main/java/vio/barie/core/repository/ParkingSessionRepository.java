@@ -65,6 +65,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
 //            "LEFT JOIN TicketEntity t ON s.ticketId = t.id " +
 //            "LEFT JOIN t.customer c " +
             "WHERE s.parkingLot.id = :parkingLotId " +
+            "AND (:buildingId IS NULL OR s.parkingLot.building.id = :buildingId) " +
             "AND (:searchKey IS NULL OR :searchKey = '' OR(" +
             "     LOWER(ec.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) OR " +
             "     LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')))) " +
@@ -77,6 +78,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "     OR (:statusInOut = 'OUT' AND s.exitTime IS NOT NULL)) ")
     Page<ParkingSessionEntity> findIdByParkingLotWithFilters(
             @Param("parkingLotId") Long parkingLotId,
+            @Param("buildingId") Long buildingId,
             @Param("searchKey") String searchKey,
             @Param("sessionType") List<SessionType> sessionType,
             @Param("typeVehicle") String typeVehicle,
@@ -91,6 +93,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "LEFT JOIN s.exitLane xl " +
             "LEFT JOIN s.entryCustomer ec " +
             "WHERE (:parkingLotId IS NULL OR s.parkingLot.id = :parkingLotId) " +
+            "AND (:buildingId IS NULL OR s.parkingLot.building.id = :buildingId) " +
             "AND (:searchKey IS NULL OR :searchKey = '' OR(" +
             "     LOWER(ec.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) OR " +
             "     LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')))) " +
@@ -104,6 +107,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "AND s.entryTime >= :startDate " +
             "AND s.entryTime <= :endDate ")
     Page<ParkingSessionEntity> findPaymentDetailSessionsWithFilters(
+            @Param("buildingId") Long buildingId,
             @Param("parkingLotId") Long parkingLotId,
             @Param("searchKey") String searchKey,
             @Param("sessionType") List<SessionType> sessionType,
