@@ -136,4 +136,3 @@ class BuildingServiceTest {
         verify(buildingRepository, times(1)).delete(buildingEntity);
     }
 }
-

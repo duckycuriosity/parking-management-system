@@ -2,7 +2,6 @@ package vio.barie.core.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -14,9 +13,7 @@ import org.springframework.data.domain.*;
 import vio.barie.core.service.TicketService;
 import vio.barie.core.service.TicketSummaryCacheService;
 
-import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 
 // controller cho mọi hoạt động đk vé
 @RestController
@@ -70,15 +67,6 @@ public class TicketController {
                 .build();
         Page<TicketRegistrationResponseDTO> data = ticketService.list(req);
         return Result.ok("Lấy danh sách vé thành công!", data);
-    }
-
-    @GetMapping("/subscription-counts")
-    public Result<Map<String, Long>> getSubscriptionCounts(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
-    ) {
-        Map<String, Long> data = ticketService.getSubscriptionTicketCounts(startDate, endDate);
-        return Result.ok("Thống kê số lượng thuê bao theo loại xe thành công!", data);
     }
 
     //    @PreAuthorize("hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")

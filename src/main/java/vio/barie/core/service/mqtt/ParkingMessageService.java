@@ -478,7 +478,7 @@ public class ParkingMessageService {
                 .reason("manual_override")
                 .playSound(true)
                 .soundFile("open_exit.wav")
-                .autoCloseSeconds(20)
+                .autoCloseSeconds(10)
                 .build();
 
         publish(deviceId, cmd);

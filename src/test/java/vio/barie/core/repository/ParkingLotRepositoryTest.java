@@ -144,5 +144,110 @@ class ParkingLotRepositoryTest {
         Optional<BuildingEntity> foundBuilding = buildingRepository.findById(savedBuilding.getId());
         assertTrue(foundBuilding.isPresent());
         assertEquals(2, foundBuilding.get().getParkingLots().size());
+    }}
+
+    parkingLot.setName("Level 1");parkingLot.setBuilding(savedBuilding);
+
+    ParkingLotEntity saved = parkingLotRepository.save(parkingLot);
+
+    parkingLotRepository.deleteById(saved.getId());
+
+    Optional<ParkingLotEntity> found = parkingLotRepository.findById(saved.getId());
+
+    assertFalse(found.isPresent());
+    }
+
+    @Test
+    @DisplayName("Should maintain parking lot relationship with building")
+    void testParkingLotBuildingRelationship() {
+        BuildingEntity building = new BuildingEntity();
+        building.setName("Test Building");
+        building.setAddress("123 Test St");
+        BuildingEntity savedBuilding = buildingRepository.save(building);
+
+        ParkingLotEntity parkingLot1 = new ParkingLotEntity();
+        parkingLot1.setName("Level 1");
+        parkingLot1.setBuilding(savedBuilding);
+        
+        ParkingLotEntity parkingLot2 = new ParkingLotEntity();
+        parkingLot2.setName("Level 2");
+        parkingLot2.setBuilding(savedBuilding);
+
+        parkingLotRepository.save(parkingLot1);
+        parkingLotRepository.save(parkingLot2);
+
+        Optional<BuildingEntity> foundBuilding = buildingRepository.findById(savedBuilding.getId());
+        assertTrue(foundBuilding.isPresent());
+        assertEquals(2, foundBuilding.get().getParkingLots().size());
+    }}
+
+    parkingLot.setName("Level 1");parkingLot.setBuilding(savedBuilding);
+
+    ParkingLotEntity saved = parkingLotRepository.save(parkingLot);
+
+    parkingLotRepository.deleteById(saved.getId());
+
+    Optional<ParkingLotEntity> found = parkingLotRepository.findById(saved.getId());
+
+    assertFalse(found.isPresent());
+    }
+
+    @Test
+    @DisplayName("Should maintain parking lot relationship with building")
+    void testParkingLotBuildingRelationship() {
+        BuildingEntity building = new BuildingEntity();
+        building.setName("Test Building");
+        building.setAddress("123 Test St");
+        BuildingEntity savedBuilding = buildingRepository.save(building);
+
+        ParkingLotEntity parkingLot1 = new ParkingLotEntity();
+        parkingLot1.setName("Level 1");
+        parkingLot1.setBuilding(savedBuilding);
+        
+        ParkingLotEntity parkingLot2 = new ParkingLotEntity();
+        parkingLot2.setName("Level 2");
+        parkingLot2.setBuilding(savedBuilding);
+
+        parkingLotRepository.save(parkingLot1);
+        parkingLotRepository.save(parkingLot2);
+
+        Optional<BuildingEntity> foundBuilding = buildingRepository.findById(savedBuilding.getId());
+        assertTrue(foundBuilding.isPresent());
+        assertEquals(2, foundBuilding.get().getParkingLots().size());
+    }}
+
+    parkingLot.setName("Level 1");parkingLot.setBuilding(savedBuilding);
+
+    ParkingLotEntity saved = parkingLotRepository.save(parkingLot);
+
+    parkingLotRepository.deleteById(saved.getId());
+
+    Optional<ParkingLotEntity> found = parkingLotRepository.findById(saved.getId());
+
+    assertFalse(found.isPresent());
+    }
+
+    @Test
+    @DisplayName("Should maintain parking lot relationship with building")
+    void testParkingLotBuildingRelationship() {
+        BuildingEntity building = new BuildingEntity();
+        building.setName("Test Building");
+        building.setAddress("123 Test St");
+        BuildingEntity savedBuilding = buildingRepository.save(building);
+
+        ParkingLotEntity parkingLot1 = new ParkingLotEntity();
+        parkingLot1.setName("Level 1");
+        parkingLot1.setBuilding(savedBuilding);
+        
+        ParkingLotEntity parkingLot2 = new ParkingLotEntity();
+        parkingLot2.setName("Level 2");
+        parkingLot2.setBuilding(savedBuilding);
+
+        parkingLotRepository.save(parkingLot1);
+        parkingLotRepository.save(parkingLot2);
+
+        Optional<BuildingEntity> foundBuilding = buildingRepository.findById(savedBuilding.getId());
+        assertTrue(foundBuilding.isPresent());
+        assertEquals(2, foundBuilding.get().getParkingLots().size());
     }
 }

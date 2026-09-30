@@ -12,7 +12,6 @@ import vio.barie.core.common.TicketStatus;
 import vio.barie.core.dto.ticket.TicketRegistrationResponseDTO;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 
 public interface TicketRepository extends JpaRepository<TicketEntity, Long>, JpaSpecificationExecutor<TicketEntity> {
@@ -98,20 +97,5 @@ public interface TicketRepository extends JpaRepository<TicketEntity, Long>, Jpa
     int bulkUpdateExpiredTickets(@Param("now") LocalDateTime now);
 
     Optional<TicketEntity> findFirstByVehicleIdOrderByExpireAtDesc(Long vehicleId);
-
-    @Query("SELECT v.vehicleType, COUNT(t) FROM TicketEntity t " +
-            "JOIN t.vehicle v " +
-            "WHERE t.ticketType IN ('MONTH', 'QUARTER')" +
-            "AND v.vehicleType IN ('CAR', 'MOTORBIKE')" +
-            "AND t.status = 'ACTIVE' " +
-            "AND t.registerAt >= :startDate " + 
-            "AND t.registerAt < :endDate " +
-            "GROUP BY v.vehicleType")
-    List<Object[]> countActiveSubscriptionTicketsByVehicleType(
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate
-    );
-
-
 
 }

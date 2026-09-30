@@ -20,11 +20,8 @@ import vio.barie.core.entity.TicketEntity;
 import vio.barie.core.repository.*;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -173,6 +170,8 @@ public class TicketService {
                 statusFilter,
                 pageable
         );
+
+
         return ticketPage;
     }
 
@@ -184,30 +183,6 @@ public class TicketService {
             return TicketStatus.ACTIVE;
         }
         return TicketStatus.DEAD;
-    }
-    @Transactional(readOnly = true)
-    public Map<String, Long> getSubscriptionTicketCounts(LocalDate startDate, LocalDate endDate){
-
-        LocalDateTime start = (startDate != null)
-                ? startDate.atStartOfDay()
-                : LocalDateTime.of(2000, 1, 1, 0, 0, 0);
-        LocalDateTime end = (endDate != null)
-                ? endDate.plusDays(1).atStartOfDay()
-                : LocalDateTime.of(2100, 1, 1, 0, 0, 0);
-        List<Object[]> queryResults = ticketRepo.countActiveSubscriptionTicketsByVehicleType(start, end);
-
-        Map<String, Long> result = new HashMap<>();
-        result.put("CAR", 0L);
-        result.put("MOTORBIKE", 0L);
-        for(Object[] row: queryResults){
-            if (row[0] == null) continue;
-            String vehicleType = row[0].toString();
-            Long count = ((Number) row[1]).longValue();
-            if(result.containsKey(vehicleType)){
-                result.put(vehicleType, count);
-            }
-        }
-        return result;
     }
 
 

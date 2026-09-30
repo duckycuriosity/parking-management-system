@@ -11,9 +11,6 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: ${KEYCLOAK_ISSUER_URI:https://sso.safelinksystem.app/realms/barie}
-  flyway:
-    ignore-missing-migrations: true
-    ignore-future-migrations: true
   datasource:
     url: jdbc:postgresql://192.168.168.30:5434/barie
     username: barie_dev
@@ -66,11 +63,6 @@ mqtt:
   publish-vehicle-topic-suffix: "/vehicle"
   publish-error-topic-suffix: "/error"
   receive-ai-event: "aibox/face/#"
-  internet-health-check-topic: "parking/v1/server/internet-health-check"
-  internet:
-    check:
-      interval-ms: 15000
-      disconnect-threshold: 3
   queue:
     core-pool-size: 5
     max-pool-size: 10
@@ -157,10 +149,3 @@ keycloak:
   admin-realm: barie
   admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:barie-client-be-dev}
   admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:tDywGUVz29rYQ3JlBNlXXu0V0VshWY0E}
-
-camera:
-  sync:
-    interval-ms: 15000
-system:
-  metrics:
-    collection-interval-ms: 3000
