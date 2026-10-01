@@ -73,27 +73,41 @@ public class PaymentController {
 
     @GetMapping
     public Result<Page<PaymentListItemResponse>> getPayments(
-            @RequestParam(required = false) Boolean success,
+            @RequestParam(required = false) String success,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long buildingId,
+            @RequestParam(required = false) Long parkingLotId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return Result.ok(paymentService.getPaymentList(success, page ,size));
+        Boolean successFilter = null;
+        if (success != null && !success.isBlank() && !"all".equalsIgnoreCase(success)) {
+            successFilter = Boolean.parseBoolean(success);
+        }
+        return Result.ok(paymentService.getPaymentList(
+                successFilter, status, buildingId, parkingLotId, startDate, endDate, page, size));
     }
 
     @GetMapping("/report")
     public Result<RevenueReportResponse> getRevenueReport(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) Long buildingId,
+            @RequestParam(required = false) Long parkingLotId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return Result.ok(paymentService.getRevenueReport(startDate, endDate, page, size));
+        return Result.ok(paymentService.getRevenueReport(startDate, endDate, buildingId, parkingLotId, page, size));
     }
 
     @GetMapping("/report/export")
     public ResponseEntity<byte[]> exportRevenueReport(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        byte[] excel = paymentService.exportRevenueReportToExcel(startDate, endDate);
-        String filename = "bao-cao-doanh-thu-" + startDate + "-den-" + endDate + ".xlsx";
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) Long buildingId,
+            @RequestParam(required = false) Long parkingLotId) {
+        byte[] excel = paymentService.exportRevenueReportToExcel(startDate, endDate, buildingId, parkingLotId);
+        String filename = paymentService.buildRevenueReportExportFilename(startDate, endDate);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
@@ -103,7 +117,9 @@ public class PaymentController {
     @GetMapping("/statistics")
     public Result<RevenueSummaryResponse> getDailyRevenue(
             @RequestParam(required = false) Long parkingLotId,
-            @RequestParam(required = false) Long buildingId) {
-        return Result.ok(paymentService.getDailyRevenueSummary(parkingLotId, buildingId));
+            @RequestParam(required = false) Long buildingId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        return Result.ok(paymentService.getDailyRevenueSummary(parkingLotId, buildingId, startDate, endDate));
     }
 }
