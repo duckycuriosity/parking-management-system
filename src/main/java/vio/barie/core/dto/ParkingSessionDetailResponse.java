@@ -29,6 +29,8 @@ public class ParkingSessionDetailResponse {
     private String fee;
     private String land;
     private String buildingName;
+    private String parkingLotName;
+    private String location;
     private InOutStatus statusInOut;
     private List<EventImageInfo> entryImageInfo;
     private List<EventImageInfo> exitImageInfo;
