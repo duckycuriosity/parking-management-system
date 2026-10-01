@@ -13,6 +13,9 @@ import vio.barie.core.dto.ActivitySessionResponse;
 import vio.barie.core.dto.ParkingSessionDetailResponse;
 import vio.barie.core.dto.parking.CurrentParkingSessionCountResponse;
 import vio.barie.core.dto.parking.HourlyTrafficResponse;
+import vio.barie.core.dto.parking.ParkingLotCapacityItemResponse;
+import vio.barie.core.dto.parking.ParkingLotCapacityProjection;
+import vio.barie.core.dto.parking.ParkingLotCapacityResponse;
 import vio.barie.core.dto.parking.ParkingMetricsRequest;
 import vio.barie.core.dto.parking.VehicleMetricsResponse;
 import vio.barie.core.dto.*;
@@ -25,6 +28,7 @@ import vio.barie.core.utils.VehicleType;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -88,39 +92,86 @@ public class ParkingSessionService {
 
     @Transactional(readOnly = true)
     public Page<ParkingSessionDetailResponse> getAllParkingSession(
-            String searchKey, List<String> sessionTypes, String typeVehicle,
-            Long entryLaneId, Long exitLaneId, String statusInOut, Pageable pageable) {
+            String searchKey, Long parkingLotId, List<String> sessionTypes, String typeVehicle,
+            Long entryLaneId, Long exitLaneId, String statusInOut,
+            LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
         List<SessionType> parsedTypes = parseSessionTypes(sessionTypes);
+        LocalDateTime from = startDate != null ? startDate : LocalDateTime.of(1970, 1, 1, 0, 0);
+        LocalDateTime to = endDate != null ? endDate : LocalDateTime.of(9999, 12, 31, 23, 59, 59);
         Page<ParkingSessionEntity> entityPage = parkingSessionRepository.findAllParkingLotWithFilters(
-                formatString(searchKey), parsedTypes, formatString(typeVehicle),
-                entryLaneId, exitLaneId, formatString(statusInOut), pageable);
+                formatString(searchKey), parkingLotId, parsedTypes, formatString(typeVehicle),
+                entryLaneId, exitLaneId, formatString(statusInOut), from, to, pageable);
 
-        Map<Long, PaymentEntity> paymentMap = fetchPaymentMap(entityPage.getContent());
+        Map<Long, PaymentEntity> paymentMap = fetchPaidPaymentMap(entityPage.getContent());
         return entityPage.map(entity -> mapToDetailResponse(entity, paymentMap.get(entity.getId())));
     }
 
 
     @Transactional(readOnly = true)
     public Page<ParkingSessionDetailResponse> getIdParkingSessionByParkingLot(
-            Long parkingLotId, String searchKey, List<String> sessionTypes, String typeVehicle,
+            Long parkingLotId, Long buildingId, String searchKey, List<String> sessionTypes, String typeVehicle,
             Long entryLaneId, Long exitLaneId, String statusInOut, Pageable pageable) {
 
         List<SessionType> parsedTypes = parseSessionTypes(sessionTypes);
         Page<ParkingSessionEntity> entityPage = parkingSessionRepository.findIdByParkingLotWithFilters(
-                parkingLotId, formatString(searchKey), parsedTypes, formatString(typeVehicle),
+                parkingLotId, buildingId, formatString(searchKey), parsedTypes, formatString(typeVehicle),
                 entryLaneId, exitLaneId, formatString(statusInOut), pageable);
 
-        Map<Long, PaymentEntity> paymentMap = fetchPaymentMap(entityPage.getContent());
+        Map<Long, PaymentEntity> paymentMap = fetchPaidPaymentMap(entityPage.getContent());
         return entityPage.map(entity -> mapToDetailResponse(entity, paymentMap.get(entity.getId())));
     }
 
-    private Map<Long, PaymentEntity> fetchPaymentMap(List<ParkingSessionEntity> sessions) {
+    @Transactional(readOnly = true)
+    public Page<ParkingSessionPaymentDetailResponse> getParkingSessionPaymentDetailsByParkingLot(
+            Long buildingId, Long parkingLotId, String searchKey, List<String> sessionTypes, String typeVehicle,
+            Long entryLaneId, Long exitLaneId, String statusInOut,
+            LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
+
+        List<SessionType> parsedTypes = parseSessionTypes(sessionTypes);
+        LocalDateTime from = startDate != null ? startDate : LocalDateTime.of(1970, 1, 1, 0, 0);
+        LocalDateTime to = endDate != null ? endDate : LocalDateTime.of(9999, 12, 31, 23, 59, 59);
+
+        Page<ParkingSessionEntity> entityPage = parkingSessionRepository.findPaymentDetailSessionsWithFilters(
+                buildingId, parkingLotId, formatString(searchKey), parsedTypes, formatString(typeVehicle),
+                entryLaneId, exitLaneId, formatString(statusInOut), from, to, pageable);
+
+        Map<Long, PaymentEntity> paymentMap = fetchAnyStatusPaymentMap(entityPage.getContent());
+        return entityPage.map(entity -> mapToPaymentDetailResponse(entity, paymentMap.get(entity.getId())));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ParkingSessionDetailResponse> getInOutSessions(
+            Long buildingId, Long parkingLotId, Long laneId, Pageable pageable) {
+
+        Page<ParkingSessionEntity> entityPage = parkingSessionRepository.findInOutSessions(
+                buildingId, parkingLotId, laneId, pageable);
+
+        Map<Long, PaymentEntity> paymentMap = fetchPaidPaymentMap(entityPage.getContent());
+        return entityPage.map(entity -> mapToDetailResponse(entity, paymentMap.get(entity.getId())));
+    }
+
+    private Map<Long, PaymentEntity> fetchPaidPaymentMap(List<ParkingSessionEntity> sessions) {
         List<Long> sessionIds = sessions.stream()
                 .map(ParkingSessionEntity::getId)
                 .collect(Collectors.toList());
         if (sessionIds.isEmpty()) return Collections.emptyMap();
 
         return paymentRepository.findLatestBySessionIds(sessionIds).stream()
+                .filter(p -> p.getCallbackContext() != null && p.getCallbackContext().getLong("sessionId") != null)
+                .collect(Collectors.toMap(
+                        p -> p.getCallbackContext().getLong("sessionId"),
+                        p -> p,
+                        (a, b) -> a
+                ));
+    }
+
+    private Map<Long, PaymentEntity> fetchAnyStatusPaymentMap(List<ParkingSessionEntity> sessions) {
+        List<Long> sessionIds = sessions.stream()
+                .map(ParkingSessionEntity::getId)
+                .collect(Collectors.toList());
+        if (sessionIds.isEmpty()) return Collections.emptyMap();
+
+        return paymentRepository.findLatestAnyStatusBySessionIds(sessionIds).stream()
                 .filter(p -> p.getCallbackContext() != null && p.getCallbackContext().getLong("sessionId") != null)
                 .collect(Collectors.toMap(
                         p -> p.getCallbackContext().getLong("sessionId"),
@@ -153,9 +204,14 @@ public class ParkingSessionService {
         String finalExitLaneName = (entity.getExitTime() == null) ? null : exitName;
         String displayLand = (entity.getExitTime() == null) ? entryName : entryName + " -> " + exitName;
         String buildingNameStr = null;
+        String parkingLotNameStr = null;
         if (entity.getParkingLot() != null && entity.getParkingLot().getBuilding() != null) {
             buildingNameStr = entity.getParkingLot().getBuilding().getName();
         }
+        if (entity.getParkingLot() != null) {
+            parkingLotNameStr = entity.getParkingLot().getName();
+        }
+        String location = buildLocation(buildingNameStr, parkingLotNameStr);
 
         return ParkingSessionDetailResponse.builder()
                 .sessionId(entity.getId())
@@ -171,9 +227,108 @@ public class ParkingSessionService {
                 .statusInOut(finalStatus) // truyền enum
                 .exitLaneName(finalExitLaneName)
                 .buildingName(buildingNameStr)
+                .parkingLotName(parkingLotNameStr)
+                .location(location)
                 .entryImageInfo(entity.getEntryImageInfo())
                 .exitImageInfo(entity.getExitImageInfo())
                 .build();
+    }
+
+    private ParkingSessionPaymentDetailResponse mapToPaymentDetailResponse(ParkingSessionEntity entity, PaymentEntity payment) {
+        SessionType sessionType = entity.getSessionType();
+        String formattedFee = "0 đ";
+
+        if (sessionType == SessionType.MONTH || sessionType == SessionType.QUARTER) {
+            formattedFee = "Miễn phí";
+        } else if (payment != null && payment.getAmount() != null) {
+            formattedFee = String.format("%,.0f đ", payment.getAmount());
+        } else {
+            formattedFee = "Chưa thanh toán";
+        }
+
+        String entryName = entity.getEntryLane() != null ? entity.getEntryLane().getName() : "N/A";
+        String exitName = entity.getExitLane() != null ? entity.getExitLane().getName() : "Not found";
+
+        InOutStatus finalStatus = (entity.getExitTime() == null) ? InOutStatus.IN : InOutStatus.OUT;
+        String finalExitLaneName = (entity.getExitTime() == null) ? null : exitName;
+        String displayLand = (entity.getExitTime() == null) ? entryName : entryName + " -> " + exitName;
+        String buildingNameStr = null;
+        String parkingLotNameStr = null;
+        if (entity.getParkingLot() != null && entity.getParkingLot().getBuilding() != null) {
+            buildingNameStr = entity.getParkingLot().getBuilding().getName();
+        }
+        if (entity.getParkingLot() != null) {
+            parkingLotNameStr = entity.getParkingLot().getName();
+        }
+        String location = buildLocation(buildingNameStr, parkingLotNameStr);
+
+        return ParkingSessionPaymentDetailResponse.builder()
+                .sessionId(entity.getId())
+                .plateNumber(entity.getVehicle() != null ? entity.getVehicle().getPlateNumber() : null)
+                .entryLaneName(entryName)
+                .entryTime(entity.getEntryTime())
+                .exitTime(entity.getExitTime())
+                .parkingDuration(formatParkingDuration(entity.getEntryTime(), entity.getExitTime()))
+                .sessionType(sessionType)
+                .typeVehicle(entity.getVehicle() != null ? entity.getVehicle().getVehicleType() : null)
+                .fee(formattedFee)
+                .userName(entity.getEntryCustomer() != null ? entity.getEntryCustomer().getUsername() : "Updating")
+                .land(displayLand)
+                .statusInOut(finalStatus)
+                .exitLaneName(finalExitLaneName)
+                .buildingName(buildingNameStr)
+                .parkingLotName(parkingLotNameStr)
+                .location(location)
+                .entryImageInfo(entity.getEntryImageInfo())
+                .exitImageInfo(entity.getExitImageInfo())
+                .paymentId(payment != null ? payment.getId() : null)
+                .invoiceNo(payment != null ? payment.getInvoiceNo() : null)
+                .paymentAmount(payment != null ? payment.getAmount() : null)
+                .paymentAmountText(payment != null && payment.getAmount() != null ? String.format("%,.0f đ", payment.getAmount()) : null)
+                .currency(payment != null ? payment.getCurrency() : null)
+                .paymentMethod(payment != null ? payment.getPaymentMethod() : null)
+                .paidAt(payment != null ? payment.getPaidAt() : null)
+                .paymentStatus(payment != null ? payment.getStatus() : null)
+                .resultCode(payment != null ? payment.getResultCode() : null)
+                .resultMessage(payment != null ? payment.getResultMessage() : null)
+                .payType(payment != null ? payment.getPayType() : null)
+                .paymentDescription(payment != null ? payment.getDescription() : null)
+                .gateway(payment != null ? payment.getGateway() : null)
+                .referenceCode(payment != null ? payment.getReferenceCode() : null)
+                .sepayTxId(payment != null ? payment.getSepayTxId() : null)
+                .build();
+    }
+
+    private String buildLocation(String buildingName, String parkingLotName) {
+        if (buildingName != null && parkingLotName != null) {
+            return buildingName + ", " + parkingLotName;
+        }
+        if (buildingName != null) {
+            return buildingName;
+        }
+        return parkingLotName;
+    }
+
+    private String formatParkingDuration(LocalDateTime entryTime, LocalDateTime exitTime) {
+        if (entryTime == null) {
+            return null;
+        }
+
+        LocalDateTime endTime = exitTime != null ? exitTime : LocalDateTime.now();
+        long totalSeconds = Duration.between(entryTime, endTime).getSeconds();
+        if (totalSeconds < 0) {
+            totalSeconds = 0;
+        }
+
+        long days = totalSeconds / (24 * 60 * 60);
+        long hours = (totalSeconds % (24 * 60 * 60)) / (60 * 60);
+        long minutes = (totalSeconds % (60 * 60)) / 60;
+        long seconds = totalSeconds % 60;
+
+        if (days > 0) return String.format("%dd%dh%dm%ds", days, hours, minutes, seconds);
+        if (hours > 0) return String.format("%dh%dm%ds", hours, minutes, seconds);
+        if (minutes > 0) return String.format("%dm%ds", minutes, seconds);
+        return String.format("%ds", seconds);
     }
 
     public VehicleMetricsResponse getVehicleMetrics(Integer buildingId) {
@@ -288,6 +443,35 @@ public class ParkingSessionService {
 
 
         // tính toán sức chứa
+        DashboardStatsResponse.VehicleTypeBreakdown motorbikeBreakdown =
+                DashboardStatsResponse.VehicleTypeBreakdown.builder().build();
+        DashboardStatsResponse.VehicleTypeBreakdown carBreakdown =
+                DashboardStatsResponse.VehicleTypeBreakdown.builder().build();
+
+        List<SessionStatProjection> currentSessionStats =
+                parkingSessionRepository.countCurrentSessionAndVehicleStats(buildingId, parkingLotId);
+        for (SessionStatProjection stat : currentSessionStats) {
+            if (stat.getVehicleType() == null || stat.getSessionType() == null) continue;
+
+            long total = stat.getTotal() != null ? stat.getTotal() : 0;
+            DashboardStatsResponse.VehicleTypeBreakdown breakdown = null;
+            if ("MOTORBIKE".equalsIgnoreCase(stat.getVehicleType())) {
+                breakdown = motorbikeBreakdown;
+            } else if ("CAR".equalsIgnoreCase(stat.getVehicleType())) {
+                breakdown = carBreakdown;
+            }
+
+            if (breakdown == null) continue;
+            breakdown.setTotal(breakdown.getTotal() + total);
+            if (isSubscriptionSession(stat.getSessionType())) {
+                breakdown.setSubscription(breakdown.getSubscription() + total);
+            } else if (SessionType.DAY.name().equalsIgnoreCase(stat.getSessionType())) {
+                breakdown.setWalkIn(breakdown.getWalkIn() + total);
+            }
+        }
+        vehicleStats.setMotorbike(motorbikeBreakdown);
+        vehicleStats.setCar(carBreakdown);
+
         long maxMotorcycle = 0;
         long maxCar = 0;
         List<Object[]> capacityResult = parkingLotRepository.getCapacityStats(buildingId, parkingLotId);
@@ -320,6 +504,11 @@ public class ParkingSessionService {
                 .isFull(isFull)
                 .warningMessage(warningMessage)
                 .build();
+    }
+
+    private boolean isSubscriptionSession(String sessionType) {
+        return SessionType.MONTH.name().equalsIgnoreCase(sessionType)
+                || SessionType.QUARTER.name().equalsIgnoreCase(sessionType);
     }
 
     @Transactional
@@ -384,5 +573,61 @@ public class ParkingSessionService {
 
     public CurrentParkingSessionCountResponse getCurrentParkingSessionCount(Integer buildingId, Integer parkingLotId) {
         return parkingSessionRepository.currentParkingSessionCount(buildingId, parkingLotId);
+    }
+
+    @Transactional(readOnly = true)
+    public ParkingLotCapacityResponse getCapacityByLot(Long buildingId, Long parkingLotId) {
+        List<ParkingLotCapacityProjection> capacityRows = parkingLotRepository.getCapacityByLot(buildingId, parkingLotId);
+
+        List<ParkingLotCapacityItemResponse> lots = capacityRows.stream()
+                .map(this::mapCapacityItem)
+                .collect(Collectors.toList());
+
+        long totalCapacity = lots.stream()
+                .mapToLong(ParkingLotCapacityItemResponse::getTotalCapacity)
+                .sum();
+        long totalUsed = lots.stream()
+                .mapToLong(ParkingLotCapacityItemResponse::getUsed)
+                .sum();
+
+        return ParkingLotCapacityResponse.builder()
+                .totalCapacity(totalCapacity)
+                .totalUsed(totalUsed)
+                .totalAvailable(Math.max(totalCapacity - totalUsed, 0))
+                .usageRate(calculateUsageRate(totalUsed, totalCapacity))
+                .lots(lots)
+                .build();
+    }
+
+    private ParkingLotCapacityItemResponse mapCapacityItem(ParkingLotCapacityProjection row) {
+        long motorbikeCapacity = safeLong(row.getMotorbikeCapacity());
+        long carCapacity = safeLong(row.getCarCapacity());
+        long totalCapacity = motorbikeCapacity + carCapacity;
+        long used = safeLong(row.getUsedTotal());
+
+        return ParkingLotCapacityItemResponse.builder()
+                .parkingLotId(row.getParkingLotId())
+                .parkingLotName(row.getParkingLotName())
+                .totalCapacity(totalCapacity)
+                .used(used)
+                .available(Math.max(totalCapacity - used, 0))
+                .usageRate(calculateUsageRate(used, totalCapacity))
+                .motorbikeCapacity(motorbikeCapacity)
+                .carCapacity(carCapacity)
+                .usedMotorbike(safeLong(row.getUsedMotorbike()))
+                .usedCar(safeLong(row.getUsedCar()))
+                .usedOther(safeLong(row.getUsedOther()))
+                .build();
+    }
+
+    private long safeLong(Long value) {
+        return value != null ? value : 0L;
+    }
+
+    private double calculateUsageRate(long used, long capacity) {
+        if (capacity <= 0) {
+            return 0D;
+        }
+        return Math.round((used * 10000D) / capacity) / 100D;
     }
 }

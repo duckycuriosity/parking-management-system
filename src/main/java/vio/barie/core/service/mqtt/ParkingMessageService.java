@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import vio.barie.core.common.BarrierActionType;
 import vio.barie.core.common.OperatingStatus;
+import vio.barie.core.dto.LaneEventCommand;
+import vio.barie.core.dto.LaneEventImage;
 import vio.barie.core.dto.LaneVehicleCommand;
 import vio.barie.core.dto.LockCmdCommandResponse;
 import vio.barie.core.dto.parking.OpenCmdCommand;
@@ -57,6 +59,9 @@ public class ParkingMessageService {
 
     @Value("${mqtt.publish-vehicle-topic-suffix}")
     private String vehicleSuffix;
+
+    @Value("${mqtt.publish-event-topic-suffix:/event}")
+    private String eventSuffix;
     private final ObjectMapper mapper = new ObjectMapper();
 
     public void handleConnect(String topic, JsonNode json) {
@@ -473,7 +478,7 @@ public class ParkingMessageService {
                 .reason("manual_override")
                 .playSound(true)
                 .soundFile("open_exit.wav")
-                .autoCloseSeconds(20)
+                .autoCloseSeconds(10)
                 .build();
 
         publish(deviceId, cmd);
@@ -520,6 +525,12 @@ public class ParkingMessageService {
 
     public void publishErrorWhenHandlingEvent(String message, String cameraUUID, DetectionType type, String barrierId,
                                               String plateNumber, Integer profileId) {
+        publishErrorWhenHandlingEvent(message, cameraUUID, type, barrierId, plateNumber, profileId, null, null);
+    }
+
+    public void publishErrorWhenHandlingEvent(String message, String cameraUUID, DetectionType type, String barrierId,
+                                              String plateNumber, Integer profileId, String code,
+                                              List<LaneEventImage> images) {
 
         try {
             String topic = buildErrorTopic(barrierId);
@@ -530,6 +541,8 @@ public class ParkingMessageService {
             payload.setBarrierId(barrierId);
             payload.setPlateNumber(plateNumber);
             payload.setProfileId(profileId);
+            payload.setCode(code);
+            payload.setImages(images);
             String json = JSONUtil.toJsonStr(payload);
             mqttPublisher.publish(topic, json);
             log.info("Published error event to topic={}", topic);
@@ -551,6 +564,20 @@ public class ParkingMessageService {
             log.error("publish vehicle info fail lane={}", cmd.getLaneId());
         }
     }
+    public void publishLaneEvent(LaneEventCommand cmd) {
+        if (cmd.getLaneId() == null) {
+            return;
+        }
+        cmd.setServerTs(System.currentTimeMillis());
+        String p = prefix == null ? "" : prefix.replaceAll("/+$", "");
+        String s = eventSuffix.startsWith("/") ? eventSuffix : "/" + eventSuffix;
+        try {
+            mqttPublisher.publish(p + "/" + cmd.getLaneId() + s, mapper.writeValueAsString(cmd));
+        } catch (Exception e) {
+            log.error("publish lane event {} fail lane={}: {}", cmd.getEvent(), cmd.getLaneId(), e.getMessage(), e);
+        }
+    }
+
     private String buildLaneTopic(Long laneId) {
         String p = prefix == null ? "" : prefix.replaceAll("/+$", "");
         String s = vehicleSuffix == null ? "/vehicle" : vehicleSuffix.startsWith("/") ? vehicleSuffix : "/" + vehicleSuffix;

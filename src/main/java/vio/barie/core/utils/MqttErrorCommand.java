@@ -1,6 +1,9 @@
 package vio.barie.core.utils;
 
 import lombok.Data;
+import vio.barie.core.dto.LaneEventImage;
+
+import java.util.List;
 
 @Data
 public class MqttErrorCommand {
@@ -10,4 +13,6 @@ public class MqttErrorCommand {
     private String barrierId;
     private String plateNumber;
     private Integer profileId;
+    private String code;
+    private List<LaneEventImage> images;
 }

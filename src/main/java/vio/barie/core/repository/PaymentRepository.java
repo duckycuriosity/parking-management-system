@@ -97,6 +97,15 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
     List<PaymentEntity> findLatestBySessionIds(@Param("sessionIds") List<Long> sessionIds);
 
     @Query(value = """
+            SELECT DISTINCT ON ((callback_context->>'sessionId')::bigint) *
+            FROM payment
+            WHERE callback_type = 'SESSION'
+            AND (callback_context->>'sessionId')::bigint IN (:sessionIds)
+            ORDER BY (callback_context->>'sessionId')::bigint, created_at DESC
+            """, nativeQuery = true)
+    List<PaymentEntity> findLatestAnyStatusBySessionIds(@Param("sessionIds") List<Long> sessionIds);
+
+    @Query(value = """
             SELECT
                 COALESCE(v_s.plate_number, v_t.plate_number) AS plate_number,
                 CASE p.callback_type

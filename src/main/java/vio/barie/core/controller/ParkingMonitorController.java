@@ -7,6 +7,7 @@ import vio.barie.core.common.OperatingStatus;
 import vio.barie.core.dto.Result;
 import vio.barie.core.dto.parking.CurrentParkingSessionCountResponse;
 import vio.barie.core.dto.parking.HourlyTrafficResponse;
+import vio.barie.core.dto.parking.ParkingLotCapacityResponse;
 import vio.barie.core.dto.parking.ParkingMetricsRequest;
 import vio.barie.core.dto.parking.VehicleMetricsResponse;
 import vio.barie.core.entity.ParkingDeviceEntity;
@@ -84,6 +85,14 @@ public class ParkingMonitorController {
         return Result.ok(
                 parkingSessionService.getCurrentParkingSessionCount(buildingId, parkingLotId)
         );
+    }
+
+    @GetMapping("/parking/capacity-by-lot")
+    public Result<ParkingLotCapacityResponse> getCapacityByLot(
+            @RequestParam(required = false) Long buildingId,
+            @RequestParam(required = false) Long parkingLotId
+    ) {
+        return Result.ok(parkingSessionService.getCapacityByLot(buildingId, parkingLotId));
     }
 
 }

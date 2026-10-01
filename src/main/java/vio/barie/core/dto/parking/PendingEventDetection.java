@@ -21,6 +21,7 @@ public class PendingEventDetection {
     DirectionType directionType; // ENTRY | EXIT
     Integer profileId;
     String plateNumber;
+    String vehicleType;
     String aiPlateId;
     long timestampMs;
 

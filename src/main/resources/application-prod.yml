@@ -54,11 +54,6 @@ mqtt:
   publish-cmd-topic-prefix: "parking/v1/server"
   publish-cmd-topic-suffix: "/cmd"
   publish-error-topic-suffix: "/error"
-  internet-health-check-topic: "parking/v1/server/internet-health-check"
-  internet:
-    check:
-      interval-ms: 15000
-      disconnect-threshold: 3
   publish-vehicle-topic-suffix: "/vehicle"
   receive-ai-event: "aibox/face/#"
   queue:
