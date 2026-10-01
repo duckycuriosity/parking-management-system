@@ -12,8 +12,8 @@ spring:
         jwt:
           issuer-uri: ${KEYCLOAK_ISSUER_URI:https://sso.safelinksystem.app/realms/barie}
   flyway:
-    ignore-missing-migrations: true
-    ignore-future-migrations: true
+    validate-on-migrate: false
+    ignore-migration-patterns: "*:missing"
   datasource:
     url: jdbc:postgresql://192.168.168.30:5434/barie
     username: barie_dev
