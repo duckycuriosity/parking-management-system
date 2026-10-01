@@ -9,7 +9,6 @@ import vio.barie.core.dto.Result;
 import vio.barie.core.dto.parking.VehicleUserRegisterRequest;
 import vio.barie.core.entity.VehicleUserPermissionEntity;
 import vio.barie.core.service.ParkingCustomerService;
-import vio.barie.core.service.ParkingService;
 
 // controller cho mọi hoạt động đỗ xe
 @RestController
@@ -18,7 +17,6 @@ import vio.barie.core.service.ParkingService;
 public class ParkingController {
 
     private final ParkingCustomerService parkingCustomerService;
-    private final ParkingService parkingService;
 
     @PostMapping("/register")
     public Result<VehicleUserPermissionEntity> register(@RequestBody VehicleUserRegisterRequest req) {

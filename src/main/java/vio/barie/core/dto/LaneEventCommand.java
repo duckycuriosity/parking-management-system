@@ -16,6 +16,7 @@ public class LaneEventCommand {
     public static final String PLATE_RECOGNIZED = "PLATE_RECOGNIZED";
     public static final String ENTRY_SUCCESS = "ENTRY_SUCCESS";
     public static final String EXIT_SUCCESS = "EXIT_SUCCESS";
+    public static final String FACE_MISMATCH_CONFIRM = "FACE_MISMATCH_CONFIRM";
 
     @JsonProperty("type")
     @Builder.Default
@@ -32,6 +33,7 @@ public class LaneEventCommand {
     @JsonProperty("confidence") private Double confidence;
     @JsonProperty("profile_id") private Integer profileId;
     @JsonProperty("session_id") private Long sessionId;
+    @JsonProperty("incident_id") private Long incidentId;
 
     @JsonProperty("images") private List<LaneEventImage> images;
 

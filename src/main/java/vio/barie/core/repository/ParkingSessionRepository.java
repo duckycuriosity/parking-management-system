@@ -46,6 +46,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
 
     @Query("SELECT new vio.barie.core.dto.ActivitySessionResponse(" +
             "s.id, v.plateNumber, v.vehicleType, " +
+            "s.entryImageInfo, s.exitImageInfo, s.sessionType, " +
             "s.entryTime, s.exitTime, " +
             "p.name, el.name, xl.name, null) " +
             "FROM ParkingSessionEntity s " +
