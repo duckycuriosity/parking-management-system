@@ -9,10 +9,10 @@ mqtt:
   receive-ai-event: aibox/face/#
 
 server:
-  port: 1
+  port: 1081
 spring:
   profiles:
-    active: dev
+    active: prod
   application:
     name: core
   flyway:
