@@ -14,5 +14,7 @@ public class PaymentListItemResponse {
     private BigDecimal amount;
     private String paymentMethod;
     private String status;
+    private String invoiceNo;
+    private String transactionContent;
     private LocalDateTime time;
 }

@@ -10,4 +10,6 @@ import java.math.BigDecimal;
 public class RevenueSummaryResponse {
     private BigDecimal totalRevenue;
     private long successfulTransactions;
+    private long pendingTransactions;
+    private long failedTransactions;
 }
