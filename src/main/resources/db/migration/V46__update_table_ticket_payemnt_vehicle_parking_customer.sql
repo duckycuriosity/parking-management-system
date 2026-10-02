@@ -1,14 +1,14 @@
 ALTER TABLE public.parking_customer
-    ADD COLUMN IF NOT EXISTS customer_code character varying(50),
-    ADD COLUMN IF NOT EXISTS identity_number character varying(50),
-    ADD COLUMN IF NOT EXISTS apartment_number character varying(50),
-    ADD COLUMN IF NOT EXISTS address character varying(255),
-    ADD COLUMN IF NOT EXISTS zalo_link character varying(255),
+    ADD COLUMN IF NOT EXISTS customer_code varchar (50),
+    ADD COLUMN IF NOT EXISTS identity_number varchar (50),
+    ADD COLUMN IF NOT EXISTS apartment_number varchar (50),
+    ADD COLUMN IF NOT EXISTS address varchar (255),
+    ADD COLUMN IF NOT EXISTS zalo_link varchar (255),
     ADD COLUMN IF NOT EXISTS is_zalo_linked boolean DEFAULT false,
     ADD COLUMN IF NOT EXISTS note text;
 
 ALTER TABLE public.ticket
-    ADD COLUMN IF NOT EXISTS ticket_code character varying(50),
+    ADD COLUMN IF NOT EXISTS ticket_code varchar (50),
     ADD COLUMN IF NOT EXISTS parking_lot_id bigint,
     ADD COLUMN IF NOT EXISTS price numeric(15,2);
 
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS public.vehicle_users (
     id bigserial PRIMARY KEY,
     vehicle_id bigint NOT NULL,
     customer_id bigint NOT NULL,
-    user_type character varying(50),
+    user_type varchar (50),
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT fk_vehicle_users_vehicle
