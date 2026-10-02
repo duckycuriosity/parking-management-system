@@ -1,14 +1,22 @@
 package vio.barie.core.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.ClientHttpRequest;
+import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StreamUtils;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import vio.barie.core.common.BaseStatus;
 import vio.barie.core.dto.camera.*;
@@ -18,9 +26,12 @@ import vio.barie.core.mapper.CameraMapper;
 import vio.barie.core.repository.CameraRepository;
 import vio.barie.core.service.AIService.AICameraService;
 
+import java.io.OutputStream;
 
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.URI;
+import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -44,6 +55,25 @@ public class CameraService {
     @Value("${ai.core.stream-url}")
     private String streamAI;
 
+    // nội bộ
+    @Value("${vms.ws.internal-ws-host}")
+    private String internalWsHost;
+    //  public
+    @Value("${vms.ws.public-ws-host}")
+    private String publicWsHost;
+
+    @Value("${vms.core.cookie}")
+    private String vmsCookie;
+
+    @Value("${vms.core.origin}")
+    private String vmsOrigin;
+
+    @Value("${vms.core.user-agent}")
+    private String vmsUserAgent;
+
+    @Value("${vms.core.login-referer}")
+    private String vmsReferer;
+
     public CameraService(
             @Qualifier("aiRestClient") RestClient aiRestClient,
             AICameraService aiCameraService,
@@ -59,7 +89,7 @@ public class CameraService {
         this.objectMapper = objectMapper;
     }
 
-
+    @Transactional
     public CameraResponse createCamera(CameraCreateRequest clientBody) {
 
         Map<String, Object> aiPayload = new java.util.HashMap<>();
@@ -68,6 +98,9 @@ public class CameraService {
         aiPayload.put("url", clientBody.getMain() != null ? clientBody.getMain().trim() : "");
         aiPayload.put("mode", clientBody.getMode().getAiValue());
         aiPayload.put("protocol", clientBody.getProtocol());
+        if (clientBody.getRoi() != null) {
+            aiPayload.put("roi", clientBody.getRoi());
+        }
 
         AICameraActionResponse aiCameraResponse = aiCameraService.addCamera(aiPayload);
 
@@ -78,6 +111,7 @@ public class CameraService {
         camera.setUuid(aiCameraResponse.getUuid());
         camera.setLatitude(clientBody.getLatitude() != null ? clientBody.getLatitude() : 0.0);
         camera.setLongitude(clientBody.getLongitude() != null ? clientBody.getLongitude() : 0.0);
+        setEntityRoi(camera, clientBody.getRoi());
         camera.setSubUrl(clientBody.getSub());
         camera.setMode(clientBody.getMode().getAiValue());
         camera.setProtocol(clientBody.getProtocol());
@@ -100,31 +134,27 @@ public class CameraService {
 
 
     public List<CameraResponse> getCameraList(String searchKey, BaseStatus status) {
-        String formattedSearchKey = (searchKey != null && !searchKey.trim().isEmpty()) ? "%" + searchKey.trim() + "%" : null;
-
-        List<CameraEntity> entities = cameraRepository.searchCameras(formattedSearchKey, null);
+        String formattedSearchKey = null;
+        if (searchKey != null && !searchKey.trim().isEmpty()) {
+            formattedSearchKey = "%" + searchKey.trim() + "%";
+        }
+        List<CameraEntity> entities = cameraRepository.searchCameras(formattedSearchKey, status);
         List<CameraResponse> responses = cameraMapper.toResponseList(entities);
         Map<String, AICameraDetail> aiCameras = fetchAICamerasSafely();
-
-        for(CameraResponse res : responses){
+        for (CameraResponse res : responses) {
             AICameraDetail detail = aiCameras.get(res.getAiCameraId());
             if (detail != null) {
                 res.setAiStreamStatus(detail.getStatus());
                 res.setAiStreamError(detail.getError());
                 res.setFps(detail.getFps());
-                if(detail.getLiveStream() != null){
+                if (detail.getLiveStream() != null) {
                     res.setLiveStreamLink(detail.getLiveStream().getLink());
                     res.setAudioCodec(detail.getLiveStream().getAudioCodec());
                     res.setVideoCodec(detail.getLiveStream().getVideoCodec());
                 }
-            } else {
-                res.setAiStreamStatus("unknown");
             }
+        }
 
-        }
-        if (status != null) {
-            return responses.stream().filter(res -> res.getStatus() == status).toList();
-        }
         return responses;
     }
 
@@ -134,6 +164,7 @@ public class CameraService {
         return cameraMapper.toResponse(entity);
     }
 
+    @Transactional
     public CameraResponse updateCamera(Long id, CameraUpdateRequest request) {
         CameraEntity entity = cameraRepository.findByIdWithRelations(id)
                 .orElseThrow(() -> new RuntimeException("Camera not found with ID: " + id));
@@ -153,6 +184,9 @@ public class CameraService {
         if (request.getLongitude() != null) {
             entity.setLongitude(request.getLongitude());
         }
+        if (request.getRoi() != null) {
+            setEntityRoi(entity, request.getRoi());
+        }
         if (request.getMode() != null) {
             entity.setMode(request.getMode().getAiValue());
         }
@@ -167,6 +201,10 @@ public class CameraService {
             aiPayload.put("url", entity.getUrl());
             aiPayload.put("mode", entity.getMode());
             aiPayload.put("protocol", entity.getProtocol());
+            CameraRoi roi = getEntityRoi(entity);
+            if (roi != null) {
+                aiPayload.put("roi", roi);
+            }
             aiCameraService.updateStream(aiCameraId, aiPayload);
         } else {
             log.warn("Camera id={} does not map AI service, but update DB", id);
@@ -188,13 +226,14 @@ public class CameraService {
         cameraRepository.deleteById(id);
     }
 
-    public ResponseEntity<StreamingResponseBody> aiVideoStream(String aiCameraId) {
+    public void aiVideoStream(String aiCameraId, HttpServletResponse response) {
 
         cameraRepository.findCameraByAiCameraId(aiCameraId)
                 .orElseThrow(() -> new RuntimeException("Camera không tồn tại với ID AI: " + aiCameraId));
 
         String cleanId = aiCameraId.replaceAll("[\\r\\n\\t ]", "");
         String streamUrl = streamAI + "/video_feed/" + cleanId;
+        log.info("[STREAM] URL gọi sang AI: {}", streamUrl);
 
         try {
             HttpClient client = HttpClient.newBuilder()
@@ -210,29 +249,37 @@ public class CameraService {
             HttpResponse<InputStream> aiResponse = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
             if (aiResponse.statusCode() != 200) {
                 log.error("[STREAM] AI Server từ chối kết nối, HTTP Code: {}", aiResponse.statusCode());
-                return ResponseEntity.badRequest().build();
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                return;
             }
 
             String aiContentType = aiResponse.headers().firstValue("Content-Type")
                     .orElse("multipart/x-mixed-replace; boundary=frame");
-            StreamingResponseBody stream = out ->{
-                try(InputStream is = aiResponse.body()){
-                    is.transferTo(out);
-                }catch (Exception e){
-                    log.warn("[STREAM] Ngắt kết nối stream ");
+            log.info("[STREAM] Đã nhận Content-Type từ AI: {}", aiContentType);
+
+            response.setContentType(aiContentType);
+            response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
+            response.setHeader("Pragma", "no-cache");
+            response.setHeader("Expires", "0");
+            response.setHeader("Connection", "keep-alive");
+            response.setBufferSize(0); // tắt bo dem
+
+            try (InputStream is = aiResponse.body();
+                 OutputStream out = response.getOutputStream()) {
+                byte[] buffer = new byte[4096];
+                int bytesRead;
+
+                while ((bytesRead = is.read(buffer)) != -1) {
+                    out.write(buffer, 0, bytesRead);
+                    out.flush();
                 }
-            };
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_TYPE, aiContentType)
-                    .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate, max-age=0")
-                    .header(HttpHeaders.PRAGMA, "no-cache")
-                    .header(HttpHeaders.EXPIRES, "0")
-                    .header(HttpHeaders.CONNECTION, "keep-alive")
-                    .body(stream);
+            } catch (Exception e) {
+                log.warn("[STREAM] Ngắt kết nối stream (User đóng trình duyệt)");
+            }
 
         } catch (Exception e) {
-            log.error("Lỗi khi stream video từ AI", e);
-           return ResponseEntity.badRequest().build();
+            log.error("[STREAM] Lỗi luồng proxy: ", e);
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         }
     }
 //
@@ -274,6 +321,8 @@ public class CameraService {
 
         try {
             JsonNode aiCamerasNode = objectMapper.readTree(rawResponse);
+
+
             if (aiCamerasNode.isObject()) {
                 java.util.Iterator<Map.Entry<String, JsonNode>> fields = aiCamerasNode.fields();
 
@@ -290,22 +339,17 @@ public class CameraService {
                     entity.setUuid(camData.path("uuid").asText());
                     entity.setUrl(camData.path("main").asText());
                     entity.setSubUrl(camData.path("sub").asText());
-
-                    String aiStatus = camData.path("status").asText();
-
-                    BaseStatus mappedStatus = BaseStatus.INACTIVE;
-                    if("live".equalsIgnoreCase(aiStatus)){
-                        mappedStatus = BaseStatus.ACTIVE;
+                    if (camData.has("roi") && !camData.get("roi").isNull()) {
+                        setEntityRoi(entity, objectMapper.treeToValue(camData.get("roi"), CameraRoi.class));
                     }
-                    entity.setStatus(mappedStatus);
 
                     if (entity.getId() == null) {
+                        entity.setStatus(BaseStatus.ACTIVE);
                         entity.setType(BaseStatus.ACTIVE); // Mặc định khi tạo mới
                     }
-                    syncedCameras.add(entity);
-                }
-                if (!syncedCameras.isEmpty()) {
-                    syncedCameras = cameraRepository.saveAll(syncedCameras);
+
+                    CameraEntity savedEntity = cameraRepository.save(entity);
+                    syncedCameras.add(savedEntity);
                 }
             } else {
                 log.warn("Cấu trúc JSON từ AI API không phải là Object. Không thể đồng bộ.");
@@ -325,5 +369,40 @@ public class CameraService {
             log.warn("Cannot reach AI service");
             return Map.of();
         }
+    }
+
+    private void setEntityRoi(CameraEntity entity, CameraRoi roi) {
+        entity.setRoiX1(roi != null ? roi.getX1() : null);
+        entity.setRoiY1(roi != null ? roi.getY1() : null);
+        entity.setRoiX2(roi != null ? roi.getX2() : null);
+        entity.setRoiY2(roi != null ? roi.getY2() : null);
+        entity.setRoiX3(roi != null ? roi.getX3() : null);
+        entity.setRoiY3(roi != null ? roi.getY3() : null);
+        entity.setRoiX4(roi != null ? roi.getX4() : null);
+        entity.setRoiY4(roi != null ? roi.getY4() : null);
+    }
+
+    private CameraRoi getEntityRoi(CameraEntity entity) {
+        if (entity.getRoiX1() == null
+                && entity.getRoiY1() == null
+                && entity.getRoiX2() == null
+                && entity.getRoiY2() == null
+                && entity.getRoiX3() == null
+                && entity.getRoiY3() == null
+                && entity.getRoiX4() == null
+                && entity.getRoiY4() == null) {
+            return null;
+        }
+
+        return new CameraRoi(
+                entity.getRoiX1(),
+                entity.getRoiY1(),
+                entity.getRoiX2(),
+                entity.getRoiY2(),
+                entity.getRoiX3(),
+                entity.getRoiY3(),
+                entity.getRoiX4(),
+                entity.getRoiY4()
+        );
     }
 }

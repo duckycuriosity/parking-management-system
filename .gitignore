@@ -42,3 +42,39 @@ out/
 !gradle/wrapper/
 !gradle/wrapper/gradle-wrapper.jar
 !gradle/wrapper/gradle-wrapper.properties
+
+### Build artifacts ###
+*.jar
+*.war
+!gradle/wrapper/gradle-wrapper.jar
+*.class
+
+### Logs ###
+*.log
+logs/
+
+### OS ###
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+### Env / local secrets ###
+.env
+.env.*
+application-local.yml
+application-local.yaml
+
+### Editor swap/backup files ###
+*.swp
+*.swo
+*~
+*.bak
+*.tmp
+
+### Test reports ###
+**/test-results/
+**/reports/
+
+### Scratch / ad-hoc test tooling ###
+auth-test/
+/barie-core-service-dev-1874-tcplabviotechcomvn11883/

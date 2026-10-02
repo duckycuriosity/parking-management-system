@@ -28,6 +28,7 @@ public class CameraResponse {
     private DateTime created_date;
     private double latitude;
     private double longitude;
+    private CameraRoi roi;
     private String sub_url;
     private String mode;
     private String protocol;

@@ -65,6 +65,35 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
 //            "LEFT JOIN TicketEntity t ON s.ticketId = t.id " +
 //            "LEFT JOIN t.customer c " +
             "WHERE s.parkingLot.id = :parkingLotId " +
+            "AND (:buildingId IS NULL OR s.parkingLot.building.id = :buildingId) " +
+            "AND (:searchKey IS NULL OR :searchKey = '' OR(" +
+            "     LOWER(ec.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) OR " +
+            "     LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')))) " +
+            "AND (:sessionType IS NULL OR s.sessionType IN :sessionType) " +
+            "AND (:typeVehicle IS NULL OR v.vehicleType = :typeVehicle) " +
+            "AND (:entryLaneId IS NULL OR el.id = :entryLaneId) " +
+            "AND (:exitLaneId IS NULL OR xl.id = :exitLaneId) " +
+            "AND (:statusInOut IS NULL OR :statusInOut = '' " +
+            "     OR (:statusInOut = 'IN' AND s.exitTime IS NULL) " +
+            "     OR (:statusInOut = 'OUT' AND s.exitTime IS NOT NULL)) ")
+    Page<ParkingSessionEntity> findIdByParkingLotWithFilters(
+            @Param("parkingLotId") Long parkingLotId,
+            @Param("buildingId") Long buildingId,
+            @Param("searchKey") String searchKey,
+            @Param("sessionType") List<SessionType> sessionType,
+            @Param("typeVehicle") String typeVehicle,
+            @Param("entryLaneId") Long entryLaneId,
+            @Param("exitLaneId") Long exitLaneId,
+            @Param("statusInOut") String statusInOut,
+            Pageable pageable);
+
+    @Query("SELECT s FROM ParkingSessionEntity s " +
+            "LEFT JOIN s.vehicle v " +
+            "LEFT JOIN s.entryLane el " +
+            "LEFT JOIN s.exitLane xl " +
+            "LEFT JOIN s.entryCustomer ec " +
+            "WHERE (:parkingLotId IS NULL OR s.parkingLot.id = :parkingLotId) " +
+            "AND (:buildingId IS NULL OR s.parkingLot.building.id = :buildingId) " +
             "AND (:searchKey IS NULL OR :searchKey = '' OR(" +
             "     LOWER(ec.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) OR " +
             "     LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')))) " +
@@ -75,8 +104,10 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "AND (:statusInOut IS NULL OR :statusInOut = '' " +
             "     OR (:statusInOut = 'IN' AND s.exitTime IS NULL) " +
             "     OR (:statusInOut = 'OUT' AND s.exitTime IS NOT NULL)) " +
-            "ORDER BY s.entryTime DESC")
-    Page<ParkingSessionEntity> findIdByParkingLotWithFilters(
+            "AND s.entryTime >= :startDate " +
+            "AND s.entryTime <= :endDate ")
+    Page<ParkingSessionEntity> findPaymentDetailSessionsWithFilters(
+            @Param("buildingId") Long buildingId,
             @Param("parkingLotId") Long parkingLotId,
             @Param("searchKey") String searchKey,
             @Param("sessionType") List<SessionType> sessionType,
@@ -84,6 +115,8 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             @Param("entryLaneId") Long entryLaneId,
             @Param("exitLaneId") Long exitLaneId,
             @Param("statusInOut") String statusInOut,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
             Pageable pageable);
 
 
@@ -95,6 +128,8 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
 //            "LEFT JOIN TicketEntity t ON s.ticketId = t.id " +
 //            "LEFT JOIN t.customer c " +
             "WHERE " +
+            "(:parkingLotId IS NULL OR s.parkingLot.id = :parkingLotId) " +
+            "AND " +
             "(:searchKey IS NULL OR :searchKey = '' OR (" +
             "     LOWER(ec.username) LIKE LOWER(CONCAT('%', :searchKey, '%')) " +
             "     OR LOWER(v.plateNumber) LIKE LOWER(CONCAT('%', :searchKey, '%')))) " +
@@ -105,14 +140,32 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "AND (:statusInOut IS NULL OR :statusInOut = '' " +
             "     OR (:statusInOut = 'IN' AND s.exitTime IS NULL) " +
             "     OR (:statusInOut = 'OUT' AND s.exitTime IS NOT NULL)) " +
+            "AND s.entryTime >= :startDate " +
+            "AND s.entryTime <= :endDate " +
             "ORDER BY s.entryTime DESC")
     Page<ParkingSessionEntity> findAllParkingLotWithFilters(
             @Param("searchKey") String searchKey,
+            @Param("parkingLotId") Long parkingLotId,
             @Param("sessionType") List<SessionType> sessionType,
             @Param("typeVehicle") String typeVehicle,
             @Param("entryLaneId") Long entryLaneId,
             @Param("exitLaneId") Long exitLaneId,
             @Param("statusInOut") String statusInOut,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            Pageable pageable);
+
+    @Query("SELECT s FROM ParkingSessionEntity s " +
+            "LEFT JOIN s.entryLane el " +
+            "LEFT JOIN s.exitLane xl " +
+            "WHERE (:buildingId IS NULL OR s.parkingLot.building.id = :buildingId) " +
+            "AND (:parkingLotId IS NULL OR s.parkingLot.id = :parkingLotId) " +
+            "AND (:laneId IS NULL OR el.id = :laneId OR xl.id = :laneId) " +
+            "ORDER BY s.entryTime DESC")
+    Page<ParkingSessionEntity> findInOutSessions(
+            @Param("buildingId") Long buildingId,
+            @Param("parkingLotId") Long parkingLotId,
+            @Param("laneId") Long laneId,
             Pageable pageable);
 
     @Query(value = "SELECT COUNT(*) FROM vehicle v " +
@@ -160,6 +213,18 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
             "AND (:buildingId IS NULL OR s.parkingLot.building.id = :buildingId) " +
             "GROUP BY v.vehicleType")
     List<VehicleStatProjection> countVehicleTypeStats(
+            @Param("buildingId") Long buildingId,
+            @Param("parkingLotId") Long parkingLotId);
+
+    @Query("SELECT s.sessionType AS sessionType, v.vehicleType AS vehicleType, COUNT(s.id) AS total " +
+            "FROM ParkingSessionEntity s " +
+            "JOIN s.vehicle v " +
+            "WHERE s.exitTime IS NULL " +
+            "AND s.sessionType IS NOT NULL " +
+            "AND (:parkingLotId IS NULL OR s.parkingLot.id = :parkingLotId) " +
+            "AND (:buildingId IS NULL OR s.parkingLot.building.id = :buildingId) " +
+            "GROUP BY s.sessionType, v.vehicleType")
+    List<SessionStatProjection> countCurrentSessionAndVehicleStats(
             @Param("buildingId") Long buildingId,
             @Param("parkingLotId") Long parkingLotId);
 
