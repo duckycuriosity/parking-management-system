@@ -164,27 +164,63 @@ public class PaymentService {
     ;
 
     @Transactional(readOnly = true)
-    public RevenueSummaryResponse getDailyRevenueSummary(Long parkingLotId, Long buildingId) {
-        LocalDateTime from = LocalDateTime.now().toLocalDate().atStartOfDay();
-        LocalDateTime to = LocalDateTime.now();
+    public RevenueSummaryResponse getDailyRevenueSummary(
+            Long parkingLotId,
+            Long buildingId,
+            String startDate,
+            String endDate) {
+        LocalDateTime from = parseDateFilter(startDate, "startDate", false);
+        LocalDateTime to = parseDateFilter(endDate, "endDate", true);
+        if ((startDate == null || startDate.isBlank()) && (endDate == null || endDate.isBlank())) {
+            LocalDate today = LocalDate.now();
+            from = today.withDayOfMonth(1).atStartOfDay();
+            to = today.plusDays(1).atStartOfDay();
+        }
+        if (from != null && to != null && !from.isBefore(to)) {
+            throw new ServiceException("startDate must be before or equal to endDate");
+        }
 
-        Tuple result = paymentRepository.sumAndCountByStatus("PAID", from, to, parkingLotId, buildingId);
+        Tuple result = paymentRepository.getRevenueSummary(from, to, parkingLotId, buildingId);
 
         BigDecimal revenue = result.get("revenue", BigDecimal.class);
-        Number count = (Number) result.get("count");
+        Number successfulCount = (Number) result.get("successful_count");
+        Number pendingCount = (Number) result.get("pending_count");
+        Number failedCount = (Number) result.get("failed_count");
 
         return RevenueSummaryResponse.builder()
                 .totalRevenue(revenue != null ? revenue : BigDecimal.ZERO)
-                .successfulTransactions(count != null ? count.longValue() : 0L)
+                .successfulTransactions(successfulCount != null ? successfulCount.longValue() : 0L)
+                .pendingTransactions(pendingCount != null ? pendingCount.longValue() : 0L)
+                .failedTransactions(failedCount != null ? failedCount.longValue() : 0L)
                 .build();
     }
 
     @Transactional(readOnly = true)
-    public Page<PaymentListItemResponse> getPaymentList(Boolean success, int page, int size) {
-        String statusFilter = success == null ? "ALL" : (success ? "PAID" : "OTHER");
-        Page<Object[]> raw = paymentRepository.findPaymentListRaw(statusFilter, PageRequest.of(page, size));
+    public Page<PaymentListItemResponse> getPaymentList(
+            Boolean success,
+            String status,
+            Long buildingId,
+            Long parkingLotId,
+            String startDate,
+            String endDate,
+            int page,
+            int size) {
+        String statusFilter = resolvePaymentStatusFilter(success, status);
+        LocalDateTime from = parseDateFilter(startDate, "startDate", false);
+        LocalDateTime to = parseDateFilter(endDate, "endDate", true);
+        if ((startDate == null || startDate.isBlank()) && (endDate == null || endDate.isBlank())) {
+            LocalDate today = LocalDate.now();
+            from = today.withDayOfMonth(1).atStartOfDay();
+            to = today.plusDays(1).atStartOfDay();
+        }
+        if (from != null && to != null && !from.isBefore(to)) {
+            throw new ServiceException("startDate must be before or equal to endDate");
+        }
+
+        Page<Object[]> raw = paymentRepository.findPaymentListRaw(
+                statusFilter, buildingId, parkingLotId, from, to, PageRequest.of(page, size));
         return raw.map(row -> {
-            Object timeObj = row[5];
+            Object timeObj = row[7];
             LocalDateTime parsedTime = null;
 
             if (timeObj != null) {
@@ -200,22 +236,51 @@ public class PaymentService {
                     .amount(row[2] != null ? new BigDecimal(row[2].toString()) : null)
                     .paymentMethod((String) row[3])
                     .status((String) row[4])
+                    .invoiceNo((String) row[5])
+                    .transactionContent((String) row[6])
                     .time(parsedTime)
                     .build();
         });
     }
 
+    private String resolvePaymentStatusFilter(Boolean success, String status) {
+        if (status != null && !status.isBlank() && !"all".equalsIgnoreCase(status)) {
+            return status.trim().toUpperCase(Locale.ROOT);
+        }
+        return success == null ? "ALL" : (success ? "PAID" : "OTHER");
+    }
+
+    private LocalDateTime parseDateFilter(String value, String fieldName, boolean endOfDayExclusive) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            LocalDate date = LocalDate.parse(value.trim(), DateTimeFormatter.ISO_LOCAL_DATE);
+            return endOfDayExclusive ? date.plusDays(1).atStartOfDay() : date.atStartOfDay();
+        } catch (Exception e) {
+            throw new ServiceException(fieldName + " must be yyyy-MM-dd");
+        }
+    }
+
     @Transactional(readOnly = true)
-    public RevenueReportResponse getRevenueReport(LocalDate startDate, LocalDate endDate, int page, int size) {
-        LocalDateTime from = startDate.atStartOfDay();
-        LocalDateTime to = endDate.plusDays(1).atStartOfDay();
+    public RevenueReportResponse getRevenueReport(
+            String startDate,
+            String endDate,
+            Long buildingId,
+            Long parkingLotId,
+            int page,
+            int size) {
+        DateRange dateRange = resolveDateRange(startDate, endDate);
+        LocalDateTime from = dateRange.from();
+        LocalDateTime to = dateRange.to();
 
         // Redis keys use ISO format "yyyy-MM-dd" — matches Postgres DATE::text for exclude comparison
         DateTimeFormatter redisKeyFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
         // Display format "dd/MM/yyyy" matches what TO_CHAR returns from DB
         DateTimeFormatter displayFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-        List<LocalDate> allDates = getDateListBetween(from, to); // "yyyy-MM-dd"
+        boolean cacheable = buildingId == null && parkingLotId == null && from != null && to != null;
+        List<LocalDate> allDates = cacheable ? getDateListBetween(from, to) : Collections.emptyList(); // "yyyy-MM-dd"
         List<LocalDate> excludeDates = new ArrayList<>();
         excludeDates.add(LocalDate.now().plusDays(1));
 
@@ -238,7 +303,7 @@ public class PaymentService {
             }
         }
 
-        List<Object[]> rows = paymentRepository.findDailyRevenue(from, to, excludeDates);
+        List<Object[]> rows = paymentRepository.findDailyRevenue(from, to, excludeDates, buildingId, parkingLotId);
         for (Object[] row : rows) {
             String displayDate = (String) row[0]; // "dd/MM/yyyy" from TO_CHAR in SQL
             long count = ((Number) row[1]).longValue();
@@ -251,9 +316,11 @@ public class PaymentService {
                     .build());
 
             // Cache with ISO key so exclude list matches Postgres DATE::text on next call
-            String dateKey = LocalDate.parse(displayDate, displayFmt).format(redisKeyFmt);
-            stringRedisTemplate.opsForHash().put(dateKey, "transactionCount", String.valueOf(count));
-            stringRedisTemplate.opsForHash().put(dateKey, "revenue", revenue.toPlainString());
+            if (cacheable) {
+                String dateKey = LocalDate.parse(displayDate, displayFmt).format(redisKeyFmt);
+                stringRedisTemplate.opsForHash().put(dateKey, "transactionCount", String.valueOf(count));
+                stringRedisTemplate.opsForHash().put(dateKey, "revenue", revenue.toPlainString());
+            }
         }
 
         // Sort descending (newest first) — same order as the DB query
@@ -268,7 +335,7 @@ public class PaymentService {
                 .mapToLong(RevenueReportResponse.DailyDetail::getTransactionCount)
                 .sum();
 
-        long daysInRange = ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        long daysInRange = resolveDaysInRange(dateRange, details.size());
         BigDecimal avgDailyRevenue = daysInRange > 0
                 ? totalRevenue.divide(BigDecimal.valueOf(daysInRange), 0, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
@@ -323,6 +390,64 @@ public class PaymentService {
         response.put("totalRevenue", dailyRevenue.add(monthlyRevenue));
 
         return response;
+    private DateRange resolveDateRange(String startDate, String endDate) {
+        LocalDateTime from = parseDateFilter(startDate, "startDate", false);
+        LocalDateTime to = parseDateFilter(endDate, "endDate", true);
+        if ((startDate == null || startDate.isBlank()) && (endDate == null || endDate.isBlank())) {
+            LocalDate today = LocalDate.now();
+            from = today.withDayOfMonth(1).atStartOfDay();
+            to = today.plusDays(1).atStartOfDay();
+        }
+        if (from != null && to != null && !from.isBefore(to)) {
+            throw new ServiceException("startDate must be before or equal to endDate");
+        }
+        return new DateRange(from, to);
+    }
+
+    private long resolveDaysInRange(DateRange dateRange, int detailCount) {
+        if (dateRange.from() != null && dateRange.to() != null) {
+            return ChronoUnit.DAYS.between(dateRange.from().toLocalDate(), dateRange.to().toLocalDate());
+        }
+        return Math.max(detailCount, 1);
+    }
+
+    public String buildRevenueReportExportFilename(String startDate, String endDate) {
+        DateRange dateRange = resolveDateRange(startDate, endDate);
+        DateTimeFormatter filenameFmt = DateTimeFormatter.ISO_LOCAL_DATE;
+        return "bao-cao-doanh-thu-"
+                + formatDateRangeStart(dateRange, filenameFmt)
+                + "-den-"
+                + formatDateRangeEnd(dateRange, filenameFmt)
+                + ".xlsx";
+    }
+
+    private String formatDateRangeStart(DateRange dateRange, DateTimeFormatter formatter) {
+        return dateRange.from() != null ? dateRange.from().toLocalDate().format(formatter) : "tat-ca";
+    }
+
+    private String formatDateRangeEnd(DateRange dateRange, DateTimeFormatter formatter) {
+        if (dateRange.to() == null) {
+            return "tat-ca";
+        }
+        return dateRange.to().toLocalDate().minusDays(1).format(formatter);
+    }
+
+    private static class DateRange {
+        private final LocalDateTime from;
+        private final LocalDateTime to;
+
+        private DateRange(LocalDateTime from, LocalDateTime to) {
+            this.from = from;
+            this.to = to;
+        }
+
+        private LocalDateTime from() {
+            return from;
+        }
+
+        private LocalDateTime to() {
+            return to;
+        }
     }
 
     public static List<LocalDate> getDateListBetween(LocalDateTime from, LocalDateTime to) {
@@ -354,8 +479,9 @@ public class PaymentService {
     }
 
     @Transactional
-    public byte[] exportRevenueReportToExcel(LocalDate startDate, LocalDate endDate) {
-        RevenueReportResponse report = getRevenueReport(startDate, endDate, 0, Integer.MAX_VALUE);
+    public byte[] exportRevenueReportToExcel(String startDate, String endDate, Long buildingId, Long parkingLotId) {
+        DateRange dateRange = resolveDateRange(startDate, endDate);
+        RevenueReportResponse report = getRevenueReport(startDate, endDate, buildingId, parkingLotId, 0, Integer.MAX_VALUE);
         DateTimeFormatter displayFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
         try (XSSFWorkbook wb = new XSSFWorkbook();
@@ -408,8 +534,8 @@ public class PaymentService {
 
             // --- Row 1: date range ---
             Row r1 = sheet.createRow(1);
-            String rangeLabel = "Từ ngày: " + startDate.format(displayFmt)
-                    + "   Đến ngày: " + endDate.format(displayFmt);
+            String rangeLabel = "Từ ngày: " + formatDateRangeStart(dateRange, displayFmt)
+                    + "   Đến ngày: " + formatDateRangeEnd(dateRange, displayFmt);
             setCell(r1, 0, rangeLabel, null);
             sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 2));
 
