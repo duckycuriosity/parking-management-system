@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import vio.barie.core.common.VerificationMode;
 import vio.barie.core.dto.LaneEventCommand;
 import vio.barie.core.dto.LaneEventImage;
+import vio.barie.core.dto.parking.EventImageInfo;
 import vio.barie.core.dto.parking.PendingEventDetection;
 import vio.barie.core.entity.BarrierEntity;
 import vio.barie.core.entity.LaneIncidentEntity;
@@ -23,6 +24,7 @@ import vio.barie.core.utils.DirectionType;
 import vio.barie.core.verification.ParkingSessionLifecycleService;
 import vio.barie.core.verification.VehicleVerificationService;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -161,6 +163,7 @@ public class FacePlateVerificationService implements VehicleVerificationService 
                 log.warn(
                         "handleExitEvent: no open parking session found for vehicle={} customer={} plate={} profileId={}",
                         vehicle.getId(), customer.getId(), vehicle.getPlateNumber(), customer.getAiProfileId());
+                List<LaneEventImage> imagesToSend = new ArrayList<>(LaneEventImage.from("exit_", detection.getListImageInfo()));
                 ioTService.publishErrorWhenHandlingEvent(
                         "Không tìm thấy phiên gửi xe đang mở khớp với xe tại làn ra",
                         "",
@@ -168,7 +171,7 @@ public class FacePlateVerificationService implements VehicleVerificationService 
                         barrierId,
                         vehicle.getPlateNumber(),
                         customer.getAiProfileId(),
-                        "SESSION_NOT_FOUND", null);
+                        "SESSION_NOT_FOUND", imagesToSend);
                 return;
             }
             ParkingSessionEntity openSession = openSessionOpt.get();
