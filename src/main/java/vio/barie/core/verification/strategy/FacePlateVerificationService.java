@@ -5,21 +5,27 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vio.barie.core.common.VerificationMode;
+import vio.barie.core.dto.LaneEventCommand;
 import vio.barie.core.dto.LaneEventImage;
+import vio.barie.core.dto.parking.EventImageInfo;
 import vio.barie.core.dto.parking.PendingEventDetection;
 import vio.barie.core.entity.BarrierEntity;
+import vio.barie.core.entity.LaneIncidentEntity;
 import vio.barie.core.entity.ParkingCustomerEntity;
 import vio.barie.core.entity.ParkingSessionEntity;
 import vio.barie.core.entity.VehicleEntity;
 import vio.barie.core.repository.BarrierRepository;
 import vio.barie.core.repository.ParkingCustomerRepository;
 import vio.barie.core.repository.VehicleRepository;
+import vio.barie.core.service.LaneIncidentService;
 import vio.barie.core.service.mqtt.ParkingMessageService;
 import vio.barie.core.service.smoothing.SmoothingAIEvents;
 import vio.barie.core.utils.DirectionType;
 import vio.barie.core.verification.ParkingSessionLifecycleService;
 import vio.barie.core.verification.VehicleVerificationService;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -39,6 +45,7 @@ public class FacePlateVerificationService implements VehicleVerificationService 
     private final ParkingMessageService ioTService;
     private final SmoothingAIEvents smoothingAIEvents;
     private final ParkingSessionLifecycleService sessionLifecycleService;
+    private final LaneIncidentService laneIncidentService;
 
     @Override
     public VerificationMode getMode() {
@@ -156,6 +163,7 @@ public class FacePlateVerificationService implements VehicleVerificationService 
                 log.warn(
                         "handleExitEvent: no open parking session found for vehicle={} customer={} plate={} profileId={}",
                         vehicle.getId(), customer.getId(), vehicle.getPlateNumber(), customer.getAiProfileId());
+                List<LaneEventImage> imagesToSend = new ArrayList<>(LaneEventImage.from("exit_", detection.getListImageInfo()));
                 ioTService.publishErrorWhenHandlingEvent(
                         "Không tìm thấy phiên gửi xe đang mở khớp với xe tại làn ra",
                         "",
@@ -163,15 +171,18 @@ public class FacePlateVerificationService implements VehicleVerificationService 
                         barrierId,
                         vehicle.getPlateNumber(),
                         customer.getAiProfileId(),
-                        "SESSION_NOT_FOUND", null);
+                        "SESSION_NOT_FOUND", imagesToSend);
                 return;
             }
             ParkingSessionEntity openSession = openSessionOpt.get();
 
-            if (!openSession.getEntryCustomer().getAiProfileId().equals(detection.getProfileId())) {
+            Integer entryProfileId = openSession.getEntryCustomer().getAiProfileId();
+            if (!entryProfileId.equals(detection.getProfileId())) {
                 log.warn(
                         "handleExitEvent: Exit customer is not matching with entry customer for vehicle={} customer={} plate={} profileId={}",
                         vehicle.getId(), customer.getId(), vehicle.getPlateNumber(), customer.getAiProfileId());
+                LaneIncidentEntity incident = laneIncidentService.reportFaceMismatch(openSession, entryProfileId, detection);
+                List<LaneEventImage> images = laneIncidentService.buildImages(openSession, incident);
                 ioTService.publishErrorWhenHandlingEvent(
                         "Khuôn mặt người đi vào không khớp với khuôn mặt người đi ra",
                         "",
@@ -180,7 +191,20 @@ public class FacePlateVerificationService implements VehicleVerificationService 
                         vehicle.getPlateNumber(),
                         customer.getAiProfileId(),
                         "FACE_MISMATCH",
-                        LaneEventImage.from("exit_", detection.getListImageInfo()));
+                        images);
+                ioTService.publishLaneEvent(LaneEventCommand.builder()
+                        .event(LaneEventCommand.FACE_MISMATCH_CONFIRM)
+                        .incidentId(incident.getId())
+                        .laneId(laneId)
+                        .barrierId(barrierId)
+                        .directionType(DirectionType.EXIT)
+                        .plate(vehicle.getPlateNumber())
+                        .vehicleType(vehicle.getVehicleType())
+                        .profileId(customer.getAiProfileId())
+                        .sessionId(openSession.getId())
+                        .images(images)
+                        .eventTs(detection.getTimestampMs())
+                        .build());
                 return;
             }
 
