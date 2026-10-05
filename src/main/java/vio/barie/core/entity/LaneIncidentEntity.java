@@ -41,6 +41,13 @@ public class LaneIncidentEntity extends BaseEntity {
     @Column(name = "detected_plate")
     private String detectedPlate;
 
+    /** Biển số admin nhập lại khi AI đọc sai. */
+    @Column(name = "corrected_plate")
+    private String correctedPlate;
+
+    @Column(name = "attempt_count")
+    private Integer attemptCount;
+
     @Column(name = "entry_profile_id")
     private Integer entryProfileId;
 

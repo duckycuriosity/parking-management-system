@@ -9,6 +9,7 @@ import vio.barie.core.common.LaneIncidentStatus;
 import vio.barie.core.common.LaneIncidentType;
 import vio.barie.core.entity.LaneIncidentEntity;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,15 +18,19 @@ public interface LaneIncidentRepository extends JpaRepository<LaneIncidentEntity
     Optional<LaneIncidentEntity> findFirstBySession_IdAndTypeAndStatus(Long sessionId, LaneIncidentType type,
                                                                       LaneIncidentStatus status);
 
+    Optional<LaneIncidentEntity> findFirstByLaneIdAndTypeAndStatusInOrderByCreatedAtDesc(
+            Long laneId, LaneIncidentType type, Collection<LaneIncidentStatus> statuses);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select i from LaneIncidentEntity i where i.id = :id")
     Optional<LaneIncidentEntity> findByIdForUpdate(@Param("id") Long id);
 
     @Query("select i from LaneIncidentEntity i " +
-            "join fetch i.session s " +
-            "where i.status = vio.barie.core.common.LaneIncidentStatus.PENDING " +
-            "and s.exitTime is null " +
+            "left join fetch i.session s " +
+            "where i.status in (vio.barie.core.common.LaneIncidentStatus.PENDING, " +
+            "vio.barie.core.common.LaneIncidentStatus.AWAITING_DECISION) " +
+            "and (s is null or s.exitTime is null) " +
             "and (:laneId is null or i.laneId = :laneId) " +
             "order by i.createdAt desc")
-    List<LaneIncidentEntity> findPendingWithOpenSession(@Param("laneId") Long laneId);
+    List<LaneIncidentEntity> findActiveIncidents(@Param("laneId") Long laneId);
 }

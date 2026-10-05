@@ -28,4 +28,13 @@ public class LaneIncidentActionEntity extends BaseEntity {
 
     @Column(name = "note")
     private String note;
+
+    @Column(name = "old_value")
+    private String oldValue;
+
+    @Column(name = "new_value")
+    private String newValue;
+
+    @Column(name = "result")
+    private String result;
 }

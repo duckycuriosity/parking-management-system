@@ -20,11 +20,15 @@ public class LaneIncidentResponse {
     private Long sessionId;
 
     private String plateNumber;
+    private String correctedPlate;
     private Integer entryProfileId;
     private Integer exitProfileId;
 
     /** role = entry_face | entry_plate | exit_face | exit_plate */
     private List<LaneEventImage> images;
+
+    /** Kết quả của thao tác vừa thực hiện: SESSION_CLOSED | SESSION_NOT_FOUND | FACE_MISMATCH | BARRIER_OPENED */
+    private String outcome;
 
     private LocalDateTime createdAt;
     private LocalDateTime resolvedAt;
