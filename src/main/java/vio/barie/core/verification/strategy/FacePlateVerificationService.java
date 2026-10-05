@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vio.barie.core.common.VerificationMode;
-import vio.barie.core.dto.LaneEventCommand;
 import vio.barie.core.dto.LaneEventImage;
 import vio.barie.core.dto.parking.EventImageInfo;
 import vio.barie.core.dto.parking.PendingEventDetection;
@@ -18,13 +17,13 @@ import vio.barie.core.repository.BarrierRepository;
 import vio.barie.core.repository.ParkingCustomerRepository;
 import vio.barie.core.repository.VehicleRepository;
 import vio.barie.core.service.LaneIncidentService;
+import vio.barie.core.service.LaneIncidentService.SessionNotFoundAttempt;
 import vio.barie.core.service.mqtt.ParkingMessageService;
 import vio.barie.core.service.smoothing.SmoothingAIEvents;
 import vio.barie.core.utils.DirectionType;
 import vio.barie.core.verification.ParkingSessionLifecycleService;
 import vio.barie.core.verification.VehicleVerificationService;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -141,16 +140,23 @@ public class FacePlateVerificationService implements VehicleVerificationService 
                 customer = parkingCustomerRepository.findByAiProfileId(detection.getProfileId()).orElse(null);
             }
 
+            String barrierId = detection.getExitBarrierId();
+            Long laneId = detection.getExitLaneId();
+
             if (vehicle == null || customer == null) {
                 log.warn("handleExitEvent: missing vehicle or customer — plate={} profileId={}",
                         detection.getPlateNumber(), detection.getProfileId());
+                // Biển số đọc sai thành biển chưa có trong hệ thống cũng là "không tìm được phiên"
+                if (vehicle == null && customer != null && barrierId != null && laneId != null) {
+                    handleSessionNotFound(detection, "Không tìm thấy xe tương ứng với biển số cho lượt ra",
+                            "VEHICLE_OR_CUSTOMER_NOT_FOUND");
+                    return;
+                }
                 ioTService.publishErrorWhenHandlingEvent("Không tìm thấy xe hoặc khách hàng tương ứng cho lượt ra", "", detection.getType(),
                         detection.getExitBarrierId(), detection.getPlateNumber(), detection.getProfileId(), "VEHICLE_OR_CUSTOMER_NOT_FOUND", null);
                 return;
             }
 
-            String barrierId = detection.getExitBarrierId();
-            Long laneId = detection.getExitLaneId();
             if (barrierId == null || laneId == null) {
                 log.warn("handleExitEvent: missing barrier or lane info");
                 ioTService.publishErrorWhenHandlingEvent("Thiếu thông tin barrier hoặc làn của lượt ra", "", detection.getType(),
@@ -163,15 +169,8 @@ public class FacePlateVerificationService implements VehicleVerificationService 
                 log.warn(
                         "handleExitEvent: no open parking session found for vehicle={} customer={} plate={} profileId={}",
                         vehicle.getId(), customer.getId(), vehicle.getPlateNumber(), customer.getAiProfileId());
-                List<LaneEventImage> imagesToSend = new ArrayList<>(LaneEventImage.from("exit_", detection.getListImageInfo()));
-                ioTService.publishErrorWhenHandlingEvent(
-                        "Không tìm thấy phiên gửi xe đang mở khớp với xe tại làn ra",
-                        "",
-                        detection.getType(),
-                        barrierId,
-                        vehicle.getPlateNumber(),
-                        customer.getAiProfileId(),
-                        "SESSION_NOT_FOUND", imagesToSend);
+                handleSessionNotFound(detection, "Không tìm thấy phiên gửi xe đang mở khớp với xe tại làn ra",
+                        "SESSION_NOT_FOUND");
                 return;
             }
             ParkingSessionEntity openSession = openSessionOpt.get();
@@ -192,19 +191,7 @@ public class FacePlateVerificationService implements VehicleVerificationService 
                         customer.getAiProfileId(),
                         "FACE_MISMATCH",
                         images);
-                ioTService.publishLaneEvent(LaneEventCommand.builder()
-                        .event(LaneEventCommand.FACE_MISMATCH_CONFIRM)
-                        .incidentId(incident.getId())
-                        .laneId(laneId)
-                        .barrierId(barrierId)
-                        .directionType(DirectionType.EXIT)
-                        .plate(vehicle.getPlateNumber())
-                        .vehicleType(vehicle.getVehicleType())
-                        .profileId(customer.getAiProfileId())
-                        .sessionId(openSession.getId())
-                        .images(images)
-                        .eventTs(detection.getTimestampMs())
-                        .build());
+                laneIncidentService.publishFaceMismatchConfirm(incident, openSession, vehicle);
                 return;
             }
 
@@ -217,8 +204,40 @@ public class FacePlateVerificationService implements VehicleVerificationService 
             }
 
             sessionLifecycleService.closeExit(openSession, customer, barrier, detection);
+            laneIncidentService.resetExitRetry(detection);
         } catch (Exception ex) {
             log.error("handleExitEvent: failed — type={}: {}", detection.getType(), ex.getMessage(), ex);
         }
+    }
+
+    /**
+     * Không tìm được phiên cho biển số AI đọc tại làn ra: cho quét lại, quá số lần cho phép thì
+     * lưu sự cố và yêu cầu admin xác nhận lại biển số.
+     */
+    private void handleSessionNotFound(PendingEventDetection detection, String message, String code) {
+        SessionNotFoundAttempt attempt = laneIncidentService.registerSessionNotFound(detection);
+        List<LaneEventImage> images = LaneEventImage.from("exit_", detection.getListImageInfo());
+
+        if (attempt.incident() == null) {
+            ioTService.publishErrorWhenHandlingEvent(
+                    message + " (lần " + attempt.attempt() + "/" + attempt.maxAttempts() + ")",
+                    "",
+                    detection.getType(),
+                    detection.getExitBarrierId(),
+                    detection.getPlateNumber(),
+                    detection.getProfileId(),
+                    code, images);
+            return;
+        }
+
+        ioTService.publishErrorWhenHandlingEvent(
+                "Không tìm thấy phiên gửi xe sau " + attempt.maxAttempts() + " lần quét, vui lòng chờ nhân viên hỗ trợ",
+                "",
+                detection.getType(),
+                detection.getExitBarrierId(),
+                detection.getPlateNumber(),
+                detection.getProfileId(),
+                "PLATE_CONFIRM_REQUIRED", images);
+        laneIncidentService.publishPlateConfirmRequired(attempt.incident());
     }
 }

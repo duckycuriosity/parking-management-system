@@ -2,6 +2,9 @@ package vio.barie.core.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RAtomicLong;
+import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vio.barie.core.common.LaneIncidentActionType;
@@ -10,6 +13,7 @@ import vio.barie.core.common.LaneIncidentType;
 import vio.barie.core.config.exception.BusinessException;
 import vio.barie.core.config.exception.ServiceException;
 import vio.barie.core.config.filter.UserContext;
+import vio.barie.core.dto.LaneEventCommand;
 import vio.barie.core.dto.LaneEventImage;
 import vio.barie.core.dto.LaneIncidentResponse;
 import vio.barie.core.dto.parking.PendingEventDetection;
@@ -19,26 +23,63 @@ import vio.barie.core.entity.LaneIncidentActionEntity;
 import vio.barie.core.entity.LaneIncidentEntity;
 import vio.barie.core.entity.ParkingCustomerEntity;
 import vio.barie.core.entity.ParkingSessionEntity;
+import vio.barie.core.entity.VehicleEntity;
 import vio.barie.core.repository.BarrierRepository;
 import vio.barie.core.repository.LaneIncidentActionRepository;
 import vio.barie.core.repository.LaneIncidentRepository;
 import vio.barie.core.repository.ParkingCustomerRepository;
+import vio.barie.core.repository.VehicleRepository;
+import vio.barie.core.service.mqtt.ParkingMessageService;
+import vio.barie.core.service.smoothing.SmoothingAIEvents;
+import vio.barie.core.utils.DirectionType;
+import vio.barie.core.utils.PlateNumberUtils;
 import vio.barie.core.verification.ParkingSessionLifecycleService;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class LaneIncidentService {
 
+    public static final String OUTCOME_SESSION_CLOSED = "SESSION_CLOSED";
+    public static final String OUTCOME_SESSION_NOT_FOUND = "SESSION_NOT_FOUND";
+    public static final String OUTCOME_FACE_MISMATCH = "FACE_MISMATCH";
+    public static final String OUTCOME_BARRIER_OPENED = "BARRIER_OPENED";
+
+    private static final List<LaneIncidentStatus> ACTIVE_STATUSES =
+            List.of(LaneIncidentStatus.PENDING, LaneIncidentStatus.AWAITING_DECISION);
+
     private final LaneIncidentRepository laneIncidentRepository;
     private final LaneIncidentActionRepository laneIncidentActionRepository;
     private final BarrierRepository barrierRepository;
+    private final VehicleRepository vehicleRepository;
     private final ParkingCustomerRepository parkingCustomerRepository;
     private final ParkingSessionLifecycleService sessionLifecycleService;
+    private final ParkingMessageService ioTService;
+    private final SmoothingAIEvents smoothingAIEvents;
+    private final RedissonClient redissonClient;
+
+    @Value("${barrier.detection.exit-retry-max-attempts:3}")
+    private int exitRetryMaxAttempts;
+
+    @Value("${barrier.detection.exit-retry-window-seconds:180}")
+    private long exitRetryWindowSeconds;
+
+    /** Các lượt quét cách nhau ít hơn khoảng này (xe vẫn đứng trong khung hình) chỉ tính là 1 lần. */
+    @Value("${barrier.detection.exit-retry-min-gap-ms:3000}")
+    private long exitRetryMinGapMs;
+
+    @Value("${barrier.incident.active-ttl-seconds:600}")
+    private long incidentActiveTtlSeconds;
+
+    /** incident == null nghĩa là chưa quá số lần quét cho phép, chỉ cần báo lỗi bình thường. */
+    public record SessionNotFoundAttempt(int attempt, int maxAttempts, LaneIncidentEntity incident) {
+    }
 
     /**
      * Ghi nhận sự cố khuôn mặt lúc ra không khớp lúc vào. Nếu phiên này đã có sự cố đang chờ
@@ -70,10 +111,61 @@ public class LaneIncidentService {
                 });
     }
 
+    /**
+     * Một lượt quét tại làn ra không tìm được phiên gửi xe. Cho quét lại tới
+     * {@code exit-retry-max-attempts} lần; tới lần cuối thì lưu sự cố để admin xác nhận lại biển số.
+     * Khi làn đang có sự cố chờ xử lý thì trả lại sự cố đó, không đếm tiếp.
+     */
+    @Transactional
+    public SessionNotFoundAttempt registerSessionNotFound(PendingEventDetection detection) {
+        Optional<LaneIncidentEntity> active = laneIncidentRepository
+                .findFirstByLaneIdAndTypeAndStatusInOrderByCreatedAtDesc(detection.getExitLaneId(),
+                        LaneIncidentType.SESSION_NOT_FOUND, ACTIVE_STATUSES);
+        if (active.isPresent()) {
+            LaneIncidentEntity incident = active.get();
+            LocalDateTime expireBefore = LocalDateTime.now().minusSeconds(incidentActiveTtlSeconds);
+            if (incident.getCreatedAt() == null || incident.getCreatedAt().isAfter(expireBefore)) {
+                return new SessionNotFoundAttempt(exitRetryMaxAttempts, exitRetryMaxAttempts, incident);
+            }
+            // Sự cố cũ không ai xử lý (xe đã rời làn): đóng lại để không chặn xe sau
+            incident.setStatus(LaneIncidentStatus.EXPIRED);
+            incident.setResolvedAt(LocalDateTime.now());
+            laneIncidentRepository.saveAndFlush(incident);
+            log.info("registerSessionNotFound: incident id={} expired", incident.getId());
+        }
+
+        int attempt = nextExitRetryAttempt(detection);
+        if (attempt < exitRetryMaxAttempts) {
+            return new SessionNotFoundAttempt(attempt, exitRetryMaxAttempts, null);
+        }
+
+        LaneIncidentEntity incident = new LaneIncidentEntity();
+        incident.setType(LaneIncidentType.SESSION_NOT_FOUND);
+        incident.setStatus(LaneIncidentStatus.PENDING);
+        incident.setLaneId(detection.getExitLaneId());
+        incident.setBarrierId(detection.getExitBarrierId());
+        incident.setDetectedPlate(detection.getPlateNumber());
+        incident.setExitProfileId(detection.getProfileId());
+        incident.setAttemptCount(attempt);
+        incident.setExitImageInfo(detection.getListImageInfo());
+        incident.setDetectionPayload(detection);
+        laneIncidentRepository.save(incident);
+        resetExitRetry(detection);
+        log.info("registerSessionNotFound: incident created id={} lane={} plate={} profileId={} attempts={}",
+                incident.getId(), incident.getLaneId(), incident.getDetectedPlate(), incident.getExitProfileId(), attempt);
+        return new SessionNotFoundAttempt(attempt, exitRetryMaxAttempts, incident);
+    }
+
+    public void resetExitRetry(PendingEventDetection detection) {
+        String key = exitRetryKey(detection);
+        redissonClient.getAtomicLong(key).delete();
+        redissonClient.getBucket(key + ":gap").delete();
+    }
+
     @Transactional(readOnly = true)
     public List<LaneIncidentResponse> getPendingIncidents(Long laneId) {
-        return laneIncidentRepository.findPendingWithOpenSession(laneId).stream()
-                .map(this::toResponse)
+        return laneIncidentRepository.findActiveIncidents(laneId).stream()
+                .map(incident -> toResponse(incident, null))
                 .toList();
     }
 
@@ -82,29 +174,20 @@ public class LaneIncidentService {
      */
     @Transactional
     public LaneIncidentResponse approve(Long incidentId, String note) {
-        LaneIncidentEntity incident = lockPendingIncident(incidentId);
+        LaneIncidentEntity incident = lockActiveIncident(incidentId, LaneIncidentType.FACE_MISMATCH);
 
         ParkingSessionEntity session = incident.getSession();
         if (session == null || session.getExitTime() != null) {
             throw new BusinessException("Phiên gửi xe của sự cố này đã được đóng", "SESSION_ALREADY_CLOSED", 409);
         }
 
-        PendingEventDetection detection = incident.getDetectionPayload();
-        if (detection == null) {
-            throw new BusinessException("Sự cố thiếu dữ liệu nhận diện tại làn ra", "INCIDENT_PAYLOAD_MISSING", 400);
-        }
+        PendingEventDetection detection = requireDetection(incident);
+        BarrierEntity barrier = requireBarrier(incident.getBarrierId());
+        ParkingCustomerEntity exitCustomer = findExitCustomer(incident);
 
-        BarrierEntity barrier = barrierRepository.findByBarrierIdWithDeviceAndLaneAndParkingLot(incident.getBarrierId())
-                .orElse(null);
-        if (barrier == null || barrier.getParkingDevice() == null || barrier.getParkingDevice().getLane() == null) {
-            throw new BusinessException("Cấu hình barrier/làn của lượt ra không hợp lệ", "BARRIER_CONFIG_INVALID", 400);
-        }
-
-        ParkingCustomerEntity exitCustomer = incident.getExitProfileId() == null ? null
-                : parkingCustomerRepository.findByAiProfileId(incident.getExitProfileId()).orElse(null);
-
-        closeIncident(incident, LaneIncidentStatus.RESOLVED, LaneIncidentActionType.APPROVE_FACE, note);
-        LaneIncidentResponse response = toResponse(incident);
+        recordAction(incident, LaneIncidentActionType.APPROVE_FACE, note, null, null, OUTCOME_SESSION_CLOSED);
+        closeIncident(incident, LaneIncidentStatus.RESOLVED);
+        LaneIncidentResponse response = toResponse(incident, OUTCOME_SESSION_CLOSED);
 
         sessionLifecycleService.closeExit(session, exitCustomer, barrier, detection);
         log.info("approve: incident id={} approved, session id={} closed", incident.getId(), session.getId());
@@ -112,14 +195,129 @@ public class LaneIncidentService {
     }
 
     /**
+     * Admin xác nhận/nhập lại biển số cho sự cố không tìm thấy phiên, rồi tìm lại phiên theo biển số đó.
+     * Tìm thấy và đúng khuôn mặt thì đóng phiên như lượt ra bình thường; sai khuôn mặt thì chuyển sang
+     * sự cố FACE_MISMATCH; vẫn không thấy phiên thì chờ admin quyết định mở barrier hay không.
+     */
+    @Transactional
+    public LaneIncidentResponse submitPlate(Long incidentId, String rawPlateNumber, String note) {
+        LaneIncidentEntity incident = lockActiveIncident(incidentId, LaneIncidentType.SESSION_NOT_FOUND);
+
+        String plateNumber = PlateNumberUtils.normalize(rawPlateNumber);
+        if (!PlateNumberUtils.isValid(plateNumber)) {
+            throw new BusinessException("Biển số không đúng quy ước biển số xe Việt Nam", "PLATE_INVALID", 400);
+        }
+        PendingEventDetection detection = requireDetection(incident);
+
+        LaneIncidentActionType actionType = plateNumber.equalsIgnoreCase(incident.getDetectedPlate())
+                ? LaneIncidentActionType.CONFIRM_PLATE : LaneIncidentActionType.CORRECT_PLATE;
+        incident.setCorrectedPlate(plateNumber);
+
+        VehicleEntity vehicle = vehicleRepository.findPlateByPlateNumber(plateNumber);
+        ParkingSessionEntity session = vehicle == null ? null
+                : sessionLifecycleService.findOpenSessionForVehicle(vehicle.getId()).orElse(null);
+
+        if (session == null) {
+            recordAction(incident, actionType, note, incident.getDetectedPlate(), plateNumber, OUTCOME_SESSION_NOT_FOUND);
+            incident.setStatus(LaneIncidentStatus.AWAITING_DECISION);
+            laneIncidentRepository.save(incident);
+            log.info("submitPlate: incident id={} plate={} still has no open session", incident.getId(), plateNumber);
+            return toResponse(incident, OUTCOME_SESSION_NOT_FOUND);
+        }
+
+        detection.setPlateNumber(plateNumber);
+        ParkingCustomerEntity entryCustomer = session.getEntryCustomer();
+        Integer entryProfileId = entryCustomer != null ? entryCustomer.getAiProfileId() : null;
+        incident.setSession(session);
+        incident.setEntryProfileId(entryProfileId);
+
+        if (entryProfileId != null && !entryProfileId.equals(incident.getExitProfileId())) {
+            recordAction(incident, actionType, note, incident.getDetectedPlate(), plateNumber, OUTCOME_FACE_MISMATCH);
+            closeIncident(incident, LaneIncidentStatus.RESOLVED);
+            LaneIncidentEntity faceIncident = reportFaceMismatch(session, entryProfileId, detection);
+            publishFaceMismatchConfirm(faceIncident, session, vehicle);
+            log.info("submitPlate: incident id={} plate={} found session id={} but face mismatched, face incident id={}",
+                    incident.getId(), plateNumber, session.getId(), faceIncident.getId());
+            return toResponse(faceIncident, OUTCOME_FACE_MISMATCH);
+        }
+
+        BarrierEntity barrier = requireBarrier(incident.getBarrierId());
+        ParkingCustomerEntity exitCustomer = findExitCustomer(incident);
+
+        recordAction(incident, actionType, note, incident.getDetectedPlate(), plateNumber, OUTCOME_SESSION_CLOSED);
+        closeIncident(incident, LaneIncidentStatus.RESOLVED);
+        LaneIncidentResponse response = toResponse(incident, OUTCOME_SESSION_CLOSED);
+
+        sessionLifecycleService.closeExit(session, exitCustomer, barrier, detection);
+        log.info("submitPlate: incident id={} plate={} resolved, session id={} closed", incident.getId(), plateNumber,
+                session.getId());
+        return response;
+    }
+
+    /**
+     * Đã xác nhận biển số mà vẫn không có phiên hợp lệ: admin quyết định mở barrier thủ công.
+     */
+    @Transactional
+    public LaneIncidentResponse manualOpen(Long incidentId, String note) {
+        LaneIncidentEntity incident = lockActiveIncident(incidentId, LaneIncidentType.SESSION_NOT_FOUND);
+        if (incident.getStatus() != LaneIncidentStatus.AWAITING_DECISION) {
+            throw new BusinessException("Cần xác nhận biển số trước khi mở barrier thủ công", "PLATE_NOT_CONFIRMED", 409);
+        }
+
+        recordAction(incident, LaneIncidentActionType.MANUAL_OPEN, note, null, null, OUTCOME_BARRIER_OPENED);
+        closeIncident(incident, LaneIncidentStatus.RESOLVED);
+
+        ioTService.publishManualOpenCommand(incident.getBarrierId());
+        if (incident.getDetectionPayload() != null) {
+            smoothingAIEvents.markLaneCooldown(incident.getDetectionPayload());
+        }
+        log.info("manualOpen: incident id={} barrier={} opened manually", incident.getId(), incident.getBarrierId());
+        return toResponse(incident, OUTCOME_BARRIER_OPENED);
+    }
+
+    /**
      * Admin từ chối: phiên này ko chính xác
      */
     @Transactional
     public LaneIncidentResponse reject(Long incidentId, String note) {
-        LaneIncidentEntity incident = lockPendingIncident(incidentId);
-        closeIncident(incident, LaneIncidentStatus.REJECTED, LaneIncidentActionType.REJECT, note);
+        LaneIncidentEntity incident = lockActiveIncident(incidentId, null);
+        recordAction(incident, LaneIncidentActionType.REJECT, note, null, null, null);
+        closeIncident(incident, LaneIncidentStatus.REJECTED);
         log.info("reject: incident id={} rejected", incident.getId());
-        return toResponse(incident);
+        return toResponse(incident, null);
+    }
+
+    public void publishFaceMismatchConfirm(LaneIncidentEntity incident, ParkingSessionEntity session,
+                                           VehicleEntity vehicle) {
+        ioTService.publishLaneEvent(LaneEventCommand.builder()
+                .event(LaneEventCommand.FACE_MISMATCH_CONFIRM)
+                .incidentId(incident.getId())
+                .laneId(incident.getLaneId())
+                .barrierId(incident.getBarrierId())
+                .directionType(DirectionType.EXIT)
+                .plate(vehicle.getPlateNumber())
+                .vehicleType(vehicle.getVehicleType())
+                .profileId(incident.getExitProfileId())
+                .sessionId(session.getId())
+                .images(buildImages(session, incident))
+                .eventTs(System.currentTimeMillis())
+                .build());
+    }
+
+    public void publishPlateConfirmRequired(LaneIncidentEntity incident) {
+        PendingEventDetection detection = incident.getDetectionPayload();
+        ioTService.publishLaneEvent(LaneEventCommand.builder()
+                .event(LaneEventCommand.PLATE_CONFIRM_REQUIRED)
+                .incidentId(incident.getId())
+                .laneId(incident.getLaneId())
+                .barrierId(incident.getBarrierId())
+                .directionType(DirectionType.EXIT)
+                .plate(incident.getDetectedPlate())
+                .vehicleType(detection != null ? detection.getVehicleType() : null)
+                .profileId(incident.getExitProfileId())
+                .images(buildImages(null, incident))
+                .eventTs(System.currentTimeMillis())
+                .build());
     }
 
     public List<LaneEventImage> buildImages(ParkingSessionEntity session, LaneIncidentEntity incident) {
@@ -131,17 +329,58 @@ public class LaneIncidentService {
         return images;
     }
 
-    private LaneIncidentEntity lockPendingIncident(Long incidentId) {
+    private int nextExitRetryAttempt(PendingEventDetection detection) {
+        String key = exitRetryKey(detection);
+        RAtomicLong counter = redissonClient.getAtomicLong(key);
+        if (exitRetryMinGapMs > 0
+                && !redissonClient.getBucket(key + ":gap").setIfAbsent("1", Duration.ofMillis(exitRetryMinGapMs))) {
+            return (int) Math.max(counter.get(), 1);
+        }
+        long attempt = counter.incrementAndGet();
+        counter.expire(Duration.ofSeconds(exitRetryWindowSeconds));
+        return (int) attempt;
+    }
+
+    private String exitRetryKey(PendingEventDetection detection) {
+        return "detection:exit-retry:" + detection.getExitBarrierId() + ":" + detection.getExitLaneId();
+    }
+
+    private LaneIncidentEntity lockActiveIncident(Long incidentId, LaneIncidentType expectedType) {
         LaneIncidentEntity incident = laneIncidentRepository.findByIdForUpdate(incidentId)
                 .orElseThrow(() -> new BusinessException("Không tìm thấy sự cố", "INCIDENT_NOT_FOUND", 404));
-        if (incident.getStatus() != LaneIncidentStatus.PENDING) {
+        if (!ACTIVE_STATUSES.contains(incident.getStatus())) {
             throw new BusinessException("Sự cố đã được xử lý", "INCIDENT_ALREADY_HANDLED", 409);
+        }
+        if (expectedType != null && incident.getType() != expectedType) {
+            throw new BusinessException("Thao tác không áp dụng cho loại sự cố này", "INCIDENT_TYPE_INVALID", 400);
         }
         return incident;
     }
 
-    private void closeIncident(LaneIncidentEntity incident, LaneIncidentStatus status,
-                               LaneIncidentActionType actionType, String note) {
+    private PendingEventDetection requireDetection(LaneIncidentEntity incident) {
+        PendingEventDetection detection = incident.getDetectionPayload();
+        if (detection == null) {
+            throw new BusinessException("Sự cố thiếu dữ liệu nhận diện tại làn ra", "INCIDENT_PAYLOAD_MISSING", 400);
+        }
+        return detection;
+    }
+
+    private BarrierEntity requireBarrier(String barrierId) {
+        BarrierEntity barrier = barrierRepository.findByBarrierIdWithDeviceAndLaneAndParkingLot(barrierId)
+                .orElse(null);
+        if (barrier == null || barrier.getParkingDevice() == null || barrier.getParkingDevice().getLane() == null) {
+            throw new BusinessException("Cấu hình barrier/làn của lượt ra không hợp lệ", "BARRIER_CONFIG_INVALID", 400);
+        }
+        return barrier;
+    }
+
+    private ParkingCustomerEntity findExitCustomer(LaneIncidentEntity incident) {
+        return incident.getExitProfileId() == null ? null
+                : parkingCustomerRepository.findByAiProfileId(incident.getExitProfileId()).orElse(null);
+    }
+
+    private void recordAction(LaneIncidentEntity incident, LaneIncidentActionType actionType, String note,
+                              String oldValue, String newValue, String result) {
         UserDTO actor = currentUser();
 
         LaneIncidentActionEntity action = new LaneIncidentActionEntity();
@@ -150,8 +389,14 @@ public class LaneIncidentService {
         action.setActorUserId(actor != null ? actor.getUserId() : null);
         action.setActorUsername(actor != null ? actor.getUsername() : null);
         action.setNote(note);
+        action.setOldValue(oldValue);
+        action.setNewValue(newValue);
+        action.setResult(result);
         laneIncidentActionRepository.save(action);
+    }
 
+    private void closeIncident(LaneIncidentEntity incident, LaneIncidentStatus status) {
+        UserDTO actor = currentUser();
         incident.setStatus(status);
         incident.setResolvedAt(LocalDateTime.now());
         incident.setResolvedBy(actor != null ? actor.getUserId() : null);
@@ -166,7 +411,7 @@ public class LaneIncidentService {
         }
     }
 
-    private LaneIncidentResponse toResponse(LaneIncidentEntity incident) {
+    private LaneIncidentResponse toResponse(LaneIncidentEntity incident, String outcome) {
         ParkingSessionEntity session = incident.getSession();
         return LaneIncidentResponse.builder()
                 .id(incident.getId())
@@ -176,9 +421,11 @@ public class LaneIncidentService {
                 .barrierId(incident.getBarrierId())
                 .sessionId(session != null ? session.getId() : null)
                 .plateNumber(incident.getDetectedPlate())
+                .correctedPlate(incident.getCorrectedPlate())
                 .entryProfileId(incident.getEntryProfileId())
                 .exitProfileId(incident.getExitProfileId())
                 .images(buildImages(session, incident))
+                .outcome(outcome)
                 .createdAt(incident.getCreatedAt())
                 .resolvedAt(incident.getResolvedAt())
                 .build();

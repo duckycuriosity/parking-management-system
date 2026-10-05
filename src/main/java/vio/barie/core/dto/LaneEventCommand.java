@@ -17,6 +17,7 @@ public class LaneEventCommand {
     public static final String ENTRY_SUCCESS = "ENTRY_SUCCESS";
     public static final String EXIT_SUCCESS = "EXIT_SUCCESS";
     public static final String FACE_MISMATCH_CONFIRM = "FACE_MISMATCH_CONFIRM";
+    public static final String PLATE_CONFIRM_REQUIRED = "PLATE_CONFIRM_REQUIRED";
 
     @JsonProperty("type")
     @Builder.Default
