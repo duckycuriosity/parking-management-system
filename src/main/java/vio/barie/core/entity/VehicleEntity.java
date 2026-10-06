@@ -19,6 +19,9 @@ public class VehicleEntity extends BaseEntity {
     @Column(name = "plate_number", unique = true, nullable = false)
     private String plateNumber;
 
+    @Column(name = "status")
+    private String status;
+
     @Column(name = "ai_identity_plate_id")
     private String aiIdentityPlateId;
 

@@ -81,9 +81,14 @@ public class DangpnOwnerAccountController {
                     description = "Customer face images. Map each file to customers by customer.imageIndex, or omit imageIndex to map files sequentially.",
                     content = @Content(array = @ArraySchema(schema = @Schema(type = "string", format = "binary")))
             )
-            @RequestPart(value = "customerImages", required = false) MultipartFile[] customerImages) {
+            @RequestPart(value = "customerImages", required = false) MultipartFile[] customerImages,
+            @Parameter(
+                    description = "Owner account face image. This is saved to owner_account.image_url.",
+                    content = @Content(schema = @Schema(type = "string", format = "binary"))
+            )
+            @RequestPart(value = "ownerImage", required = false) MultipartFile ownerImage) {
         List<MultipartFile> images = customerImages == null ? null : Arrays.asList(customerImages);
-        return Result.success(ownerAccountProfileService.createProfile(request, images));
+        return Result.success(ownerAccountProfileService.createProfile(request, images, ownerImage));
     }
 
     // Thêm xe mới vào một người đăng ký thuê bao và gắn người sử dụng xe ban đầu.

@@ -15,6 +15,7 @@ import vio.barie.core.dto.owneraccount.OwnerAccountDtos.OwnerAccountResponse;
 import vio.barie.core.entity.OwnerAccountEntity;
 import vio.barie.core.repository.OwnerAccountRepository;
 import vio.barie.core.repository.OwnerAccountSpecification;
+import vio.barie.core.repository.VehicleRepository;
 
 
 import java.util.Set;
@@ -28,6 +29,7 @@ public class OwnerAccountService {
     );
 
     private final OwnerAccountRepository ownerAccountRepository;
+    private final VehicleRepository vehicleRepository;
 
     @Transactional(readOnly = true)
     public OwnerAccountResponse getById(Long id) {
@@ -127,7 +129,7 @@ public class OwnerAccountService {
                 .zaloLink(entity.getZaloLink())
                 .note(entity.getNote())
                 .status(entity.getStatus())
-                .vehicleCount(ownerAccountRepository.countVehiclesByOwnerId(entity.getId()))
+                .vehicleCount(vehicleRepository.countByOwnerId(entity.getId()))
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();

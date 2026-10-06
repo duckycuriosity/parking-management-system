@@ -1,0 +1,5 @@
+ALTER TABLE vehicle
+    ADD COLUMN IF NOT EXISTS status VARCHAR(20);
+
+ALTER TABLE parking_customer
+    ADD COLUMN IF NOT EXISTS status VARCHAR(20);

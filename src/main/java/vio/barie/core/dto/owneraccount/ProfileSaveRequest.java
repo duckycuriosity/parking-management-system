@@ -128,6 +128,7 @@ public class ProfileSaveRequest {
         private String phone;
 
         private String imageUrl;
+        private String aiIdentityId;
 
         @Size(max = 255, message = "profileId must not exceed 255 characters")
         private String profileId;

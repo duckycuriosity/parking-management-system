@@ -3,8 +3,6 @@ package vio.barie.core.service;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,6 +16,16 @@ import vio.barie.core.dto.owneraccount.ProfileSaveRequest;
 import vio.barie.core.dto.owneraccount.OwnerAccountDtos.SubscriptionVehicleCreateRequest;
 import vio.barie.core.dto.owneraccount.OwnerAccountDtos.SubscriptionVehicleCreateResponse;
 import vio.barie.core.dto.owneraccount.OwnerAccountDtos.VehicleUserSaveRequest;
+import vio.barie.core.entity.OwnerAccountEntity;
+import vio.barie.core.entity.ParkingCustomerEntity;
+import vio.barie.core.entity.VehicleCustomerEntity;
+import vio.barie.core.entity.VehicleEntity;
+import vio.barie.core.entity.VehicleSubscriptionEntity;
+import vio.barie.core.repository.OwnerAccountRepository;
+import vio.barie.core.repository.ParkingCustomerRepository;
+import vio.barie.core.repository.VehicleCustomerRepository;
+import vio.barie.core.repository.VehicleRepository;
+import vio.barie.core.repository.VehicleSubscriptionRepository;
 import vio.barie.core.utils.PlateNumberUtils;
 
 import java.net.URI;
@@ -33,8 +41,12 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class OwnerAccountProfileService {
 
-    private final NamedParameterJdbcTemplate jdbcTemplate;
     private final AiFaceApiClient aiFaceApiClient;
+    private final OwnerAccountRepository ownerAccountRepository;
+    private final VehicleRepository vehicleRepository;
+    private final ParkingCustomerRepository parkingCustomerRepository;
+    private final VehicleCustomerRepository vehicleCustomerRepository;
+    private final VehicleSubscriptionRepository vehicleSubscriptionRepository;
 
     @Value("${ai.core.image-url:${ai.face.base-url:}}")
     private String imageUrlAi;
@@ -46,17 +58,25 @@ public class OwnerAccountProfileService {
 
     @Transactional
     public OwnerAccountVehicleParkingCustomerResponse createProfile(ProfileSaveRequest request, List<MultipartFile> customerImages) {
-        validateProfileRequest(request);
+        return createProfile(request, customerImages, null);
+    }
 
-        OffsetDateTime now = OffsetDateTime.now();
-        Long ownerId;
+    @Transactional
+    public OwnerAccountVehicleParkingCustomerResponse createProfile(
+            ProfileSaveRequest request,
+            List<MultipartFile> customerImages,
+            MultipartFile ownerImage) {
+        validateProfileRequest(request);
+        syncOwnerImageWithAi(request.getOwner(), ownerImage);
+
+        OwnerAccountEntity ownerEntity;
         if (request.getOwner().getId() == null) {
-            ownerId = insertOwner(request.getOwner(), now);
+            ownerEntity = saveOwner(new OwnerAccountEntity(), request.getOwner());
         } else {
-            ownerId = request.getOwner().getId();
-            ensureOwnerExists(ownerId);
-            updateOwner(ownerId, request.getOwner(), now);
+            ownerEntity = findOwner(request.getOwner().getId());
+            saveOwner(ownerEntity, request.getOwner());
         }
+        Long ownerId = ownerEntity.getId();
 
         List<OwnerAccountVehicleParkingCustomerResponse.VehicleResponse> vehicleResponses = new ArrayList<>();
         List<OwnerAccountVehicleParkingCustomerResponse.CustomerResponse> customerResponses = new ArrayList<>();
@@ -67,50 +87,42 @@ public class OwnerAccountProfileService {
         int imageCursor = 0;
 
         for (ProfileSaveRequest.Vehicle vehicle : request.getVehicles()) {
-            Long vehicleId;
-            if (vehicle.getId() == null) {
-                vehicleId = insertVehicle(ownerId, vehicle, now);
-            } else {
-                vehicleId = vehicle.getId();
-                ensureVehicleBelongsToOwner(ownerId, vehicleId);
-                updateVehicle(vehicleId, ownerId, vehicle, now);
-            }
+            VehicleEntity vehicleEntity = vehicle.getId() == null
+                    ? saveVehicle(new VehicleEntity(), ownerId, vehicle)
+                    : saveVehicle(findOwnerVehicle(ownerId, vehicle.getId()), ownerId, vehicle);
+            Long vehicleId = vehicleEntity.getId();
 
             vehicleResponses.add(OwnerAccountVehicleParkingCustomerResponse.VehicleResponse.builder()
                     .id(vehicleId)
-                    .plate(normalizePlate(vehicle.getPlate()))
-                    .vehicleType(trim(vehicle.getVehicleType()))
-                    .status(trim(vehicle.getStatus()))
+                    .plate(vehicleEntity.getPlateNumber())
+                    .vehicleType(vehicleEntity.getVehicleType())
+                    .status(vehicleEntity.getStatus())
                     .build());
 
-            upsertVehicleSubscription(vehicleId, vehicle.getSubscription(), now);
+            upsertVehicleSubscription(vehicleId, vehicle.getSubscription());
 
             for (ProfileSaveRequest.Customer customer : vehicle.getCustomers()) {
                 syncCustomerImageWithAi(customer, customerImages, mapImagesSequentially ? imageCursor++ : null);
 
-                Long customerId;
-                if (customer.getId() == null) {
-                    customerId = insertCustomer(ownerId, customer, now);
-                } else {
-                    customerId = customer.getId();
-                    ensureCustomerBelongsToOwner(ownerId, customerId);
-                    updateCustomer(customerId, ownerId, customer, now);
-                }
+                ParkingCustomerEntity customerEntity = customer.getId() == null
+                        ? saveCustomer(new ParkingCustomerEntity(), ownerId, customer)
+                        : saveCustomer(findOwnerCustomer(ownerId, customer.getId()), ownerId, customer);
+                Long customerId = customerEntity.getId();
                 submittedCustomerIds.add(customerId);
 
                 Long relationId = null;
                 if (isUsed(customer)) {
-                    relationId = upsertVehicleCustomer(vehicleId, customerId, customer, now);
+                    relationId = upsertVehicleCustomer(vehicleId, customerId, customer);
                     submittedRelationIds.add(relationId);
                 }
 
                 customerResponses.add(OwnerAccountVehicleParkingCustomerResponse.CustomerResponse.builder()
                         .id(customerId)
-                        .name(trim(customer.getName()))
-                        .phone(trimToNull(customer.getPhone()))
-                        .imageUrl(trimToNull(customer.getImageUrl()))
-                        .profileId(trimToNull(customer.getProfileId()))
-                        .status(trim(customer.getStatus()))
+                        .name(customerEntity.getUsername())
+                        .phone(customerEntity.getPhoneNumber())
+                        .imageUrl(customerEntity.getImageUrl())
+                        .profileId(customerEntity.getAiProfileId() == null ? null : customerEntity.getAiProfileId().toString())
+                        .status(customerEntity.getStatus())
                         .build());
                 if (relationId != null) {
                     relationResponses.add(OwnerAccountVehicleParkingCustomerResponse.VehicleCustomerResponse.builder()
@@ -124,22 +136,22 @@ public class OwnerAccountProfileService {
             }
         }
 
-        inactiveMissingCustomers(ownerId, submittedCustomerIds, now);
-        inactiveMissingRelations(ownerId, submittedRelationIds, now);
+        inactiveMissingCustomers(ownerId, submittedCustomerIds);
+        inactiveMissingRelations(ownerId, submittedRelationIds);
 
         return OwnerAccountVehicleParkingCustomerResponse.builder()
                 .id(ownerId)
-                .fullName(trim(request.getOwner().getFullName()))
-                .phone(trim(request.getOwner().getPhone()))
-                .identityNumber(trim(request.getOwner().getIdentityNumber()))
-                .address(trimToNull(request.getOwner().getAddress()))
-                .imageUrl(trimToNull(request.getOwner().getImageUrl()))
-                .zaloLink(trimToNull(request.getOwner().getZaloLink()))
-                .note(trimToNull(request.getOwner().getNote()))
-                .status(trim(request.getOwner().getStatus()))
+                .fullName(ownerEntity.getFullName())
+                .phone(ownerEntity.getPhone())
+                .identityNumber(ownerEntity.getIdentityNumber())
+                .address(ownerEntity.getAddress())
+                .imageUrl(ownerEntity.getImageUrl())
+                .zaloLink(ownerEntity.getZaloLink())
+                .note(ownerEntity.getNote())
+                .status(ownerEntity.getStatus())
                 .vehicleCount((long) vehicleResponses.size())
-                .createdAt(now)
-                .updatedAt(now)
+                .createdAt(ownerEntity.getCreatedAt())
+                .updatedAt(ownerEntity.getUpdatedAt())
                 .vehicles(vehicleResponses)
                 .customers(customerResponses)
                 .vehicleCustomers(relationResponses)
@@ -157,46 +169,36 @@ public class OwnerAccountProfileService {
             throw new ServiceException("Plate already exists: " + plate, 400);
         }
 
-        Long vehicleId = jdbcTemplate.queryForObject("""
-                INSERT INTO vehicle
-                    (owner_id, plate, vehicle_type, status, created_at, updated_at)
-                VALUES
-                    (:ownerId, :plate, :vehicleType, :status, :createdAt, :updatedAt)
-                RETURNING id
-                """, new MapSqlParameterSource()
-                .addValue("ownerId", ownerId)
-                .addValue("plate", plate)
-                .addValue("vehicleType", trim(request.getVehicleType()))
-                .addValue("status", trim(request.getStatus()))
-                .addValue("createdAt", now)
-                .addValue("updatedAt", now), Long.class);
+        VehicleEntity vehicle = new VehicleEntity();
+        vehicle.setOwnerId(ownerId);
+        vehicle.setPlateNumber(plate);
+        vehicle.setVehicleType(trim(request.getVehicleType()));
+        vehicle.setStatus(trim(request.getStatus()));
+        vehicle = vehicleRepository.save(vehicle);
+        Long vehicleId = vehicle.getId();
 
         List<SubscriptionVehicleCreateResponse.UserResponse> users = new ArrayList<>();
         if (request.getUsers() != null) {
             for (SubscriptionVehicleCreateRequest.ExistingUser user : request.getUsers()) {
                 ensureCustomerBelongsToOwner(ownerId, user.getCustomerId());
-                insertVehicleCustomer(vehicleId, user.getCustomerId(), trim(user.getRelationType()), trim(user.getStatus()), now);
+                insertVehicleCustomer(vehicleId, user.getCustomerId(), trim(user.getRelationType()), trim(user.getStatus()));
                 users.add(fetchCustomerRelation(vehicleId, user.getCustomerId()));
             }
         }
         if (request.getNewUsers() != null) {
             for (SubscriptionVehicleCreateRequest.NewUser user : request.getNewUsers()) {
-                Long customerId = jdbcTemplate.queryForObject("""
-                        INSERT INTO parkingcustomer
-                            (owner_id, name, phone, image_url, profile_id, status, created_at, updated_at)
-                        VALUES
-                            (:ownerId, :name, :phone, :imageUrl, :profileId, :status, :createdAt, :updatedAt)
-                        RETURNING id
-                        """, new MapSqlParameterSource()
-                        .addValue("ownerId", ownerId)
-                        .addValue("name", trim(user.getName()))
-                        .addValue("phone", trimToNull(user.getPhone()))
-                        .addValue("imageUrl", trimToNull(user.getImageUrl()))
-                        .addValue("profileId", trimToNull(user.getProfileId()))
-                        .addValue("status", trim(user.getStatus()))
-                        .addValue("createdAt", now)
-                        .addValue("updatedAt", now), Long.class);
-                insertVehicleCustomer(vehicleId, customerId, trim(user.getRelationType()), trim(user.getStatus()), now);
+                ParkingCustomerEntity customer = new ParkingCustomerEntity();
+                customer.setOwnerId(ownerId);
+                customer.setUsername(trim(user.getName()));
+                customer.setPhoneNumber(trimToNull(user.getPhone()));
+                customer.setImageUrl(trimToNull(user.getImageUrl()));
+                customer.setAiIdentityId("");
+                customer.setAiProfileId(parseNullableInteger(user.getProfileId(), "profileId"));
+                customer.setZaloId("");
+                customer.setStatus(trim(user.getStatus()));
+                customer = parkingCustomerRepository.save(customer);
+                Long customerId = customer.getId();
+                insertVehicleCustomer(vehicleId, customerId, trim(user.getRelationType()), trim(user.getStatus()));
                 users.add(fetchCustomerRelation(vehicleId, customerId));
             }
         }
@@ -214,62 +216,50 @@ public class OwnerAccountProfileService {
 
     @Transactional
     public ParkingCustomerResponse updateCustomer(Long customerId, ParkingCustomerUpdateRequest request) {
-        ParkingCustomerResponse current = getCustomer(customerId);
-        OffsetDateTime now = OffsetDateTime.now();
-
-        jdbcTemplate.update("""
-                UPDATE parkingcustomer
-                SET name = :name,
-                    phone = :phone,
-                    image_url = :imageUrl,
-                    profile_id = :profileId,
-                    status = :status,
-                    updated_at = :updatedAt
-                WHERE id = :id
-                """, new MapSqlParameterSource()
-                .addValue("id", customerId)
-                .addValue("name", request.getName() == null ? current.getName() : trimRequired(request.getName(), "name"))
-                .addValue("phone", request.getPhone() == null ? current.getPhone() : trimToNull(request.getPhone()))
-                .addValue("imageUrl", request.getImageUrl() == null ? current.getImageUrl() : trimToNull(request.getImageUrl()))
-                .addValue("profileId", request.getProfileId() == null ? current.getProfileId() : trimToNull(request.getProfileId()))
-                .addValue("status", request.getStatus() == null ? current.getStatus() : trimRequired(request.getStatus(), "status"))
-                .addValue("updatedAt", now));
-
-        return getCustomer(customerId);
+        ParkingCustomerEntity customer = findCustomer(customerId);
+        if (request.getName() != null) {
+            customer.setUsername(trimRequired(request.getName(), "name"));
+        }
+        if (request.getPhone() != null) {
+            customer.setPhoneNumber(trimToNull(request.getPhone()));
+        }
+        if (request.getImageUrl() != null) {
+            customer.setImageUrl(trimToNull(request.getImageUrl()));
+        }
+        if (request.getProfileId() != null) {
+            customer.setAiProfileId(parseNullableInteger(request.getProfileId(), "profileId"));
+        }
+        if (request.getStatus() != null) {
+            customer.setStatus(trimRequired(request.getStatus(), "status"));
+        }
+        return toParkingCustomerResponse(parkingCustomerRepository.save(customer));
     }
 
     @Transactional
     public SubscriptionVehicleCreateResponse.UserResponse saveVehicleUser(Long vehicleId, VehicleUserSaveRequest request) {
         Long ownerId = getVehicleOwnerId(vehicleId);
-        OffsetDateTime now = OffsetDateTime.now();
         Long customerId = request.getCustomerId();
 
         if (customerId == null) {
             if (StringUtils.isBlank(request.getName())) {
                 throw new ServiceException("name is required when creating a new vehicle user", 400);
             }
-            customerId = jdbcTemplate.queryForObject("""
-                    INSERT INTO parkingcustomer
-                        (owner_id, name, phone, image_url, profile_id, status, created_at, updated_at)
-                    VALUES
-                        (:ownerId, :name, :phone, :imageUrl, :profileId, :status, :createdAt, :updatedAt)
-                    RETURNING id
-                    """, new MapSqlParameterSource()
-                    .addValue("ownerId", ownerId)
-                    .addValue("name", trim(request.getName()))
-                    .addValue("phone", trimToNull(request.getPhone()))
-                    .addValue("imageUrl", trimToNull(request.getImageUrl()))
-                    .addValue("profileId", trimToNull(request.getProfileId()))
-                    .addValue("status", trim(request.getStatus()))
-                    .addValue("createdAt", now)
-                    .addValue("updatedAt", now), Long.class);
+            ParkingCustomerEntity customer = new ParkingCustomerEntity();
+            customer.setOwnerId(ownerId);
+            customer.setUsername(trim(request.getName()));
+            customer.setPhoneNumber(trimToNull(request.getPhone()));
+            customer.setImageUrl(trimToNull(request.getImageUrl()));
+            customer.setAiIdentityId("");
+            customer.setAiProfileId(parseNullableInteger(request.getProfileId(), "profileId"));
+            customer.setZaloId("");
+            customer.setStatus(trim(request.getStatus()));
+            customerId = parkingCustomerRepository.save(customer).getId();
         } else {
             ensureCustomerBelongsToOwner(ownerId, customerId);
-            ParkingCustomerResponse current = getCustomer(customerId);
-            updateCustomerFields(customerId, current, request, now);
+            updateCustomerFields(findCustomer(customerId), request);
         }
 
-        upsertVehicleCustomer(vehicleId, customerId, trim(request.getRelationType()), trim(request.getStatus()), now);
+        upsertVehicleCustomer(vehicleId, customerId, trim(request.getRelationType()), trim(request.getStatus()));
         return fetchCustomerRelation(vehicleId, customerId);
     }
 
@@ -351,375 +341,158 @@ public class OwnerAccountProfileService {
         }
     }
 
-    private Long insertOwner(ProfileSaveRequest.Owner owner, OffsetDateTime now) {
-        return jdbcTemplate.queryForObject("""
-                INSERT INTO owner_account
-                    (full_name, phone, identity_number, address, image_url, zalo_link, note, status, created_at, updated_at)
-                VALUES
-                    (:fullName, :phone, :identityNumber, :address, :imageUrl, :zaloLink, :note, :status, :createdAt, :updatedAt)
-                RETURNING id
-                """, ownerParams(null, owner, now), Long.class);
+    private OwnerAccountEntity saveOwner(OwnerAccountEntity entity, ProfileSaveRequest.Owner owner) {
+        entity.setFullName(trim(owner.getFullName()));
+        entity.setPhone(trim(owner.getPhone()));
+        entity.setIdentityNumber(trim(owner.getIdentityNumber()));
+        entity.setAddress(trimToNull(owner.getAddress()));
+        entity.setImageUrl(trimToNull(owner.getImageUrl()));
+        entity.setZaloLink(trimToNull(owner.getZaloLink()));
+        entity.setNote(trimToNull(owner.getNote()));
+        entity.setStatus(trim(owner.getStatus()));
+        return ownerAccountRepository.save(entity);
     }
 
-    private void updateOwner(Long ownerId, ProfileSaveRequest.Owner owner, OffsetDateTime now) {
-        jdbcTemplate.update("""
-                UPDATE owner_account
-                SET full_name = :fullName,
-                    phone = :phone,
-                    identity_number = :identityNumber,
-                    address = :address,
-                    image_url = :imageUrl,
-                    zalo_link = :zaloLink,
-                    note = :note,
-                    status = :status,
-                    updated_at = :updatedAt
-                WHERE id = :id
-                """, ownerParams(ownerId, owner, now));
+    private VehicleEntity saveVehicle(VehicleEntity entity, Long ownerId, ProfileSaveRequest.Vehicle vehicle) {
+        entity.setOwnerId(ownerId);
+        entity.setPlateNumber(normalizePlate(vehicle.getPlate()));
+        entity.setVehicleType(trim(vehicle.getVehicleType()));
+        entity.setStatus(trim(vehicle.getStatus()));
+        return vehicleRepository.save(entity);
     }
 
-    private MapSqlParameterSource ownerParams(Long ownerId, ProfileSaveRequest.Owner owner, OffsetDateTime now) {
-        return new MapSqlParameterSource()
-                .addValue("id", ownerId)
-                .addValue("fullName", trim(owner.getFullName()))
-                .addValue("phone", trim(owner.getPhone()))
-                .addValue("identityNumber", trim(owner.getIdentityNumber()))
-                .addValue("address", trimToNull(owner.getAddress()))
-                .addValue("imageUrl", trimToNull(owner.getImageUrl()))
-                .addValue("zaloLink", trimToNull(owner.getZaloLink()))
-                .addValue("note", trimToNull(owner.getNote()))
-                .addValue("status", trim(owner.getStatus()))
-                .addValue("createdAt", now)
-                .addValue("updatedAt", now);
+    private ParkingCustomerEntity saveCustomer(ParkingCustomerEntity entity, Long ownerId, ProfileSaveRequest.Customer customer) {
+        entity.setOwnerId(ownerId);
+        entity.setUsername(trim(customer.getName()));
+        entity.setPhoneNumber(trimToNull(customer.getPhone()));
+        entity.setImageUrl(trimToNull(customer.getImageUrl()));
+        entity.setAiIdentityId(resolveAiIdentityId(customer.getAiIdentityId(), entity.getAiIdentityId()));
+        entity.setAiProfileId(parseNullableInteger(customer.getProfileId(), "profileId"));
+        entity.setZaloId(StringUtils.defaultString(entity.getZaloId()));
+        entity.setStatus(trim(customer.getStatus()));
+        return parkingCustomerRepository.save(entity);
     }
 
-    private Long insertVehicle(Long ownerId, ProfileSaveRequest.Vehicle vehicle, OffsetDateTime now) {
-        return jdbcTemplate.queryForObject("""
-                INSERT INTO vehicle
-                    (owner_id, plate, vehicle_type, status, created_at, updated_at)
-                VALUES
-                    (:ownerId, :plate, :vehicleType, :status, :createdAt, :updatedAt)
-                RETURNING id
-                """, vehicleParams(null, ownerId, vehicle, now), Long.class);
-    }
-
-    private void updateVehicle(Long vehicleId, Long ownerId, ProfileSaveRequest.Vehicle vehicle, OffsetDateTime now) {
-        jdbcTemplate.update("""
-                UPDATE vehicle
-                SET plate = :plate,
-                    vehicle_type = :vehicleType,
-                    status = :status,
-                    updated_at = :updatedAt
-                WHERE id = :id
-                  AND owner_id = :ownerId
-                """, vehicleParams(vehicleId, ownerId, vehicle, now));
-    }
-
-    private MapSqlParameterSource vehicleParams(Long vehicleId, Long ownerId, ProfileSaveRequest.Vehicle vehicle, OffsetDateTime now) {
-        return new MapSqlParameterSource()
-                .addValue("id", vehicleId)
-                .addValue("ownerId", ownerId)
-                .addValue("plate", normalizePlate(vehicle.getPlate()))
-                .addValue("vehicleType", trim(vehicle.getVehicleType()))
-                .addValue("status", trim(vehicle.getStatus()))
-                .addValue("createdAt", now)
-                .addValue("updatedAt", now);
-    }
-
-    private void upsertVehicleSubscription(Long vehicleId, ProfileSaveRequest.Subscription subscription, OffsetDateTime now) {
+    private void upsertVehicleSubscription(Long vehicleId, ProfileSaveRequest.Subscription subscription) {
         if (subscription == null) {
             return;
         }
 
-        if (subscription.getId() == null) {
-            jdbcTemplate.update("""
-                    INSERT INTO vehicle_subscription
-                        (vehicle_id, parking_lot_id, package_id, registration_type, previous_subscription_id,
-                         price_vnd, starts_at, ends_at, payment_deadline_at, status, paid_at,
-                         payment_source, payment_reference, payment_receipt, created_at, updated_at)
-                    VALUES
-                        (:vehicleId, :parkingLotId, :packageId, :registrationType, :previousSubscriptionId,
-                         :priceVnd, :startsAt, :endsAt, :paymentDeadlineAt, :status, :paidAt,
-                         :paymentSource, :paymentReference, CAST(:paymentReceipt AS jsonb), :createdAt, :updatedAt)
-                    """, subscriptionParams(null, vehicleId, subscription, now));
-            return;
+        VehicleSubscriptionEntity entity = subscription.getId() == null
+                ? new VehicleSubscriptionEntity()
+                : vehicleSubscriptionRepository.findById(subscription.getId())
+                .orElseThrow(() -> new ServiceException("Vehicle subscription not found: " + subscription.getId(), 404));
+        entity.setVehicleId(toIntegerId(vehicleId, "vehicleId"));
+        entity.setParkingLotId(subscription.getParkingLotId());
+        entity.setPackageId(subscription.getPackageId());
+        entity.setRegistrationType(trim(subscription.getRegistrationType()));
+        entity.setPreviousSubscriptionId(subscription.getPreviousSubscriptionId());
+        entity.setPriceVnd(subscription.getPriceVnd());
+        entity.setStartsAt(subscription.getStartsAt());
+        entity.setEndsAt(subscription.getEndsAt());
+        entity.setPaymentDeadlineAt(subscription.getPaymentDeadlineAt());
+        entity.setStatus(trim(subscription.getStatus()));
+        entity.setPaidAt(subscription.getPaidAt());
+        entity.setPaymentSource(trimToNull(subscription.getPaymentSource()));
+        entity.setPaymentReference(trimToNull(subscription.getPaymentReference()));
+        entity.setPaymentReceipt(trimToNull(subscription.getPaymentReceipt()));
+        vehicleSubscriptionRepository.save(entity);
+    }
+
+    private Long upsertVehicleCustomer(Long vehicleId, Long customerId, ProfileSaveRequest.Customer customer) {
+        VehicleCustomerEntity relation = customer.getRelationId() == null
+                ? vehicleCustomerRepository.findByVehicleIdAndCustomerId(vehicleId, customerId).orElse(null)
+                : findVehicleCustomer(customer.getRelationId(), vehicleId, customerId);
+        if (relation == null) {
+            relation = new VehicleCustomerEntity();
+            relation.setVehicle(findVehicle(vehicleId));
+            relation.setCustomer(findCustomer(customerId));
         }
-
-        jdbcTemplate.update("""
-                UPDATE vehicle_subscription
-                SET vehicle_id = :vehicleId,
-                    parking_lot_id = :parkingLotId,
-                    package_id = :packageId,
-                    registration_type = :registrationType,
-                    previous_subscription_id = :previousSubscriptionId,
-                    price_vnd = :priceVnd,
-                    starts_at = :startsAt,
-                    ends_at = :endsAt,
-                    payment_deadline_at = :paymentDeadlineAt,
-                    status = :status,
-                    paid_at = :paidAt,
-                    payment_source = :paymentSource,
-                    payment_reference = :paymentReference,
-                    payment_receipt = CAST(:paymentReceipt AS jsonb),
-                    updated_at = :updatedAt
-                WHERE id = :id
-                """, subscriptionParams(subscription.getId(), vehicleId, subscription, now));
-    }
-
-    private MapSqlParameterSource subscriptionParams(Integer subscriptionId, Long vehicleId, ProfileSaveRequest.Subscription subscription, OffsetDateTime now) {
-        return new MapSqlParameterSource()
-                .addValue("id", subscriptionId)
-                .addValue("vehicleId", toIntegerId(vehicleId, "vehicleId"))
-                .addValue("parkingLotId", subscription.getParkingLotId())
-                .addValue("packageId", subscription.getPackageId())
-                .addValue("registrationType", trim(subscription.getRegistrationType()))
-                .addValue("previousSubscriptionId", subscription.getPreviousSubscriptionId())
-                .addValue("priceVnd", subscription.getPriceVnd())
-                .addValue("startsAt", subscription.getStartsAt())
-                .addValue("endsAt", subscription.getEndsAt())
-                .addValue("paymentDeadlineAt", subscription.getPaymentDeadlineAt())
-                .addValue("status", trim(subscription.getStatus()))
-                .addValue("paidAt", subscription.getPaidAt())
-                .addValue("paymentSource", trimToNull(subscription.getPaymentSource()))
-                .addValue("paymentReference", trimToNull(subscription.getPaymentReference()))
-                .addValue("paymentReceipt", trimToNull(subscription.getPaymentReceipt()))
-                .addValue("createdAt", now)
-                .addValue("updatedAt", now);
-    }
-
-    private Long insertCustomer(Long ownerId, ProfileSaveRequest.Customer customer, OffsetDateTime now) {
-        return jdbcTemplate.queryForObject("""
-                INSERT INTO parkingcustomer
-                    (owner_id, name, phone, image_url, profile_id, status, created_at, updated_at)
-                VALUES
-                    (:ownerId, :name, :phone, :imageUrl, :profileId, :status, :createdAt, :updatedAt)
-                RETURNING id
-                """, customerParams(null, ownerId, customer, now), Long.class);
-    }
-
-    private void updateCustomer(Long customerId, Long ownerId, ProfileSaveRequest.Customer customer, OffsetDateTime now) {
-        jdbcTemplate.update("""
-                UPDATE parkingcustomer
-                SET name = :name,
-                    phone = :phone,
-                    image_url = :imageUrl,
-                    profile_id = :profileId,
-                    status = :status,
-                    updated_at = :updatedAt
-                WHERE id = :id
-                  AND owner_id = :ownerId
-                """, customerParams(customerId, ownerId, customer, now));
-    }
-
-    private MapSqlParameterSource customerParams(Long customerId, Long ownerId, ProfileSaveRequest.Customer customer, OffsetDateTime now) {
-        return new MapSqlParameterSource()
-                .addValue("id", customerId)
-                .addValue("ownerId", ownerId)
-                .addValue("name", trim(customer.getName()))
-                .addValue("phone", trimToNull(customer.getPhone()))
-                .addValue("imageUrl", trimToNull(customer.getImageUrl()))
-                .addValue("profileId", trimToNull(customer.getProfileId()))
-                .addValue("status", trim(customer.getStatus()))
-                .addValue("createdAt", now)
-                .addValue("updatedAt", now);
-    }
-
-    private Long upsertVehicleCustomer(Long vehicleId, Long customerId, ProfileSaveRequest.Customer customer, OffsetDateTime now) {
-        Long relationId = customer.getRelationId();
-        if (relationId == null) {
-            relationId = findVehicleCustomerId(vehicleId, customerId);
-        }
-        if (relationId == null) {
-            relationId = jdbcTemplate.queryForObject("""
-                    INSERT INTO vehicle_customer
-                        (vehicle_id, customer_id, relation_type, status, created_at, updated_at)
-                    VALUES
-                        (:vehicleId, :customerId, :relationType, :status, :createdAt, :updatedAt)
-                    RETURNING id
-                    """, relationParams(null, vehicleId, customerId, customer, now), Long.class);
-        } else {
-            ensureRelationMatches(relationId, vehicleId, customerId);
-            jdbcTemplate.update("""
-                    UPDATE vehicle_customer
-                    SET relation_type = :relationType,
-                        status = :status,
-                        updated_at = :updatedAt
-                    WHERE id = :id
-                    """, relationParams(relationId, vehicleId, customerId, customer, now));
-        }
-        return relationId;
+        relation.setRelationType(trim(customer.getRelationType()));
+        relation.setStatus(trim(customer.getRelationStatus()));
+        return vehicleCustomerRepository.save(relation).getId();
     }
 
     private boolean isUsed(ProfileSaveRequest.Customer customer) {
         return customer.getIsUsed() == null || Boolean.TRUE.equals(customer.getIsUsed());
     }
 
-    private MapSqlParameterSource relationParams(Long relationId, Long vehicleId, Long customerId, ProfileSaveRequest.Customer customer, OffsetDateTime now) {
-        return new MapSqlParameterSource()
-                .addValue("id", relationId)
-                .addValue("vehicleId", vehicleId)
-                .addValue("customerId", customerId)
-                .addValue("relationType", trim(customer.getRelationType()))
-                .addValue("status", trim(customer.getRelationStatus()))
-                .addValue("createdAt", now)
-                .addValue("updatedAt", now);
+    private void inactiveMissingCustomers(Long ownerId, Set<Long> submittedCustomerIds) {
+        List<ParkingCustomerEntity> customers = parkingCustomerRepository.findAll().stream()
+                .filter(customer -> ownerId.equals(customer.getOwnerId()))
+                .filter(customer -> !submittedCustomerIds.contains(customer.getId()))
+                .toList();
+        for (ParkingCustomerEntity customer : customers) {
+            customer.setStatus("INACTIVE");
+        }
+        parkingCustomerRepository.saveAll(customers);
     }
 
-    private void inactiveMissingCustomers(Long ownerId, Set<Long> submittedCustomerIds, OffsetDateTime now) {
-        if (submittedCustomerIds.isEmpty()) {
-            jdbcTemplate.update("""
-                    UPDATE parkingcustomer
-                    SET status = 'INACTIVE', updated_at = :updatedAt
-                    WHERE owner_id = :ownerId
-                    """, new MapSqlParameterSource()
-                    .addValue("ownerId", ownerId)
-                    .addValue("updatedAt", now));
-            return;
+    private void inactiveMissingRelations(Long ownerId, Set<Long> submittedRelationIds) {
+        List<VehicleCustomerEntity> relations = vehicleCustomerRepository.findByVehicleOwnerId(ownerId).stream()
+                .filter(relation -> !submittedRelationIds.contains(relation.getId()))
+                .toList();
+        for (VehicleCustomerEntity relation : relations) {
+            relation.setStatus("INACTIVE");
         }
-        jdbcTemplate.update("""
-                UPDATE parkingcustomer
-                SET status = 'INACTIVE', updated_at = :updatedAt
-                WHERE owner_id = :ownerId
-                  AND id NOT IN (:ids)
-                """, new MapSqlParameterSource()
-                .addValue("ownerId", ownerId)
-                .addValue("ids", submittedCustomerIds)
-                .addValue("updatedAt", now));
-    }
-
-    private void inactiveMissingRelations(Long ownerId, Set<Long> submittedRelationIds, OffsetDateTime now) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("ownerId", ownerId)
-                .addValue("updatedAt", now);
-        String notInClause = "";
-        if (!submittedRelationIds.isEmpty()) {
-            params.addValue("ids", submittedRelationIds);
-            notInClause = "AND vc.id NOT IN (:ids)";
-        }
-        jdbcTemplate.update("""
-                UPDATE vehicle_customer vc
-                SET status = 'INACTIVE', updated_at = :updatedAt
-                FROM vehicle v
-                WHERE v.id = vc.vehicle_id
-                  AND v.owner_id = :ownerId
-                """ + notInClause, params);
+        vehicleCustomerRepository.saveAll(relations);
     }
 
     private boolean ownerPhoneExists(String phone, Long excludedOwnerId) {
-        return existsWithExcludedId("owner_account", "phone", phone, excludedOwnerId);
+        return excludedOwnerId == null
+                ? ownerAccountRepository.existsByPhone(phone)
+                : ownerAccountRepository.existsByPhoneAndIdNot(phone, excludedOwnerId);
     }
 
     private boolean identityNumberExists(String identityNumber, Long excludedOwnerId) {
-        return existsWithExcludedId("owner_account", "identity_number", identityNumber, excludedOwnerId);
+        return excludedOwnerId == null
+                ? ownerAccountRepository.existsByIdentityNumber(identityNumber)
+                : ownerAccountRepository.existsByIdentityNumberAndIdNot(identityNumber, excludedOwnerId);
     }
 
     private boolean customerPhoneExists(String phone, Long excludedCustomerId) {
-        return existsWithExcludedId("parkingcustomer", "phone", phone, excludedCustomerId);
+        return excludedCustomerId == null
+                ? parkingCustomerRepository.existsByPhoneNumber(phone)
+                : parkingCustomerRepository.existsByPhoneNumberAndIdNot(phone, excludedCustomerId);
     }
 
     private boolean plateExists(String plate, Long excludedVehicleId) {
-        return existsWithExcludedId("vehicle", "plate", plate, excludedVehicleId);
-    }
-
-    private boolean existsWithExcludedId(String table, String column, String value, Long excludedId) {
-        String excludedClause = excludedId == null ? "" : " AND id <> :excludedId";
-        MapSqlParameterSource params = new MapSqlParameterSource("value", value);
-        if (excludedId != null) {
-            params.addValue("excludedId", excludedId);
-        }
-        Boolean exists = jdbcTemplate.queryForObject("""
-                SELECT EXISTS(SELECT 1 FROM %s WHERE %s = :value%s)
-                """.formatted(table, column, excludedClause), params, Boolean.class);
-        return Boolean.TRUE.equals(exists);
+        return excludedVehicleId == null
+                ? vehicleRepository.existsByPlateNumber(plate)
+                : vehicleRepository.existsByPlateNumberAndIdNot(plate, excludedVehicleId);
     }
 
     private void ensureVehicleBelongsToOwner(Long ownerId, Long vehicleId) {
-        Boolean exists = jdbcTemplate.queryForObject("""
-                SELECT EXISTS(SELECT 1 FROM vehicle WHERE id = :vehicleId AND owner_id = :ownerId)
-                """, new MapSqlParameterSource()
-                .addValue("vehicleId", vehicleId)
-                .addValue("ownerId", ownerId), Boolean.class);
-        if (!Boolean.TRUE.equals(exists)) {
-            throw new ServiceException("Vehicle not found in owner account: " + vehicleId, 404);
-        }
+        findOwnerVehicle(ownerId, vehicleId);
     }
 
     private void ensureRelationMatches(Long relationId, Long vehicleId, Long customerId) {
-        Boolean exists = jdbcTemplate.queryForObject("""
-                SELECT EXISTS(
-                    SELECT 1
-                    FROM vehicle_customer
-                    WHERE id = :relationId
-                      AND vehicle_id = :vehicleId
-                      AND customer_id = :customerId
-                )
-                """, new MapSqlParameterSource()
-                .addValue("relationId", relationId)
-                .addValue("vehicleId", vehicleId)
-                .addValue("customerId", customerId), Boolean.class);
-        if (!Boolean.TRUE.equals(exists)) {
-            throw new ServiceException("Vehicle customer relation does not match vehicle/customer: " + relationId, 400);
-        }
+        findVehicleCustomer(relationId, vehicleId, customerId);
     }
 
-    private Long findVehicleCustomerId(Long vehicleId, Long customerId) {
-        return jdbcTemplate.query("""
-                SELECT id
-                FROM vehicle_customer
-                WHERE vehicle_id = :vehicleId
-                  AND customer_id = :customerId
-                """, new MapSqlParameterSource()
-                .addValue("vehicleId", vehicleId)
-                .addValue("customerId", customerId), rs -> rs.next() ? toLong(rs.getObject("id")) : null);
-    }
-
-    private void insertVehicleCustomer(Long vehicleId, Long customerId, String relationType, String status, OffsetDateTime now) {
+    private void insertVehicleCustomer(Long vehicleId, Long customerId, String relationType, String status) {
         if (vehicleCustomerExists(vehicleId, customerId)) {
             throw new ServiceException("Customer already assigned to vehicle", 400);
         }
-        jdbcTemplate.update("""
-                INSERT INTO vehicle_customer
-                    (vehicle_id, customer_id, relation_type, status, created_at, updated_at)
-                VALUES
-                    (:vehicleId, :customerId, :relationType, :status, :createdAt, :updatedAt)
-                """, new MapSqlParameterSource()
-                .addValue("vehicleId", vehicleId)
-                .addValue("customerId", customerId)
-                .addValue("relationType", relationType)
-                .addValue("status", status)
-                .addValue("createdAt", now)
-                .addValue("updatedAt", now));
+        VehicleCustomerEntity relation = new VehicleCustomerEntity();
+        relation.setVehicle(findVehicle(vehicleId));
+        relation.setCustomer(findCustomer(customerId));
+        relation.setRelationType(relationType);
+        relation.setStatus(status);
+        vehicleCustomerRepository.save(relation);
     }
 
-    private void upsertVehicleCustomer(Long vehicleId, Long customerId, String relationType, String status, OffsetDateTime now) {
-        if (vehicleCustomerExists(vehicleId, customerId)) {
-            jdbcTemplate.update("""
-                    UPDATE vehicle_customer
-                    SET relation_type = :relationType,
-                        status = :status,
-                        updated_at = :updatedAt
-                    WHERE vehicle_id = :vehicleId
-                      AND customer_id = :customerId
-                    """, new MapSqlParameterSource()
-                    .addValue("vehicleId", vehicleId)
-                    .addValue("customerId", customerId)
-                    .addValue("relationType", relationType)
-                    .addValue("status", status)
-                    .addValue("updatedAt", now));
-            return;
-        }
-
-        jdbcTemplate.update("""
-                INSERT INTO vehicle_customer
-                    (vehicle_id, customer_id, relation_type, status, created_at, updated_at)
-                VALUES
-                    (:vehicleId, :customerId, :relationType, :status, :createdAt, :updatedAt)
-                """, new MapSqlParameterSource()
-                .addValue("vehicleId", vehicleId)
-                .addValue("customerId", customerId)
-                .addValue("relationType", relationType)
-                .addValue("status", status)
-                .addValue("createdAt", now)
-                .addValue("updatedAt", now));
+    private void upsertVehicleCustomer(Long vehicleId, Long customerId, String relationType, String status) {
+        VehicleCustomerEntity relation = vehicleCustomerRepository.findByVehicleIdAndCustomerId(vehicleId, customerId)
+                .orElseGet(() -> {
+                    VehicleCustomerEntity newRelation = new VehicleCustomerEntity();
+                    newRelation.setVehicle(findVehicle(vehicleId));
+                    newRelation.setCustomer(findCustomer(customerId));
+                    return newRelation;
+                });
+        relation.setRelationType(relationType);
+        relation.setStatus(status);
+        vehicleCustomerRepository.save(relation);
     }
 
     private void validateVehicleUsers(SubscriptionVehicleCreateRequest request) {
@@ -740,127 +513,105 @@ public class OwnerAccountProfileService {
     }
 
     private void ensureOwnerExists(Long ownerId) {
-        Boolean exists = jdbcTemplate.queryForObject("""
-                SELECT EXISTS(SELECT 1 FROM owner_account WHERE id = :ownerId)
-                """, new MapSqlParameterSource("ownerId", ownerId), Boolean.class);
-        if (!Boolean.TRUE.equals(exists)) {
+        if (!ownerAccountRepository.existsById(ownerId)) {
             throw new ServiceException("Owner account not found", 404);
         }
     }
 
     private void ensureCustomerBelongsToOwner(Long ownerId, Long customerId) {
-        Boolean exists = jdbcTemplate.queryForObject("""
-                SELECT EXISTS(SELECT 1 FROM parkingcustomer WHERE id = :customerId AND owner_id = :ownerId)
-                """, new MapSqlParameterSource()
-                .addValue("customerId", customerId)
-                .addValue("ownerId", ownerId), Boolean.class);
-        if (!Boolean.TRUE.equals(exists)) {
-            throw new ServiceException("Customer not found in owner account: " + customerId, 404);
-        }
+        findOwnerCustomer(ownerId, customerId);
     }
 
     private Long getVehicleOwnerId(Long vehicleId) {
-        return jdbcTemplate.query("""
-                SELECT owner_id
-                FROM vehicle
-                WHERE id = :vehicleId
-                """, new MapSqlParameterSource("vehicleId", vehicleId), rs -> {
-            if (!rs.next()) {
-                throw new ServiceException("Vehicle not found", 404);
-            }
-            return toLong(rs.getObject("owner_id"));
-        });
+        return findVehicle(vehicleId).getOwnerId();
     }
 
     private boolean plateExists(String plate) {
-        Boolean exists = jdbcTemplate.queryForObject("""
-                SELECT EXISTS(SELECT 1 FROM vehicle WHERE plate = :plate)
-                """, new MapSqlParameterSource("plate", plate), Boolean.class);
-        return Boolean.TRUE.equals(exists);
+        return vehicleRepository.existsByPlateNumber(plate);
     }
 
     private boolean vehicleCustomerExists(Long vehicleId, Long customerId) {
-        Boolean exists = jdbcTemplate.queryForObject("""
-                SELECT EXISTS(SELECT 1 FROM vehicle_customer WHERE vehicle_id = :vehicleId AND customer_id = :customerId)
-                """, new MapSqlParameterSource()
-                .addValue("vehicleId", vehicleId)
-                .addValue("customerId", customerId), Boolean.class);
-        return Boolean.TRUE.equals(exists);
+        return vehicleCustomerRepository.existsByVehicleIdAndCustomerId(vehicleId, customerId);
     }
 
     private SubscriptionVehicleCreateResponse.UserResponse fetchCustomerRelation(Long vehicleId, Long customerId) {
-        return jdbcTemplate.query("""
-                SELECT
-                    pc.id,
-                    pc.name,
-                    pc.phone,
-                    pc.image_url,
-                    pc.profile_id,
-                    vc.relation_type,
-                    vc.status AS relation_status
-                FROM vehicle_customer vc
-                JOIN parkingcustomer pc ON pc.id = vc.customer_id
-                WHERE vc.vehicle_id = :vehicleId
-                  AND vc.customer_id = :customerId
-                """, new MapSqlParameterSource()
-                .addValue("vehicleId", vehicleId)
-                .addValue("customerId", customerId), rs -> {
-            if (!rs.next()) {
-                throw new ServiceException("Vehicle customer relation not found", 404);
-            }
-            return SubscriptionVehicleCreateResponse.UserResponse.builder()
-                    .customerId(toLong(rs.getObject("id")))
-                    .name(rs.getString("name"))
-                    .phone(rs.getString("phone"))
-                    .imageUrl(rs.getString("image_url"))
-                    .profileId(rs.getString("profile_id"))
-                    .relationType(rs.getString("relation_type"))
-                    .relationStatus(rs.getString("relation_status"))
-                    .build();
-        });
+        VehicleCustomerEntity relation = vehicleCustomerRepository.findByVehicleIdAndCustomerId(vehicleId, customerId)
+                .orElseThrow(() -> new ServiceException("Vehicle customer relation not found", 404));
+        ParkingCustomerEntity customer = relation.getCustomer();
+        return SubscriptionVehicleCreateResponse.UserResponse.builder()
+                .customerId(customer.getId())
+                .name(customer.getUsername())
+                .phone(customer.getPhoneNumber())
+                .imageUrl(customer.getImageUrl())
+                .profileId(customer.getAiProfileId() == null ? null : customer.getAiProfileId().toString())
+                .relationType(relation.getRelationType())
+                .relationStatus(relation.getStatus())
+                .build();
     }
 
     private ParkingCustomerResponse getCustomer(Long customerId) {
-        return jdbcTemplate.query("""
-                SELECT id, owner_id, name, phone, image_url, profile_id, status, created_at, updated_at
-                FROM parkingcustomer
-                WHERE id = :id
-                """, new MapSqlParameterSource("id", customerId), rs -> {
-            if (!rs.next()) {
-                throw new ServiceException("Customer not found", 404);
-            }
-            return ParkingCustomerResponse.builder()
-                    .id(toLong(rs.getObject("id")))
-                    .ownerId(toLong(rs.getObject("owner_id")))
-                    .name(rs.getString("name"))
-                    .phone(rs.getString("phone"))
-                    .imageUrl(rs.getString("image_url"))
-                    .profileId(rs.getString("profile_id"))
-                    .status(rs.getString("status"))
-                    .createdAt(toOffsetDateTime(rs.getObject("created_at")))
-                    .updatedAt(toOffsetDateTime(rs.getObject("updated_at")))
-                    .build();
-        });
+        return toParkingCustomerResponse(findCustomer(customerId));
     }
 
-    private void updateCustomerFields(Long customerId, ParkingCustomerResponse current, VehicleUserSaveRequest request, OffsetDateTime now) {
-        jdbcTemplate.update("""
-                UPDATE parkingcustomer
-                SET name = :name,
-                    phone = :phone,
-                    image_url = :imageUrl,
-                    profile_id = :profileId,
-                    status = :status,
-                    updated_at = :updatedAt
-                WHERE id = :id
-                """, new MapSqlParameterSource()
-                .addValue("id", customerId)
-                .addValue("name", request.getName() == null ? current.getName() : trimRequired(request.getName(), "name"))
-                .addValue("phone", request.getPhone() == null ? current.getPhone() : trimToNull(request.getPhone()))
-                .addValue("imageUrl", request.getImageUrl() == null ? current.getImageUrl() : trimToNull(request.getImageUrl()))
-                .addValue("profileId", request.getProfileId() == null ? current.getProfileId() : trimToNull(request.getProfileId()))
-                .addValue("status", trim(request.getStatus()))
-                .addValue("updatedAt", now));
+    private void updateCustomerFields(ParkingCustomerEntity customer, VehicleUserSaveRequest request) {
+        if (request.getName() != null) {
+            customer.setUsername(trimRequired(request.getName(), "name"));
+        }
+        if (request.getPhone() != null) {
+            customer.setPhoneNumber(trimToNull(request.getPhone()));
+        }
+        if (request.getImageUrl() != null) {
+            customer.setImageUrl(trimToNull(request.getImageUrl()));
+        }
+        if (request.getProfileId() != null) {
+            customer.setAiProfileId(parseNullableInteger(request.getProfileId(), "profileId"));
+        }
+        customer.setStatus(trim(request.getStatus()));
+        parkingCustomerRepository.save(customer);
+    }
+
+    private OwnerAccountEntity findOwner(Long ownerId) {
+        return ownerAccountRepository.findById(ownerId)
+                .orElseThrow(() -> new ServiceException("Owner account not found", 404));
+    }
+
+    private VehicleEntity findVehicle(Long vehicleId) {
+        return vehicleRepository.findById(vehicleId)
+                .orElseThrow(() -> new ServiceException("Vehicle not found", 404));
+    }
+
+    private VehicleEntity findOwnerVehicle(Long ownerId, Long vehicleId) {
+        return vehicleRepository.findByIdAndOwnerId(vehicleId, ownerId)
+                .orElseThrow(() -> new ServiceException("Vehicle not found in owner account: " + vehicleId, 404));
+    }
+
+    private ParkingCustomerEntity findCustomer(Long customerId) {
+        return parkingCustomerRepository.findById(customerId)
+                .orElseThrow(() -> new ServiceException("Customer not found", 404));
+    }
+
+    private ParkingCustomerEntity findOwnerCustomer(Long ownerId, Long customerId) {
+        return parkingCustomerRepository.findByIdAndOwnerId(customerId, ownerId)
+                .orElseThrow(() -> new ServiceException("Customer not found in owner account: " + customerId, 404));
+    }
+
+    private VehicleCustomerEntity findVehicleCustomer(Long relationId, Long vehicleId, Long customerId) {
+        return vehicleCustomerRepository.findByIdAndVehicleIdAndCustomerId(relationId, vehicleId, customerId)
+                .orElseThrow(() -> new ServiceException("Vehicle customer relation does not match vehicle/customer: " + relationId, 400));
+    }
+
+    private ParkingCustomerResponse toParkingCustomerResponse(ParkingCustomerEntity customer) {
+        return ParkingCustomerResponse.builder()
+                .id(customer.getId())
+                .ownerId(customer.getOwnerId())
+                .name(customer.getUsername())
+                .phone(customer.getPhoneNumber())
+                .imageUrl(customer.getImageUrl())
+                .profileId(customer.getAiProfileId() == null ? null : customer.getAiProfileId().toString())
+                .status(customer.getStatus())
+                .createdAt(toOffsetDateTime(customer.getCreatedAt()))
+                .updatedAt(null)
+                .build();
     }
 
     private void syncCustomerImageWithAi(ProfileSaveRequest.Customer customer, List<MultipartFile> customerImages, Integer sequentialImageIndex) {
@@ -878,7 +629,25 @@ public class OwnerAccountProfileService {
 
         Integer profileId = aiProfile.getId() != null ? aiProfile.getId() : aiProfile.getAiProfileId();
         customer.setProfileId(profileId.toString());
+        customer.setAiIdentityId(aiProfile.getUuid());
         customer.setImageUrl(resolveAiImageUrl(aiProfile, profileId));
+    }
+
+    private void syncOwnerImageWithAi(ProfileSaveRequest.Owner owner, MultipartFile ownerImage) {
+        if (ownerImage == null) {
+            return;
+        }
+        if (ownerImage.isEmpty()) {
+            throw new ServiceException("ownerImage is empty", 400);
+        }
+
+        AiProfileResponse aiProfile = aiFaceApiClient.createProfile(trim(owner.getFullName()), List.of(ownerImage));
+        if (aiProfile == null || (aiProfile.getId() == null && aiProfile.getAiProfileId() == null)) {
+            throw new ServiceException("Create AI profile failed for owner: " + trim(owner.getFullName()), 502);
+        }
+
+        Integer profileId = aiProfile.getId() != null ? aiProfile.getId() : aiProfile.getAiProfileId();
+        owner.setImageUrl(resolveAiImageUrl(aiProfile, profileId));
     }
 
     private List<MultipartFile> resolveCustomerImages(ProfileSaveRequest.Customer customer, List<MultipartFile> customerImages, Integer sequentialImageIndex) {
@@ -990,6 +759,26 @@ public class OwnerAccountProfileService {
         }
     }
 
+    private Integer parseNullableInteger(String value, String fieldName) {
+        String trimmedValue = trimToNull(value);
+        if (trimmedValue == null) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(trimmedValue);
+        } catch (NumberFormatException e) {
+            throw new ServiceException("Invalid " + fieldName + ": " + value, 400);
+        }
+    }
+
+    private String resolveAiIdentityId(String requestedAiIdentityId, String currentAiIdentityId) {
+        String aiIdentityId = trimToNull(requestedAiIdentityId);
+        if (aiIdentityId != null) {
+            return aiIdentityId;
+        }
+        return StringUtils.defaultString(currentAiIdentityId);
+    }
+
     private String trim(String value) {
         return value.trim();
     }
@@ -1023,16 +812,6 @@ public class OwnerAccountProfileService {
             return localDateTime.atZone(java.time.ZoneId.systemDefault()).toOffsetDateTime();
         }
         throw new ServiceException("Unsupported datetime type: " + value.getClass().getName(), 500);
-    }
-
-    private Long toLong(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Number number) {
-            return number.longValue();
-        }
-        throw new ServiceException("Unsupported id type: " + value.getClass().getName(), 500);
     }
 
     private Integer toIntegerId(Long value, String fieldName) {
