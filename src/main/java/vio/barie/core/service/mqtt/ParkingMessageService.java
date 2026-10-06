@@ -531,6 +531,12 @@ public class ParkingMessageService {
     public void publishErrorWhenHandlingEvent(String message, String cameraUUID, DetectionType type, String barrierId,
                                               String plateNumber, Integer profileId, String code,
                                               List<LaneEventImage> images) {
+        publishErrorWhenHandlingEvent(message, cameraUUID, type, barrierId, plateNumber, profileId, code, images, null);
+    }
+
+    public void publishErrorWhenHandlingEvent(String message, String cameraUUID, DetectionType type, String barrierId,
+                                              String plateNumber, Integer profileId, String code,
+                                              List<LaneEventImage> images, Long incidentId) {
 
         try {
             String topic = buildErrorTopic(barrierId);
@@ -543,6 +549,7 @@ public class ParkingMessageService {
             payload.setProfileId(profileId);
             payload.setCode(code);
             payload.setImages(images);
+            payload.setIncidentId(incidentId);
             String json = JSONUtil.toJsonStr(payload);
             mqttPublisher.publish(topic, json);
             log.info("Published error event to topic={}", topic);
