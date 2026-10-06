@@ -24,6 +24,9 @@ public class VehicleEntity extends BaseEntity {
 
     @Column(name = "vehicle_type", nullable = false)
     private String vehicleType;
+
+    @Column(name = "owner_id")
+    private Long ownerId;
     
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "info", columnDefinition = "jsonb")
