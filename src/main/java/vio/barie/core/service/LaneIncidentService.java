@@ -2,8 +2,6 @@ package vio.barie.core.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.redisson.api.RAtomicLong;
-import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,7 +33,6 @@ import vio.barie.core.utils.DirectionType;
 import vio.barie.core.utils.PlateNumberUtils;
 import vio.barie.core.verification.ParkingSessionLifecycleService;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -62,24 +59,9 @@ public class LaneIncidentService {
     private final ParkingSessionLifecycleService sessionLifecycleService;
     private final ParkingMessageService ioTService;
     private final SmoothingAIEvents smoothingAIEvents;
-    private final RedissonClient redissonClient;
-
-    @Value("${barrier.detection.exit-retry-max-attempts:3}")
-    private int exitRetryMaxAttempts;
-
-    @Value("${barrier.detection.exit-retry-window-seconds:180}")
-    private long exitRetryWindowSeconds;
-
-    /** Các lượt quét cách nhau ít hơn khoảng này (xe vẫn đứng trong khung hình) chỉ tính là 1 lần. */
-    @Value("${barrier.detection.exit-retry-min-gap-ms:3000}")
-    private long exitRetryMinGapMs;
 
     @Value("${barrier.incident.active-ttl-seconds:600}")
     private long incidentActiveTtlSeconds;
-
-    /** incident == null nghĩa là chưa quá số lần quét cho phép, chỉ cần báo lỗi bình thường. */
-    public record SessionNotFoundAttempt(int attempt, int maxAttempts, LaneIncidentEntity incident) {
-    }
 
     /**
      * Ghi nhận sự cố khuôn mặt lúc ra không khớp lúc vào. Nếu phiên này đã có sự cố đang chờ
@@ -112,12 +94,11 @@ public class LaneIncidentService {
     }
 
     /**
-     * Một lượt quét tại làn ra không tìm được phiên gửi xe. Cho quét lại tới
-     * {@code exit-retry-max-attempts} lần; tới lần cuối thì lưu sự cố để admin xác nhận lại biển số.
-     * Khi làn đang có sự cố chờ xử lý thì trả lại sự cố đó, không đếm tiếp.
+     * Lượt quét tại làn ra không tìm được phiên gửi xe: lưu sự cố ngay để admin xác nhận lại biển số.
+     * Khi làn đang có sự cố chờ xử lý (xe quét lại) thì trả lại sự cố đó, không tạo mới.
      */
     @Transactional
-    public SessionNotFoundAttempt registerSessionNotFound(PendingEventDetection detection) {
+    public LaneIncidentEntity reportSessionNotFound(PendingEventDetection detection) {
         Optional<LaneIncidentEntity> active = laneIncidentRepository
                 .findFirstByLaneIdAndTypeAndStatusInOrderByCreatedAtDesc(detection.getExitLaneId(),
                         LaneIncidentType.SESSION_NOT_FOUND, ACTIVE_STATUSES);
@@ -125,18 +106,10 @@ public class LaneIncidentService {
             LaneIncidentEntity incident = active.get();
             LocalDateTime expireBefore = LocalDateTime.now().minusSeconds(incidentActiveTtlSeconds);
             if (incident.getCreatedAt() == null || incident.getCreatedAt().isAfter(expireBefore)) {
-                return new SessionNotFoundAttempt(exitRetryMaxAttempts, exitRetryMaxAttempts, incident);
+                return incident;
             }
             // Sự cố cũ không ai xử lý (xe đã rời làn): đóng lại để không chặn xe sau
-            incident.setStatus(LaneIncidentStatus.EXPIRED);
-            incident.setResolvedAt(LocalDateTime.now());
-            laneIncidentRepository.saveAndFlush(incident);
-            log.info("registerSessionNotFound: incident id={} expired", incident.getId());
-        }
-
-        int attempt = nextExitRetryAttempt(detection);
-        if (attempt < exitRetryMaxAttempts) {
-            return new SessionNotFoundAttempt(attempt, exitRetryMaxAttempts, null);
+            expire(incident);
         }
 
         LaneIncidentEntity incident = new LaneIncidentEntity();
@@ -146,20 +119,30 @@ public class LaneIncidentService {
         incident.setBarrierId(detection.getExitBarrierId());
         incident.setDetectedPlate(detection.getPlateNumber());
         incident.setExitProfileId(detection.getProfileId());
-        incident.setAttemptCount(attempt);
         incident.setExitImageInfo(detection.getListImageInfo());
         incident.setDetectionPayload(detection);
         laneIncidentRepository.save(incident);
-        resetExitRetry(detection);
-        log.info("registerSessionNotFound: incident created id={} lane={} plate={} profileId={} attempts={}",
-                incident.getId(), incident.getLaneId(), incident.getDetectedPlate(), incident.getExitProfileId(), attempt);
-        return new SessionNotFoundAttempt(attempt, exitRetryMaxAttempts, incident);
+        log.info("reportSessionNotFound: incident created id={} lane={} plate={} profileId={}",
+                incident.getId(), incident.getLaneId(), incident.getDetectedPlate(), incident.getExitProfileId());
+        return incident;
     }
 
-    public void resetExitRetry(PendingEventDetection detection) {
-        String key = exitRetryKey(detection);
-        redissonClient.getAtomicLong(key).delete();
-        redissonClient.getBucket(key + ":gap").delete();
+    /**
+     * Xe quét lại và ra được bình thường: sự cố không tìm thấy phiên còn treo ở làn này không cần xử lý nữa.
+     */
+    @Transactional
+    public void expireActiveSessionNotFound(Long laneId) {
+        laneIncidentRepository
+                .findFirstByLaneIdAndTypeAndStatusInOrderByCreatedAtDesc(laneId, LaneIncidentType.SESSION_NOT_FOUND,
+                        ACTIVE_STATUSES)
+                .ifPresent(this::expire);
+    }
+
+    private void expire(LaneIncidentEntity incident) {
+        incident.setStatus(LaneIncidentStatus.EXPIRED);
+        incident.setResolvedAt(LocalDateTime.now());
+        laneIncidentRepository.saveAndFlush(incident);
+        log.info("expire: incident id={} expired", incident.getId());
     }
 
     @Transactional(readOnly = true)
@@ -327,22 +310,6 @@ public class LaneIncidentService {
         }
         images.addAll(LaneEventImage.from("exit_", incident.getExitImageInfo()));
         return images;
-    }
-
-    private int nextExitRetryAttempt(PendingEventDetection detection) {
-        String key = exitRetryKey(detection);
-        RAtomicLong counter = redissonClient.getAtomicLong(key);
-        if (exitRetryMinGapMs > 0
-                && !redissonClient.getBucket(key + ":gap").setIfAbsent("1", Duration.ofMillis(exitRetryMinGapMs))) {
-            return (int) Math.max(counter.get(), 1);
-        }
-        long attempt = counter.incrementAndGet();
-        counter.expire(Duration.ofSeconds(exitRetryWindowSeconds));
-        return (int) attempt;
-    }
-
-    private String exitRetryKey(PendingEventDetection detection) {
-        return "detection:exit-retry:" + detection.getExitBarrierId() + ":" + detection.getExitLaneId();
     }
 
     private LaneIncidentEntity lockActiveIncident(Long incidentId, LaneIncidentType expectedType) {

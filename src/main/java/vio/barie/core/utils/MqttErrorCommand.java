@@ -14,5 +14,6 @@ public class MqttErrorCommand {
     private String plateNumber;
     private Integer profileId;
     private String code;
+    private Long incidentId;
     private List<LaneEventImage> images;
 }

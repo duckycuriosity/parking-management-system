@@ -17,7 +17,6 @@ import vio.barie.core.repository.BarrierRepository;
 import vio.barie.core.repository.ParkingCustomerRepository;
 import vio.barie.core.repository.VehicleRepository;
 import vio.barie.core.service.LaneIncidentService;
-import vio.barie.core.service.LaneIncidentService.SessionNotFoundAttempt;
 import vio.barie.core.service.mqtt.ParkingMessageService;
 import vio.barie.core.service.smoothing.SmoothingAIEvents;
 import vio.barie.core.utils.DirectionType;
@@ -190,7 +189,8 @@ public class FacePlateVerificationService implements VehicleVerificationService 
                         vehicle.getPlateNumber(),
                         customer.getAiProfileId(),
                         "FACE_MISMATCH",
-                        images);
+                        images,
+                        incident.getId());
                 laneIncidentService.publishFaceMismatchConfirm(incident, openSession, vehicle);
                 return;
             }
@@ -204,40 +204,28 @@ public class FacePlateVerificationService implements VehicleVerificationService 
             }
 
             sessionLifecycleService.closeExit(openSession, customer, barrier, detection);
-            laneIncidentService.resetExitRetry(detection);
+            laneIncidentService.expireActiveSessionNotFound(laneId);
         } catch (Exception ex) {
             log.error("handleExitEvent: failed — type={}: {}", detection.getType(), ex.getMessage(), ex);
         }
     }
 
     /**
-     * Không tìm được phiên cho biển số AI đọc tại làn ra: cho quét lại, quá số lần cho phép thì
-     * lưu sự cố và yêu cầu admin xác nhận lại biển số.
+     * Không tìm được phiên cho biển số AI đọc tại làn ra: lưu sự cố ngay và yêu cầu admin
+     * xác nhận lại biển số.
      */
     private void handleSessionNotFound(PendingEventDetection detection, String message, String code) {
-        SessionNotFoundAttempt attempt = laneIncidentService.registerSessionNotFound(detection);
-        List<LaneEventImage> images = LaneEventImage.from("exit_", detection.getListImageInfo());
-
-        if (attempt.incident() == null) {
-            ioTService.publishErrorWhenHandlingEvent(
-                    message + " (lần " + attempt.attempt() + "/" + attempt.maxAttempts() + ")",
-                    "",
-                    detection.getType(),
-                    detection.getExitBarrierId(),
-                    detection.getPlateNumber(),
-                    detection.getProfileId(),
-                    code, images);
-            return;
-        }
-
+        LaneIncidentEntity incident = laneIncidentService.reportSessionNotFound(detection);
         ioTService.publishErrorWhenHandlingEvent(
-                "Không tìm thấy phiên gửi xe sau " + attempt.maxAttempts() + " lần quét, vui lòng chờ nhân viên hỗ trợ",
+                message,
                 "",
                 detection.getType(),
                 detection.getExitBarrierId(),
                 detection.getPlateNumber(),
                 detection.getProfileId(),
-                "PLATE_CONFIRM_REQUIRED", images);
-        laneIncidentService.publishPlateConfirmRequired(attempt.incident());
+                code,
+                laneIncidentService.buildImages(null, incident),
+                incident.getId());
+        laneIncidentService.publishPlateConfirmRequired(incident);
     }
 }
