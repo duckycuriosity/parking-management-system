@@ -79,7 +79,7 @@ sepay:
   api-base-url: https://userapi.sepay.vn/v2
   api-token: JVLR8UBMXMNK9OIDAVW0H9ME6KYFRDCXLZTI0RA53MIZ2DUCYQ78CVFSWYZYNPFT                                # Bearer token (gọi SePay API: inquiry, reconciliation, stats)
   webhook-api-key: viotechapikey
-  bank-account: 0843233326
+  bank-account: 0915818590
   bank-brand: MBBank
   qr-base-url: https://qr.sepay.vn/img
   qr-expire-minutes: 15
@@ -91,7 +91,7 @@ payment:
 
 ai:
   core:
-    base-url: http://host.docker.internal:5002/api
+    base-url: http://192.168.168.31:5002/api
     stream-url: http://192.168.168.31:5000
     image-url: http://192.168.168.31:5000
     user-agent: Mozilla/5.0
