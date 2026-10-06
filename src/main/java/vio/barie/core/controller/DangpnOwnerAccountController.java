@@ -30,7 +30,6 @@ import vio.barie.core.dto.owneraccount.ProfileSaveRequest;
 import vio.barie.core.dto.owneraccount.OwnerAccountDtos.SubscriptionRegistrantPageRequest;
 import vio.barie.core.dto.owneraccount.OwnerAccountDtos.SubscriptionVehicleCreateRequest;
 import vio.barie.core.dto.owneraccount.OwnerAccountDtos.VehicleUserSaveRequest;
-import vio.barie.core.dto.owneraccount.OwnerAccountDtos.VehicleTicketPageRequest;
 import vio.barie.core.service.OwnerAccountProfileService;
 import vio.barie.core.service.OwnerAccountService;
 
@@ -61,7 +60,15 @@ public class DangpnOwnerAccountController {
         return Result.success(result);
     }
 
-    // Tạo mới thông tin chủ hồ sơ cơ bản.
+    // lấy thông tin chủ hồ sơ
+    @PostMapping("/subscription-registrants/list")
+    public ResponseEntity<?> listSubscriptionRegistrants(@Valid @RequestBody(required = false) SubscriptionRegistrantPageRequest request) {
+        if (request == null) {
+            request = SubscriptionRegistrantPageRequest.builder().build();
+        }
+        return Result.success(ownerAccountService.listSubscriptionRegistrants(request));
+    }
+
     @PostMapping
     public ResponseEntity<?> create(@Valid @RequestBody OwnerAccountRequest request) {
         return Result.success(ownerAccountService.create(request));
@@ -97,6 +104,11 @@ public class DangpnOwnerAccountController {
             @PathVariable Long ownerId,
             @Valid @RequestBody SubscriptionVehicleCreateRequest request) {
         return Result.success(ownerAccountProfileService.addVehicle(ownerId, request));
+    }
+
+    @GetMapping("/subscription-registrants/{ownerId}/vehicles")
+    public ResponseEntity<?> listRegisteredVehicles(@PathVariable Long ownerId) {
+        return Result.success(ownerAccountService.listRegisteredVehicles(ownerId));
     }
 
     // Cập nhật riêng thông tin hồ sơ người sử dụng xe theo customerId.

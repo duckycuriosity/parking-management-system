@@ -7,13 +7,8 @@ import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import lombok.experimental.SuperBuilder;
-import vio.barie.core.dto.PaginationRequest;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -21,16 +16,21 @@ public final class OwnerAccountDtos {
     private OwnerAccountDtos() {
     }
 
-    @EqualsAndHashCode(callSuper = true)
     @Data
-    @SuperBuilder
+    @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class OwnerAccountPaginationRequest extends PaginationRequest {
+    public static class OwnerAccountPaginationRequest {
+        @Builder.Default
+        private int page = 0;
+
+        @Builder.Default
+        private int size = 20;
+
         private String searchTerm;
         private String status;
-        private LocalDate fromDate;
-        private LocalDate toDate;
+        private String fromDate;
+        private String toDate;
     }
 
     @Data
@@ -156,110 +156,23 @@ public final class OwnerAccountDtos {
         private String status;
     }
 
-    @EqualsAndHashCode(callSuper = true)
     @Data
-    @SuperBuilder
+    @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class VehicleTicketPageRequest extends PaginationRequest {
-        private String searchTerm;
-        private String status;
-        private String vehicleType;
-        private LocalDate fromDate;
-        private LocalDate toDate;
-    }
-
-    @Data
-    @Builder
-    public static class VehicleTicketPageResponse {
-        private Long vehicleId;
-        private String plate;
-        private String vehicleType;
-        private String vehicleStatus;
-        private Long ownerId;
-        private String ownerName;
-        private String ownerPhone;
-        private String parkingAreaName;
-        private String buildingName;
-        private String ticketType;
-        private String subscriptionCode;
-        private OffsetDateTime expireAt;
-        private String subscriptionStatus;
-    }
-
-    @Data
-    @Builder
-    public static class VehicleTicketDetailResponse {
-        private Header header;
-        private SubscriptionInfo subscriptionInfo;
-        private List<UserInfo> users;
-        private ParkingPermission parkingPermission;
-        private List<RenewalHistory> renewalHistories;
-
-        @Data
-        @Builder
-        public static class Header {
-            private Long vehicleId;
-            private String plate;
-            private String vehicleType;
-            private String imageUrl;
-            private String subscriptionCode;
-        }
-
-        @Data
-        @Builder
-        public static class SubscriptionInfo {
-            private Long ownerId;
-            private String fullName;
-            private String customerCode;
-            private String address;
-            private String phone;
-        }
-
-        @Data
-        @Builder
-        public static class UserInfo {
-            private Long id;
-            private String name;
-            private String phone;
-            private String imageUrl;
-            private String profileId;
-            private String relationType;
-            private String status;
-        }
-
-        @Data
-        @Builder
-        public static class ParkingPermission {
-            private String packageName;
-            private String parkingAreaName;
-            private String buildingName;
-            private OffsetDateTime validFrom;
-            private OffsetDateTime validTo;
-            private BigDecimal subscriptionFee;
-            private String currency;
-        }
-
-        @Data
-        @Builder
-        public static class RenewalHistory {
-            private String orderCode;
-            private OffsetDateTime startAt;
-            private OffsetDateTime endAt;
-            private BigDecimal amount;
-            private String paymentStatus;
-            private String transactionCode;
-        }
-    }
-
-    @Data
     public static class SubscriptionRegistrantPageRequest {
+        @Builder.Default
+        private int page = 0;
+
+        @Builder.Default
+        private int size = 20;
+
         private String searchTerm;
         private String status;
         private Long buildingId;
         private Long parkingLotId;
-        private LocalDate fromDate;
-        private LocalDate toDate;
+        private String fromDate;
+        private String toDate;
     }
 
     @Data
@@ -276,87 +189,26 @@ public final class OwnerAccountDtos {
         private long carCount;
         private long motorbikeCount;
         private long expiredSubscriptionCount;
+        private List<RegisteredVehicleResponse> vehicles;
     }
 
     @Data
     @Builder
-    public static class SubscriptionRegistrantSummaryResponse {
-        private long totalSubscription;
-        private long maxSubscription;
-        private long activeSubscription;
-        private long maxActiveSubscription;
-        private long expiringSoonSubscription;
-        private long expiredSubscription;
-        private long blacklistCount;
-    }
-
-    @Data
-    @Builder
-    public static class SubscriptionRegistrantDetailResponse {
-        private Long ownerId;
-        private String fullName;
-        private String customerCode;
-        private String address;
-        private String phone;
-        private String imageUrl;
-        private String zaloLink;
-        private String status;
-        private long registeredVehicleCount;
-        private long activeSubscriptionCount;
-        private long expiredSubscriptionCount;
-        private OffsetDateTime createdAt;
-        private OffsetDateTime updatedAt;
-    }
-
-    @Data
-    @Builder
-    public static class SubscriptionRegisteredVehicleResponse {
+    public static class RegisteredVehicleResponse {
         private Long vehicleId;
         private String plate;
         private String vehicleType;
         private String vehicleStatus;
         private String userName;
-        private String parkingAreaName;
+        private String parkingLotName;
         private String buildingName;
+        private String packageName;
+        private String packageType;
         private String ticketType;
-        private String subscriptionCode;
         private String subscriptionStatus;
         private OffsetDateTime validFrom;
         private OffsetDateTime validTo;
-    }
-
-    @Data
-    @Builder
-    public static class SubscriptionAccessHistoryResponse {
-        private Long sessionId;
-        private Long vehicleId;
-        private String plate;
-        private String vehicleType;
-        private String parkingLotName;
-        private String entryLaneName;
-        private String exitLaneName;
-        private String entryCustomerName;
-        private String exitCustomerName;
-        private OffsetDateTime entryTime;
-        private OffsetDateTime exitTime;
-        private String sessionType;
-    }
-
-    @Data
-    @Builder
-    public static class SubscriptionChangeHistoryResponse {
-        private Long ticketId;
-        private Long vehicleId;
-        private String plate;
-        private String ticketType;
-        private String ticketStatus;
-        private OffsetDateTime validFrom;
-        private OffsetDateTime validTo;
-        private OffsetDateTime changedAt;
-        private String orderCode;
-        private BigDecimal amount;
-        private String paymentStatus;
-        private String transactionCode;
+        private boolean expired;
     }
 
     @Data
