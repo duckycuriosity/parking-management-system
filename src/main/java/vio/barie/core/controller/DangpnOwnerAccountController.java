@@ -1,13 +1,16 @@
 package vio.barie.core.controller;
 
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -31,6 +34,7 @@ import vio.barie.core.dto.owneraccount.OwnerAccountDtos.VehicleTicketPageRequest
 import vio.barie.core.service.OwnerAccountProfileService;
 import vio.barie.core.service.OwnerAccountService;
 
+import java.util.Arrays;
 import java.util.List;
 
 @RestController
@@ -69,11 +73,17 @@ public class DangpnOwnerAccountController {
         return Result.success(ownerAccountProfileService.createProfile(request));
     }
 
-    @PostMapping(value = "/profiles", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> createProfile(
+    @PostMapping(value = "/profiles/with-images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    public ResponseEntity<?> createProfileWithImages(
             @Valid @RequestPart("request") ProfileSaveRequest request,
-            @RequestPart(value = "customerImages", required = false) List<MultipartFile> customerImages) {
-        return Result.success(ownerAccountProfileService.createProfile(request, customerImages));
+            @Parameter(
+                    description = "Customer face images. Map each file to customers by customer.imageIndex, or omit imageIndex to map files sequentially.",
+                    content = @Content(array = @ArraySchema(schema = @Schema(type = "string", format = "binary")))
+            )
+            @RequestPart(value = "customerImages", required = false) MultipartFile[] customerImages) {
+        List<MultipartFile> images = customerImages == null ? null : Arrays.asList(customerImages);
+        return Result.success(ownerAccountProfileService.createProfile(request, images));
     }
 
     // Thêm xe mới vào một người đăng ký thuê bao và gắn người sử dụng xe ban đầu.

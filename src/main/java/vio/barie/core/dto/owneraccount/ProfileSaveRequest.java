@@ -117,6 +117,7 @@ public class ProfileSaveRequest {
         private Long id;
         private Long relationId;
         private Integer imageIndex;
+        private List<Integer> imageIndexes;
         private Boolean isUsed;
 
         @NotBlank(message = "customer name is required")

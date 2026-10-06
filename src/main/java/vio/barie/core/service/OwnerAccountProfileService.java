@@ -864,14 +864,14 @@ public class OwnerAccountProfileService {
     }
 
     private void syncCustomerImageWithAi(ProfileSaveRequest.Customer customer, List<MultipartFile> customerImages, Integer sequentialImageIndex) {
-        MultipartFile image = resolveCustomerImage(customer, customerImages, sequentialImageIndex);
-        if (image == null || image.isEmpty()) {
+        List<MultipartFile> images = resolveCustomerImages(customer, customerImages, sequentialImageIndex);
+        if (images.isEmpty()) {
             return;
         }
 
         AiProfileResponse aiProfile = StringUtils.isBlank(customer.getProfileId())
-                ? aiFaceApiClient.createProfile(trim(customer.getName()), List.of(image))
-                : aiFaceApiClient.updateProfile(parseProfileId(customer.getProfileId()), trim(customer.getName()), List.of(image));
+                ? aiFaceApiClient.createProfile(trim(customer.getName()), images)
+                : aiFaceApiClient.updateProfile(parseProfileId(customer.getProfileId()), trim(customer.getName()), images);
         if (aiProfile == null || (aiProfile.getId() == null && aiProfile.getAiProfileId() == null)) {
             throw new ServiceException("Create AI profile failed for customer: " + trim(customer.getName()), 502);
         }
@@ -881,18 +881,42 @@ public class OwnerAccountProfileService {
         customer.setImageUrl(resolveAiImageUrl(aiProfile, profileId));
     }
 
-    private MultipartFile resolveCustomerImage(ProfileSaveRequest.Customer customer, List<MultipartFile> customerImages, Integer sequentialImageIndex) {
+    private List<MultipartFile> resolveCustomerImages(ProfileSaveRequest.Customer customer, List<MultipartFile> customerImages, Integer sequentialImageIndex) {
         if (customerImages == null || customerImages.isEmpty()) {
-            return null;
+            return List.of();
         }
+
+        if (customer.getImageIndexes() != null && !customer.getImageIndexes().isEmpty()) {
+            List<MultipartFile> images = new ArrayList<>();
+            Set<Integer> indexes = new HashSet<>();
+            for (Integer imageIndex : customer.getImageIndexes()) {
+                if (imageIndex == null) {
+                    continue;
+                }
+                if (!indexes.add(imageIndex)) {
+                    throw new ServiceException("Duplicate customer imageIndex: " + imageIndex, 400);
+                }
+                images.add(resolveCustomerImage(customerImages, imageIndex));
+            }
+            return images;
+        }
+
         Integer imageIndex = customer.getImageIndex() == null ? sequentialImageIndex : customer.getImageIndex();
         if (imageIndex == null) {
-            return null;
+            return List.of();
         }
+        return List.of(resolveCustomerImage(customerImages, imageIndex));
+    }
+
+    private MultipartFile resolveCustomerImage(List<MultipartFile> customerImages, Integer imageIndex) {
         if (imageIndex < 0 || imageIndex >= customerImages.size()) {
             throw new ServiceException("Invalid customer imageIndex: " + imageIndex, 400);
         }
-        return customerImages.get(imageIndex);
+        MultipartFile image = customerImages.get(imageIndex);
+        if (image == null || image.isEmpty()) {
+            throw new ServiceException("Customer image is empty at index: " + imageIndex, 400);
+        }
+        return image;
     }
 
     private boolean shouldMapCustomerImagesSequentially(ProfileSaveRequest request, List<MultipartFile> customerImages) {
@@ -910,7 +934,7 @@ public class OwnerAccountProfileService {
     private boolean hasExplicitImageIndex(ProfileSaveRequest request) {
         for (ProfileSaveRequest.Vehicle vehicle : request.getVehicles()) {
             for (ProfileSaveRequest.Customer customer : vehicle.getCustomers()) {
-                if (customer.getImageIndex() != null) {
+                if (customer.getImageIndex() != null || (customer.getImageIndexes() != null && !customer.getImageIndexes().isEmpty())) {
                     return true;
                 }
             }
