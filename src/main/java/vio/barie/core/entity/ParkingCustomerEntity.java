@@ -5,8 +5,6 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import vio.barie.core.entity.base.BaseEntity;
 
-import java.time.LocalDateTime;
-
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Entity
@@ -28,9 +26,15 @@ public class ParkingCustomerEntity extends BaseEntity {
     @Column(name = "phone_number", length = 20)
     private String phoneNumber;
 
+    @Column(name = "owner_id")
+    private Long ownerId;
+
     @Column(name = "image_url", length = 255)
     private String imageUrl;
 
-    @Column(name = "email", nullable = false)
+    @Column(name = "status", length = 20)
+    private String status;
+
+    @Column(name = "email")
     private String email;
 }
