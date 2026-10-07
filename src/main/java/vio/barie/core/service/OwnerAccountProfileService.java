@@ -382,7 +382,7 @@ public class OwnerAccountProfileService {
                 ? new VehicleSubscriptionEntity()
                 : vehicleSubscriptionRepository.findById(subscription.getId())
                 .orElseThrow(() -> new ServiceException("Vehicle subscription not found: " + subscription.getId(), 404));
-        entity.setVehicleId(toIntegerId(vehicleId, "vehicleId"));
+        entity.setVehicleId(vehicleId);
         entity.setParkingLotId(subscription.getParkingLotId());
         entity.setPackageId(subscription.getPackageId());
         entity.setRegistrationType(trim(subscription.getRegistrationType()));
