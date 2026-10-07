@@ -158,9 +158,6 @@ keycloak:
   admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:barie-client-be-dev}
   admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:tDywGUVz29rYQ3JlBNlXXu0V0VshWY0E}
 
-camera:
-  sync:
-    interval-ms: 15000
 system:
   metrics:
     collection-interval-ms: 3000
