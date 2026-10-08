@@ -1,6 +1,8 @@
 package vio.barie.core.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import vio.barie.core.entity.VehicleCustomerEntity;
 
 import java.util.List;
@@ -13,5 +15,11 @@ public interface VehicleCustomerRepository extends JpaRepository<VehicleCustomer
 
     Optional<VehicleCustomerEntity> findByIdAndVehicleIdAndCustomerId(Long id, Long vehicleId, Long customerId);
 
-    List<VehicleCustomerEntity> findByVehicleOwnerId(Long ownerId);
+    @Query(value = """
+            SELECT vc.*
+            FROM vehicle_customer vc
+            INNER JOIN vehicle v ON v.id = vc.vehicle_id
+            WHERE v.owner_id = :ownerId
+            """, nativeQuery = true)
+    List<VehicleCustomerEntity> findByOwnerId(@Param("ownerId") Long ownerId);
 }

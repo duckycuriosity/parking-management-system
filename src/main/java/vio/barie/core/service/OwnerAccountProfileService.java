@@ -416,8 +416,8 @@ public class OwnerAccountProfileService {
                 : findVehicleCustomer(customer.getRelationId(), vehicleId, customerId);
         if (relation == null) {
             relation = new VehicleCustomerEntity();
-            relation.setVehicle(findVehicle(vehicleId));
-            relation.setCustomer(findCustomer(customerId));
+            relation.setVehicleId(vehicleId);
+            relation.setCustomerId(customerId);
         }
         relation.setRelationType(trim(customer.getRelationType()));
         relation.setStatus(trim(customer.getRelationStatus()));
@@ -440,7 +440,7 @@ public class OwnerAccountProfileService {
     }
 
     private void inactiveMissingRelations(Long ownerId, Set<Long> submittedRelationIds) {
-        List<VehicleCustomerEntity> relations = vehicleCustomerRepository.findByVehicleOwnerId(ownerId).stream()
+        List<VehicleCustomerEntity> relations = vehicleCustomerRepository.findByOwnerId(ownerId).stream()
                 .filter(relation -> !submittedRelationIds.contains(relation.getId()))
                 .toList();
         for (VehicleCustomerEntity relation : relations) {
@@ -486,8 +486,8 @@ public class OwnerAccountProfileService {
             throw new ServiceException("Customer already assigned to vehicle", 400);
         }
         VehicleCustomerEntity relation = new VehicleCustomerEntity();
-        relation.setVehicle(findVehicle(vehicleId));
-        relation.setCustomer(findCustomer(customerId));
+        relation.setVehicleId(vehicleId);
+        relation.setCustomerId(customerId);
         relation.setRelationType(relationType);
         relation.setStatus(status);
         vehicleCustomerRepository.save(relation);
@@ -497,8 +497,8 @@ public class OwnerAccountProfileService {
         VehicleCustomerEntity relation = vehicleCustomerRepository.findByVehicleIdAndCustomerId(vehicleId, customerId)
                 .orElseGet(() -> {
                     VehicleCustomerEntity newRelation = new VehicleCustomerEntity();
-                    newRelation.setVehicle(findVehicle(vehicleId));
-                    newRelation.setCustomer(findCustomer(customerId));
+                    newRelation.setVehicleId(vehicleId);
+                    newRelation.setCustomerId(customerId);
                     return newRelation;
                 });
         relation.setRelationType(relationType);
@@ -548,7 +548,7 @@ public class OwnerAccountProfileService {
     private SubscriptionVehicleCreateResponse.UserResponse fetchCustomerRelation(Long vehicleId, Long customerId) {
         VehicleCustomerEntity relation = vehicleCustomerRepository.findByVehicleIdAndCustomerId(vehicleId, customerId)
                 .orElseThrow(() -> new ServiceException("Vehicle customer relation not found", 404));
-        ParkingCustomerEntity customer = relation.getCustomer();
+        ParkingCustomerEntity customer = findCustomer(relation.getCustomerId());
         return SubscriptionVehicleCreateResponse.UserResponse.builder()
                 .customerId(customer.getId())
                 .name(customer.getUsername())
