@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.math.BigInteger;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -72,19 +73,19 @@ public class ProfileSaveRequest {
 
     @Data
     public static class Subscription {
-        private Integer id;
+        private Long id;
 
         @NotNull(message = "parkingLotId is required")
-        private Integer parkingLotId;
+        private Long parkingLotId;
 
         @NotNull(message = "packageId is required")
-        private Integer packageId;
+        private Long packageId;
 
         @NotBlank(message = "registrationType is required")
         @Size(max = 20, message = "registrationType must not exceed 20 characters")
         private String registrationType;
 
-        private Integer previousSubscriptionId;
+        private Long previousSubscriptionId;
 
         @NotNull(message = "priceVnd is required")
         private Long priceVnd;

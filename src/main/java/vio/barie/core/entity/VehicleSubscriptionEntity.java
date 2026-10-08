@@ -23,22 +23,22 @@ public class VehicleSubscriptionEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
+    private Long id;
 
     @Column(name = "vehicle_id", nullable = false)
-    private Integer vehicleId;
+    private Long vehicleId;
 
     @Column(name = "parking_lot_id", nullable = false)
-    private Integer parkingLotId;
+    private Long parkingLotId;
 
     @Column(name = "package_id", nullable = false)
-    private Integer packageId;
+    private Long packageId;
 
     @Column(name = "registration_type", nullable = false, length = 20)
     private String registrationType;
 
     @Column(name = "previous_subscription_id")
-    private Integer previousSubscriptionId;
+    private Long previousSubscriptionId;
 
     @Column(name = "price_vnd", nullable = false)
     private Long priceVnd;
