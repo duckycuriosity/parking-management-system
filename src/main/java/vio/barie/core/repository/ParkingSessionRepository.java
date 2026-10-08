@@ -33,8 +33,9 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
 
     @Query("SELECT new vio.barie.core.dto.ActivitySessionResponse(" +
             "s.id, v.plateNumber, v.vehicleType, " +
+            "s.entryImageInfo, s.exitImageInfo, s.sessionType, " +
             "s.entryTime, s.exitTime, " +
-            "p.name, el.name, xl.name, null) " +
+            "p.name, el.name, xl.name, '') " +
             "FROM ParkingSessionEntity s " +
             "LEFT JOIN s.vehicle v " +
             "LEFT JOIN s.parkingLot p " +
@@ -45,15 +46,16 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEn
     Page<ActivitySessionResponse> getActivityHistoryByLaneId(@Param("laneId") Long laneId, Pageable pageable);
 
     @Query("SELECT new vio.barie.core.dto.ActivitySessionResponse(" +
-            "s.id, v.plateNumber, v.vehicleType, " +
-            "s.entryTime, s.exitTime, " +
-            "p.name, el.name, xl.name, null) " +
-            "FROM ParkingSessionEntity s " +
-            "LEFT JOIN s.vehicle v " +
-            "LEFT JOIN s.parkingLot p " +
-            "LEFT JOIN s.entryLane el " +
-            "LEFT JOIN s.exitLane xl " +
-            "ORDER BY COALESCE(s.exitTime, s.entryTime) DESC")
+        "s.id, v.plateNumber, v.vehicleType, " +
+        "s.entryImageInfo, s.exitImageInfo, s.sessionType, " +
+        "s.entryTime, s.exitTime, " +
+        "p.name, el.name, xl.name, '') " +
+        "FROM ParkingSessionEntity s " +
+        "LEFT JOIN s.vehicle v " +
+        "LEFT JOIN s.parkingLot p " +
+        "LEFT JOIN s.entryLane el " +
+        "LEFT JOIN s.exitLane xl " +
+        "ORDER BY COALESCE(s.exitTime, s.entryTime) DESC")
     Page<ActivitySessionResponse> getAllActivityHistory(Pageable pageable);
 
 
