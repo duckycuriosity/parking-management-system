@@ -233,4 +233,17 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
             @Param("excludeDates") List<LocalDate> excludeDates,
             @Param("buildingId") Long buildingId,
             @Param("parkingLotId") Long parkingLotId);
+    @Query(value = """
+           SELECT p.callback_type,
+                count(p.id),
+                COALESCE(SUM(p.amount), 0)
+                FROM payment p
+                WHERE p.status = 'PAID'
+                    AND p.callback_type IN ('SESSION', 'TICKET')
+                    AND p.paid_at >= :startDate
+                    AND p.paid_at < :endDate 
+                    GROUP BY p.callback_type """, nativeQuery = true)
+    List<Object[]> countAndSumRevenueByTicketType(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
 }

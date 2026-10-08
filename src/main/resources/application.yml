@@ -10,7 +10,6 @@ mqtt:
 
 server:
   port: 1081
-
 spring:
   profiles:
     active: prod
