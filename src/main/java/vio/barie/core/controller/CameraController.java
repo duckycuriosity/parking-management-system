@@ -2,6 +2,7 @@ package vio.barie.core.controller;
 
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.HttpHeaders;
@@ -22,6 +23,7 @@ import vio.barie.core.dto.camera.RtspFrameRequest;
 
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/camera")
 @RequiredArgsConstructor
@@ -32,6 +34,7 @@ public class CameraController {
     @PostMapping(value = "/frame", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.IMAGE_JPEG_VALUE)
     public ResponseEntity<byte[]> captureFrame(@Valid @RequestBody RtspFrameRequest request) {
         try {
+            log.info("frame captured for RTSP URL: {}", request.rtspUrl());
             byte[] frame = rtspFrameService.capture(request.rtspUrl());
             return ResponseEntity.ok()
                     .header(HttpHeaders.CACHE_CONTROL, "no-store")

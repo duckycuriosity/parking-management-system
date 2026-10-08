@@ -13,6 +13,9 @@ FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
+# Required by /api/camera/frame to capture one JPEG frame from RTSP.
+RUN apk add --no-cache ffmpeg
+
 RUN addgroup -S spring && adduser -S spring -G spring
 
 COPY --from=builder /app/build/libs/barie-core.jar app.jar
