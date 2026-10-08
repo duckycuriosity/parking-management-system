@@ -1,5 +1,6 @@
 package vio.barie.core.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,6 +42,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class OwnerAccountProfileService {
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private final AiFaceApiClient aiFaceApiClient;
     private final OwnerAccountRepository ownerAccountRepository;
     private final VehicleRepository vehicleRepository;
@@ -65,9 +68,9 @@ public class OwnerAccountProfileService {
     public OwnerAccountVehicleParkingCustomerResponse createProfile(
             ProfileSaveRequest request,
             List<MultipartFile> customerImages,
-            MultipartFile ownerImage) {
+            List<MultipartFile> ownerImages) {
         validateProfileRequest(request);
-        syncOwnerImageWithAi(request.getOwner(), ownerImage);
+        syncOwnerImagesWithAi(request.getOwner(), ownerImages);
 
         OwnerAccountEntity ownerEntity;
         if (request.getOwner().getId() == null) {
@@ -160,6 +163,11 @@ public class OwnerAccountProfileService {
 
     @Transactional
     public SubscriptionVehicleCreateResponse addVehicle(Long ownerId, SubscriptionVehicleCreateRequest request) {
+        return addVehicle(ownerId, request, null);
+    }
+
+    @Transactional
+    public SubscriptionVehicleCreateResponse addVehicle(Long ownerId, SubscriptionVehicleCreateRequest request, List<MultipartFile> userImages) {
         ensureOwnerExists(ownerId);
         validateVehicleUsers(request);
 
@@ -176,6 +184,7 @@ public class OwnerAccountProfileService {
         vehicle.setStatus(trim(request.getStatus()));
         vehicle = vehicleRepository.save(vehicle);
         Long vehicleId = vehicle.getId();
+        upsertVehicleSubscription(vehicleId, request.getSubscription());
 
         List<SubscriptionVehicleCreateResponse.UserResponse> users = new ArrayList<>();
         if (request.getUsers() != null) {
@@ -187,6 +196,8 @@ public class OwnerAccountProfileService {
         }
         if (request.getNewUsers() != null) {
             for (SubscriptionVehicleCreateRequest.NewUser user : request.getNewUsers()) {
+                syncNewUserImageWithAi(user, userImages);
+
                 ParkingCustomerEntity customer = new ParkingCustomerEntity();
                 customer.setOwnerId(ownerId);
                 customer.setUsername(trim(user.getName()));
@@ -630,24 +641,45 @@ public class OwnerAccountProfileService {
         Integer profileId = aiProfile.getId() != null ? aiProfile.getId() : aiProfile.getAiProfileId();
         customer.setProfileId(profileId.toString());
         customer.setAiIdentityId(aiProfile.getUuid());
-        customer.setImageUrl(resolveAiImageUrl(aiProfile, profileId));
+        customer.setImageUrl(resolveAiImageUrls(aiProfile, profileId));
     }
 
-    private void syncOwnerImageWithAi(ProfileSaveRequest.Owner owner, MultipartFile ownerImage) {
-        if (ownerImage == null) {
+    private void syncNewUserImageWithAi(SubscriptionVehicleCreateRequest.NewUser user, List<MultipartFile> userImages) {
+        List<MultipartFile> images = resolveNewUserImages(user, userImages);
+        if (images.isEmpty()) {
             return;
         }
-        if (ownerImage.isEmpty()) {
-            throw new ServiceException("ownerImage is empty", 400);
+
+        AiProfileResponse aiProfile = StringUtils.isBlank(user.getProfileId())
+                ? aiFaceApiClient.createProfile(trim(user.getName()), images)
+                : aiFaceApiClient.updateProfile(parseProfileId(user.getProfileId()), trim(user.getName()), images);
+        if (aiProfile == null || (aiProfile.getId() == null && aiProfile.getAiProfileId() == null)) {
+            throw new ServiceException("Create AI profile failed for user: " + trim(user.getName()), 502);
         }
 
-        AiProfileResponse aiProfile = aiFaceApiClient.createProfile(trim(owner.getFullName()), List.of(ownerImage));
+        Integer profileId = aiProfile.getId() != null ? aiProfile.getId() : aiProfile.getAiProfileId();
+        user.setProfileId(profileId.toString());
+        user.setImageUrl(resolveAiImageUrls(aiProfile, profileId));
+    }
+
+    private void syncOwnerImagesWithAi(ProfileSaveRequest.Owner owner, List<MultipartFile> ownerImages) {
+        if (ownerImages == null || ownerImages.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < ownerImages.size(); i++) {
+            MultipartFile ownerImage = ownerImages.get(i);
+            if (ownerImage == null || ownerImage.isEmpty()) {
+                throw new ServiceException("ownerImage is empty at index: " + i, 400);
+            }
+        }
+
+        AiProfileResponse aiProfile = aiFaceApiClient.createProfile(trim(owner.getFullName()), ownerImages);
         if (aiProfile == null || (aiProfile.getId() == null && aiProfile.getAiProfileId() == null)) {
             throw new ServiceException("Create AI profile failed for owner: " + trim(owner.getFullName()), 502);
         }
 
         Integer profileId = aiProfile.getId() != null ? aiProfile.getId() : aiProfile.getAiProfileId();
-        owner.setImageUrl(resolveAiImageUrl(aiProfile, profileId));
+        owner.setImageUrl(resolveAiImageUrls(aiProfile, profileId));
     }
 
     private List<MultipartFile> resolveCustomerImages(ProfileSaveRequest.Customer customer, List<MultipartFile> customerImages, Integer sequentialImageIndex) {
@@ -655,31 +687,49 @@ public class OwnerAccountProfileService {
             return List.of();
         }
 
-        if (customer.getImageIndexes() != null && !customer.getImageIndexes().isEmpty()) {
+        if (customer.getIndexs() != null && !customer.getIndexs().isEmpty()) {
             List<MultipartFile> images = new ArrayList<>();
             Set<Integer> indexes = new HashSet<>();
-            for (Integer imageIndex : customer.getImageIndexes()) {
+            for (Integer imageIndex : customer.getIndexs()) {
                 if (imageIndex == null) {
                     continue;
                 }
                 if (!indexes.add(imageIndex)) {
-                    throw new ServiceException("Duplicate customer imageIndex: " + imageIndex, 400);
+                    throw new ServiceException("Duplicate customer image index: " + imageIndex, 400);
                 }
                 images.add(resolveCustomerImage(customerImages, imageIndex));
             }
             return images;
         }
 
-        Integer imageIndex = customer.getImageIndex() == null ? sequentialImageIndex : customer.getImageIndex();
-        if (imageIndex == null) {
+        if (sequentialImageIndex == null) {
             return List.of();
         }
-        return List.of(resolveCustomerImage(customerImages, imageIndex));
+        return List.of(resolveCustomerImage(customerImages, sequentialImageIndex));
+    }
+
+    private List<MultipartFile> resolveNewUserImages(SubscriptionVehicleCreateRequest.NewUser user, List<MultipartFile> userImages) {
+        if (userImages == null || userImages.isEmpty() || user.getIndexs() == null || user.getIndexs().isEmpty()) {
+            return List.of();
+        }
+
+        List<MultipartFile> images = new ArrayList<>();
+        Set<Integer> indexes = new HashSet<>();
+        for (Integer imageIndex : user.getIndexs()) {
+            if (imageIndex == null) {
+                continue;
+            }
+            if (!indexes.add(imageIndex)) {
+                throw new ServiceException("Duplicate user image index: " + imageIndex, 400);
+            }
+            images.add(resolveCustomerImage(userImages, imageIndex));
+        }
+        return images;
     }
 
     private MultipartFile resolveCustomerImage(List<MultipartFile> customerImages, Integer imageIndex) {
         if (imageIndex < 0 || imageIndex >= customerImages.size()) {
-            throw new ServiceException("Invalid customer imageIndex: " + imageIndex, 400);
+            throw new ServiceException("Invalid customer image index: " + imageIndex, 400);
         }
         MultipartFile image = customerImages.get(imageIndex);
         if (image == null || image.isEmpty()) {
@@ -695,7 +745,7 @@ public class OwnerAccountProfileService {
         int imageCount = countNonEmptyImages(customerImages);
         int customerCount = countCustomers(request);
         if (imageCount != customerCount) {
-            throw new ServiceException("customerImages count must equal customer count, or set customer.imageIndex for each image", 400);
+            throw new ServiceException("customerImages count must equal customer count, or set customer.indexs for each customer", 400);
         }
         return true;
     }
@@ -703,7 +753,7 @@ public class OwnerAccountProfileService {
     private boolean hasExplicitImageIndex(ProfileSaveRequest request) {
         for (ProfileSaveRequest.Vehicle vehicle : request.getVehicles()) {
             for (ProfileSaveRequest.Customer customer : vehicle.getCustomers()) {
-                if (customer.getImageIndex() != null || (customer.getImageIndexes() != null && !customer.getImageIndexes().isEmpty())) {
+                if (customer.getIndexs() != null && !customer.getIndexs().isEmpty()) {
                     return true;
                 }
             }
@@ -729,15 +779,32 @@ public class OwnerAccountProfileService {
         return count;
     }
 
-    private String resolveAiImageUrl(AiProfileResponse aiProfile, Integer profileId) {
+    private String resolveAiImageUrls(AiProfileResponse aiProfile, Integer profileId) {
+        List<String> imageUrls = resolveAiImageUrlList(aiProfile, profileId);
+        try {
+            return OBJECT_MAPPER.writeValueAsString(imageUrls);
+        } catch (Exception e) {
+            throw new ServiceException("Cannot serialize image urls for profileId: " + profileId, 500);
+        }
+    }
+
+    private List<String> resolveAiImageUrlList(AiProfileResponse aiProfile, Integer profileId) {
         if (aiProfile.getImages() == null || aiProfile.getImages().isEmpty()) {
             throw new ServiceException("AI did not return image url for profileId: " + profileId, 502);
         }
 
-        String rawAccessUrl = aiProfile.getImages().get(0).get("accessUrl");
-        if (StringUtils.isBlank(rawAccessUrl)) {
+        List<String> imageUrls = aiProfile.getImages().stream()
+                .map(image -> image.get("accessUrl"))
+                .filter(StringUtils::isNotBlank)
+                .map(this::normalizeAiImageUrl)
+                .toList();
+        if (imageUrls.isEmpty()) {
             throw new ServiceException("AI did not return accessUrl for profileId: " + profileId, 502);
         }
+        return imageUrls;
+    }
+
+    private String normalizeAiImageUrl(String rawAccessUrl) {
         if (StringUtils.isBlank(imageUrlAi)) {
             return rawAccessUrl;
         }

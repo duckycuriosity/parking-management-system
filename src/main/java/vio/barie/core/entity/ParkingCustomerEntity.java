@@ -29,7 +29,7 @@ public class ParkingCustomerEntity extends BaseEntity {
     @Column(name = "owner_id")
     private Long ownerId;
 
-    @Column(name = "image_url", length = 255)
+    @Column(name = "image_url", length = 500)
     private String imageUrl;
 
     @Column(name = "status", length = 20)

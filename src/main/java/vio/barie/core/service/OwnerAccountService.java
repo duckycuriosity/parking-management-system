@@ -80,8 +80,6 @@ public class OwnerAccountService {
         return ownerAccountRepository.findSubscriptionRegistrants(
                 trimToNull(request.getSearchTerm()),
                 trimToNull(request.getStatus()),
-                request.getBuildingId(),
-                request.getParkingLotId(),
                 fromDate,
                 toDate,
                 pageable
@@ -185,16 +183,14 @@ public class OwnerAccountService {
                 .fullName(projection.getFullName())
                 .customerCode(projection.getCustomerCode())
                 .address(projection.getAddress())
+                .imageUrl(projection.getImageUrl())
                 .phone(projection.getPhone())
                 .zaloLink(projection.getZaloLink())
+                .note(projection.getNote())
                 .status(projection.getStatus())
                 .registeredVehicleCount(projection.getRegisteredVehicleCount())
-                .carCount(projection.getCarCount())
-                .motorbikeCount(projection.getMotorbikeCount())
-                .expiredSubscriptionCount(projection.getExpiredSubscriptionCount())
-                .vehicles(vehicleRepository.findRegisteredVehiclesByOwnerId(projection.getOwnerId()).stream()
-                        .map(this::toRegisteredVehicleResponse)
-                        .toList())
+                .createdAt(toOffsetDateTime(projection.getCreatedAt()))
+                .updatedAt(toOffsetDateTime(projection.getUpdatedAt()))
                 .build();
     }
 

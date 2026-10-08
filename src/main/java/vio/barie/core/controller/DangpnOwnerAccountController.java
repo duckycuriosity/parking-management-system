@@ -85,17 +85,18 @@ public class DangpnOwnerAccountController {
     public ResponseEntity<?> createProfileWithImages(
             @Valid @RequestPart("request") ProfileSaveRequest request,
             @Parameter(
-                    description = "Customer face images. Map each file to customers by customer.imageIndex, or omit imageIndex to map files sequentially.",
+                    description = "Customer face images. Map files to each customer by customer.indexs, for example indexs: [0, 1, 2]. Omit indexs to map images sequentially.",
                     content = @Content(array = @ArraySchema(schema = @Schema(type = "string", format = "binary")))
             )
             @RequestPart(value = "customerImages", required = false) MultipartFile[] customerImages,
             @Parameter(
-                    description = "Owner account face image. This is saved to owner_account.image_url.",
-                    content = @Content(schema = @Schema(type = "string", format = "binary"))
+                    description = "Owner account face images. These are saved to owner_account.image_url as a JSON string.",
+                    content = @Content(array = @ArraySchema(schema = @Schema(type = "string", format = "binary")))
             )
-            @RequestPart(value = "ownerImage", required = false) MultipartFile ownerImage) {
+            @RequestPart(value = "ownerImage", required = false) MultipartFile[] ownerImage) {
         List<MultipartFile> images = customerImages == null ? null : Arrays.asList(customerImages);
-        return Result.success(ownerAccountProfileService.createProfile(request, images, ownerImage));
+        List<MultipartFile> ownerImages = ownerImage == null ? null : Arrays.asList(ownerImage);
+        return Result.success(ownerAccountProfileService.createProfile(request, images, ownerImages));
     }
 
     // Thêm xe mới vào một người đăng ký thuê bao và gắn người sử dụng xe ban đầu.
@@ -104,6 +105,15 @@ public class DangpnOwnerAccountController {
             @PathVariable Long ownerId,
             @Valid @RequestBody SubscriptionVehicleCreateRequest request) {
         return Result.success(ownerAccountProfileService.addVehicle(ownerId, request));
+    }
+
+    @PostMapping(value = "/subscription-registrants/{ownerId}/vehicles", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> addSubscriptionRegistrantVehicleWithImages(
+            @PathVariable Long ownerId,
+            @Valid @RequestPart("request") SubscriptionVehicleCreateRequest request,
+            @RequestPart(value = "userImages", required = false) MultipartFile[] userImages) {
+        List<MultipartFile> images = userImages == null ? null : Arrays.asList(userImages);
+        return Result.success(ownerAccountProfileService.addVehicle(ownerId, request, images));
     }
 
     @GetMapping("/subscription-registrants/{ownerId}/vehicles")

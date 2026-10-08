@@ -169,8 +169,6 @@ public final class OwnerAccountDtos {
 
         private String searchTerm;
         private String status;
-        private Long buildingId;
-        private Long parkingLotId;
         private String fromDate;
         private String toDate;
     }
@@ -182,14 +180,14 @@ public final class OwnerAccountDtos {
         private String fullName;
         private String customerCode;
         private String address;
+        private String imageUrl;
         private String phone;
         private String zaloLink;
+        private String note;
         private String status;
         private long registeredVehicleCount;
-        private long carCount;
-        private long motorbikeCount;
-        private long expiredSubscriptionCount;
-        private List<RegisteredVehicleResponse> vehicles;
+        private OffsetDateTime createdAt;
+        private OffsetDateTime updatedAt;
     }
 
     @Data
@@ -226,6 +224,9 @@ public final class OwnerAccountDtos {
         private String status;
 
         @Valid
+        private ProfileSaveRequest.Subscription subscription;
+
+        @Valid
         private List<ExistingUser> users;
 
         @Valid
@@ -258,6 +259,8 @@ public final class OwnerAccountDtos {
 
             @Size(max = 255, message = "profileId must not exceed 255 characters")
             private String profileId;
+
+            private List<Integer> indexs;
 
             @NotBlank(message = "relationType is required")
             @Size(max = 30, message = "relationType must not exceed 30 characters")

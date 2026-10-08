@@ -1,5 +1,6 @@
 package vio.barie.core.dto.owneraccount;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -117,8 +118,8 @@ public class ProfileSaveRequest {
     public static class Customer {
         private Long id;
         private Long relationId;
-        private Integer imageIndex;
-        private List<Integer> imageIndexes;
+        @JsonAlias({"imageIndexes", "indexes"})
+        private List<Integer> indexs;
         private Boolean isUsed;
 
         @NotBlank(message = "customer name is required")
