@@ -4,6 +4,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import jakarta.validation.Valid;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import vio.barie.core.common.BaseStatus;
 import vio.barie.core.dto.ReportLinkResponse;
@@ -13,6 +17,8 @@ import vio.barie.core.dto.camera.CameraCreateRequest;
 import vio.barie.core.dto.camera.CameraResponse;
 import vio.barie.core.dto.camera.CameraUpdateRequest;
 import vio.barie.core.service.CameraService;
+import vio.barie.core.service.RtspFrameService;
+import vio.barie.core.dto.camera.RtspFrameRequest;
 
 import java.util.List;
 
@@ -21,6 +27,22 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CameraController {
     private final CameraService cameraService;
+    private final RtspFrameService rtspFrameService;
+
+    @PostMapping(value = "/frame", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.IMAGE_JPEG_VALUE)
+    public ResponseEntity<byte[]> captureFrame(@Valid @RequestBody RtspFrameRequest request) {
+        try {
+            byte[] frame = rtspFrameService.capture(request.rtspUrl());
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                    .contentType(MediaType.IMAGE_JPEG)
+                    .body(frame);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
+        }
+    }
 
     @PostMapping("/create")
     public Result<CameraResponse> createCamera(@RequestBody CameraCreateRequest clientBody) {

@@ -84,3 +84,8 @@ springdoc:
   show-actuator: false
   packages-to-scan: vio.barie.core.controller
   paths-to-match: /**
+
+camera:
+  rtsp:
+    ffmpeg-path: ffmpeg
+    timeout-ms: 6000
