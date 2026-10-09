@@ -18,10 +18,11 @@ import vio.barie.core.dto.owneraccount.OwnerAccountDtos.SubscriptionRegistrantPa
 import vio.barie.core.entity.OwnerAccountEntity;
 import vio.barie.core.repository.OwnerAccountRepository;
 import vio.barie.core.repository.OwnerAccountSpecification;
+import vio.barie.core.repository.VehicleCustomerRepository;
 import vio.barie.core.repository.VehicleRepository;
+import vio.barie.core.repository.VehicleSubscriptionRepository;
 
 
-import java.util.List;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -29,6 +30,12 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -36,6 +43,8 @@ public class OwnerAccountService {
 
     private final OwnerAccountRepository ownerAccountRepository;
     private final VehicleRepository vehicleRepository;
+    private final VehicleSubscriptionRepository vehicleSubscriptionRepository;
+    private final VehicleCustomerRepository vehicleCustomerRepository;
 
     @Transactional(readOnly = true)
     public OwnerAccountResponse getById(Long id) {
@@ -91,8 +100,40 @@ public class OwnerAccountService {
         if (!ownerAccountRepository.existsById(ownerId)) {
             throw new ServiceException("Owner account not found", 404);
         }
-        return vehicleRepository.findRegisteredVehiclesByOwnerId(ownerId).stream()
-                .map(this::toRegisteredVehicleResponse)
+        List<VehicleRepository.RegisteredVehicleProjection> vehicles = vehicleRepository.findRegisteredVehiclesByOwnerId(ownerId);
+        if (vehicles.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> vehicleIds = vehicles.stream()
+                .map(VehicleRepository.RegisteredVehicleProjection::getVehicleId)
+                .toList();
+
+        Map<Long, VehicleSubscriptionRepository.RegisteredVehicleSubscriptionProjection> subscriptionsByVehicleId =
+                vehicleSubscriptionRepository.findLatestRegisteredVehicleSubscriptions(vehicleIds).stream()
+                        .collect(Collectors.toMap(
+                                VehicleSubscriptionRepository.RegisteredVehicleSubscriptionProjection::getVehicleId,
+                                Function.identity(),
+                                (current, ignored) -> current,
+                                LinkedHashMap::new
+                        ));
+
+        Map<Long, LinkedHashSet<String>> userNamesByVehicleId = new LinkedHashMap<>();
+        vehicleCustomerRepository.findUserNamesByVehicleIds(vehicleIds).forEach(row -> {
+            String userName = trimToNull(row.getUserName());
+            if (userName != null) {
+                userNamesByVehicleId
+                        .computeIfAbsent(row.getVehicleId(), ignored -> new LinkedHashSet<>())
+                        .add(userName);
+            }
+        });
+
+        return vehicles.stream()
+                .map(vehicle -> toRegisteredVehicleResponse(
+                        vehicle,
+                        subscriptionsByVehicleId.get(vehicle.getVehicleId()),
+                        userNamesByVehicleId.get(vehicle.getVehicleId())
+                ))
                 .toList();
     }
 
@@ -194,22 +235,23 @@ public class OwnerAccountService {
                 .build();
     }
 
-    private RegisteredVehicleResponse toRegisteredVehicleResponse(VehicleRepository.RegisteredVehicleProjection projection) {
+    private RegisteredVehicleResponse toRegisteredVehicleResponse(
+            VehicleRepository.RegisteredVehicleProjection vehicle,
+            VehicleSubscriptionRepository.RegisteredVehicleSubscriptionProjection subscription,
+            LinkedHashSet<String> userNames
+    ) {
         return RegisteredVehicleResponse.builder()
-                .vehicleId(projection.getVehicleId())
-                .plate(projection.getPlate())
-                .vehicleType(projection.getVehicleType())
-                .vehicleStatus(projection.getVehicleStatus())
-                .userName(projection.getUserName())
-                .parkingLotName(projection.getParkingLotName())
-                .buildingName(projection.getBuildingName())
-                .packageName(projection.getPackageName())
-                .packageType(projection.getPackageType())
-                .ticketType(projection.getTicketType())
-                .subscriptionStatus(projection.getSubscriptionStatus())
-                .validFrom(toOffsetDateTime(projection.getValidFrom()))
-                .validTo(toOffsetDateTime(projection.getValidTo()))
-                .expired(projection.getExpired())
+                .vehicleId(vehicle.getVehicleId())
+                .plate(vehicle.getPlate())
+                .vehicleType(vehicle.getVehicleType())
+                .vehicleStatus(vehicle.getVehicleStatus())
+                .userName(userNames == null ? "" : String.join(", ", userNames))
+                .parkingLotName(subscription == null ? null : subscription.getParkingLotName())
+                .ticketType(subscription == null ? null : subscription.getTicketType())
+                .subscriptionStatus(subscription == null ? null : subscription.getSubscriptionStatus())
+                .validFrom(subscription == null ? null : subscription.getValidFrom())
+                .validTo(subscription == null ? null : subscription.getValidTo())
+                .expired(subscription != null && subscription.getExpired())
                 .build();
     }
 

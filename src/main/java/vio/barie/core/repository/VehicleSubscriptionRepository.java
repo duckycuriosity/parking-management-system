@@ -9,6 +9,8 @@ import vio.barie.core.dto.VehicleSubscriptionResponse;
 import vio.barie.core.entity.VehicleSubscriptionEntity;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.util.List;
 
 public interface VehicleSubscriptionRepository extends JpaRepository<VehicleSubscriptionEntity, Long> {
     @Query(value = """
@@ -56,4 +58,46 @@ public interface VehicleSubscriptionRepository extends JpaRepository<VehicleSubs
             @Param("endDate") LocalDateTime endDate,
             Pageable pageable
     );
+
+    @Query("""
+            SELECT
+                vs.vehicleId AS vehicleId,
+                pl.name AS parkingLotName,
+                vs.registrationType AS ticketType,
+                vs.status AS subscriptionStatus,
+                vs.startsAt AS validFrom,
+                vs.endsAt AS validTo,
+                CASE WHEN vs.endsAt IS NOT NULL AND vs.endsAt < CURRENT_TIMESTAMP THEN TRUE ELSE FALSE END AS expired
+            FROM VehicleSubscriptionEntity vs
+            LEFT JOIN ParkingLotEntity pl ON pl.id = vs.parkingLotId
+            WHERE vs.vehicleId IN :vehicleIds
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM VehicleSubscriptionEntity newerVs
+                  WHERE newerVs.vehicleId = vs.vehicleId
+                    AND (
+                        newerVs.createdAt > vs.createdAt
+                        OR (newerVs.createdAt = vs.createdAt AND newerVs.id > vs.id)
+                    )
+              )
+            """)
+    List<RegisteredVehicleSubscriptionProjection> findLatestRegisteredVehicleSubscriptions(
+            @Param("vehicleIds") List<Long> vehicleIds
+    );
+
+    interface RegisteredVehicleSubscriptionProjection {
+        Long getVehicleId();
+
+        String getParkingLotName();
+
+        String getTicketType();
+
+        String getSubscriptionStatus();
+
+        OffsetDateTime getValidFrom();
+
+        OffsetDateTime getValidTo();
+
+        boolean getExpired();
+    }
 }

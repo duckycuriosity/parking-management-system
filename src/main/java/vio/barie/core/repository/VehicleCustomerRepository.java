@@ -15,11 +15,45 @@ public interface VehicleCustomerRepository extends JpaRepository<VehicleCustomer
 
     Optional<VehicleCustomerEntity> findByIdAndVehicleIdAndCustomerId(Long id, Long vehicleId, Long customerId);
 
-    @Query(value = """
-            SELECT vc.*
-            FROM vehicle_customer vc
-            INNER JOIN vehicle v ON v.id = vc.vehicle_id
-            WHERE v.owner_id = :ownerId
-            """, nativeQuery = true)
+    @Query("""
+            SELECT vc
+            FROM VehicleCustomerEntity vc
+            WHERE vc.vehicleId IN (
+                SELECT v.id
+                FROM VehicleEntity v
+                WHERE v.ownerId = :ownerId
+            )
+            """)
     List<VehicleCustomerEntity> findByOwnerId(@Param("ownerId") Long ownerId);
+
+    @Query("""
+            SELECT
+                vc.vehicleId AS vehicleId,
+                pc.username AS userName
+            FROM VehicleCustomerEntity vc
+            INNER JOIN ParkingCustomerEntity pc ON pc.id = vc.customerId
+            WHERE vc.vehicleId IN :vehicleIds
+              AND pc.username IS NOT NULL
+            ORDER BY vc.vehicleId ASC, pc.username ASC
+            """)
+    List<VehicleUserNameProjection> findUserNamesByVehicleIds(@Param("vehicleIds") List<Long> vehicleIds);
+
+    @Query("""
+            SELECT
+                vc.vehicleId AS vehicleId,
+                pc.username AS userName
+            FROM VehicleCustomerEntity vc
+            INNER JOIN ParkingCustomerEntity pc ON pc.id = vc.customerId
+            WHERE vc.vehicleId IN :vehicleIds
+              AND vc.status = 'ACTIVE'
+              AND pc.username IS NOT NULL
+            ORDER BY vc.vehicleId ASC, pc.username ASC
+            """)
+    List<VehicleUserNameProjection> findActiveUserNamesByVehicleIds(@Param("vehicleIds") List<Long> vehicleIds);
+
+    interface VehicleUserNameProjection {
+        Long getVehicleId();
+
+        String getUserName();
+    }
 }
