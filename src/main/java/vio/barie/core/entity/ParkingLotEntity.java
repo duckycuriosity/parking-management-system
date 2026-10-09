@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import vio.barie.core.common.BaseStatus;
+import vio.barie.core.common.OperatingMode;
 import vio.barie.core.common.VerificationMode;
 import vio.barie.core.entity.base.BaseEntity;
 
@@ -38,6 +39,10 @@ public class ParkingLotEntity extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "verification_mode", nullable = false)
     private VerificationMode verificationMode = VerificationMode.FACE_PLATE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "operating_mode", nullable = false)
+    private OperatingMode operatingMode = OperatingMode.FULL_DAY;
 
     // Quan hệ 1-n với Lane
     @OneToMany(mappedBy = "parkingLot", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

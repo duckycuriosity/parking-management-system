@@ -21,17 +21,25 @@ public class ParkingLotMapper {
         if (request.getVerificationMode() != null) {
             entity.setVerificationMode(request.getVerificationMode());
         }
+        if(request.getOperatingMode() !=null){
+            entity.setOperatingMode(request.getOperatingMode());
+        }
         return entity;
     }
 
     public ParkingLotResponse toResponse(ParkingLotEntity entity) {
         ParkingLotResponse resp = new ParkingLotResponse();
         resp.setId(entity.getId());
+        resp.setParkingLotCode(
+                String.format("PL-%02d", entity.getId())
+        );
+
         resp.setName(entity.getName());
         if (entity.getBuilding() != null) {
             resp.setBuildingId(entity.getBuilding().getId());
             resp.setBuildingName(entity.getBuilding().getName());
         }
+        resp.setOperatingMode(entity.getOperatingMode());
         resp.setDescription(entity.getDescription());
         resp.setStatus(entity.getStatus());
         resp.setCreatedAt(entity.getCreatedAt());
