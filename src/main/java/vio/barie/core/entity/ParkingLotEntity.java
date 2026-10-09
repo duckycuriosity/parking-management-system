@@ -44,6 +44,9 @@ public class ParkingLotEntity extends BaseEntity {
     @Column(name = "operating_mode", nullable = false)
     private OperatingMode operatingMode = OperatingMode.FULL_DAY;
 
+    @Column(name = "address")
+    private String address;
+
     // Quan hệ 1-n với Lane
     @OneToMany(mappedBy = "parkingLot", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<LaneEntity> lanes;

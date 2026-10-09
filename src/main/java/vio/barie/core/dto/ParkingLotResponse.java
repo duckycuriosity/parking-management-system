@@ -14,6 +14,7 @@ public class ParkingLotResponse {
     private Long buildingId;
     private String buildingName;
     private String description;
+    private String address;
     private BaseStatus status;
     private OperatingMode operatingMode;
     private LocalDateTime createdAt;

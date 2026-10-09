@@ -31,7 +31,7 @@ public class BuildingMapper {
         response.setManagementUnit(entity.getManagementUnit());
         response.setStatus(entity.getStatus());
         response.setBuildingCode(
-                String.format("TN-%02d", entity.getId())
+                String.format("BD-%02d", entity.getId())
         );
         response.setCreatedAt(entity.getCreatedAt());
         return response;

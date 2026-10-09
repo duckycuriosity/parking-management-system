@@ -12,7 +12,6 @@ public class ParkingLotMapper {
 
     public ParkingLotEntity toEntity(ParkingLotCreateRequest request) {
         ParkingLotEntity entity = new ParkingLotEntity();
-
         entity.setName(request.getName());
         entity.setDescription(request.getDescription());
         entity.setStatus(request.getStatus());
@@ -24,6 +23,7 @@ public class ParkingLotMapper {
         if(request.getOperatingMode() !=null){
             entity.setOperatingMode(request.getOperatingMode());
         }
+        entity.setAddress(request.getAddress());
         return entity;
     }
 
@@ -46,6 +46,7 @@ public class ParkingLotMapper {
         resp.setMaxMotorcycleCapacity(entity.getMaxMotorcycleCapacity());
         resp.setMaxCarCapacity(entity.getMaxCarCapacity());
         resp.setVerificationMode(entity.getVerificationMode());
+        resp.setAddress(entity.getAddress());
         return resp;
     }
 

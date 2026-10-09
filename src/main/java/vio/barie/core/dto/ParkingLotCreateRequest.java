@@ -37,5 +37,9 @@ public class ParkingLotCreateRequest {
 
     @NotNull(message = "Operating mode is required")
     private OperatingMode operatingMode;
+
+    @NotNull(message = "Address is required")
+    private String address;
+
     private VerificationMode verificationMode;
 }

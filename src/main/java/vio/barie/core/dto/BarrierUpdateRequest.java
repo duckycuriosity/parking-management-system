@@ -18,6 +18,6 @@ public class BarrierUpdateRequest {
     private Long laneId;
     @NotNull(message = "Vui lòng chọn chiều của Barie")
     private DirectionType direction;
-
+    private String ipBarrier;
     private String description;
 }
