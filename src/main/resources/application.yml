@@ -12,7 +12,7 @@ server:
   port: 1081
 spring:
   profiles:
-    active: prod
+    active: dev
   application:
     name: core
   flyway:
