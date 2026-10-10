@@ -3,6 +3,8 @@ package vio.barie.core.repository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.repository.query.Param;
 import vio.barie.core.common.SessionType;
 import vio.barie.core.dto.ActivitySessionResponse;
@@ -19,6 +21,11 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEntity, Long> {
+    /** Locks the root session only; related values are loaded after the common vehicle lock. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from ParkingSessionEntity s where s.id = :sessionId")
+    Optional<ParkingSessionEntity> lockForFee(@Param("sessionId") Long sessionId);
+
     // session "đang mở" = đã có entry_time, chưa có exit_time
 
     boolean existsByParkingLot_Building_Id(Long buildingId);

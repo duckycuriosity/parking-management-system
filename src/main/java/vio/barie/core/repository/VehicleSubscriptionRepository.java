@@ -1,103 +1,157 @@
 package vio.barie.core.repository;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.repository.Repository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import vio.barie.core.dto.VehicleSubscriptionResponse;
+import vio.barie.core.entity.VehicleEntity;
 import vio.barie.core.entity.VehicleSubscriptionEntity;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 
-public interface VehicleSubscriptionRepository extends JpaRepository<VehicleSubscriptionEntity, Long> {
-    @Query(value = """
-            SELECT 
-                vs.id AS subscriptionId,
-                v.plate_number AS plateNumber,
-                pc.username AS subscriberName,
-                pl.name AS parkingLotName,
-                vs.ends_at AS expirationDate,
-                sp.name AS ticketType,
-                vs.status AS status
-            FROM vehicle_subscription vs
-            INNER JOIN parking_lot pl ON vs.parking_lot_id = pl.id
-            INNER JOIN subscription_package sp ON vs.package_id = sp.id
-            INNER JOIN vehicle v ON vs.vehicle_id = v.id
-            LEFT JOIN vehicle_customer vc ON v.id = vc.vehicle_id AND vc.status = 'ACTIVE'
-            LEFT JOIN parking_customer pc ON vc.customer_id = pc.id
-            WHERE 
-                (:keyword IS NULL OR v.plate_number ILIKE CONCAT('%', :keyword, '%') OR pc.username ILIKE CONCAT('%', :keyword, '%'))
-                AND (:buildingId IS NULL OR pl.building_id = :buildingId)
-                AND (:parkingLotId IS NULL OR vs.parking_lot_id = :parkingLotId)
-                AND (CAST(:startDate AS timestamp) IS NULL OR vs.ends_at >= :startDate)
-                AND (CAST(:endDate AS timestamp) IS NULL OR vs.ends_at <= :endDate)
-            """,
-            countQuery = """
-            SELECT count(vs.id) 
-            FROM vehicle_subscription vs
-            INNER JOIN parking_lot pl ON vs.parking_lot_id = pl.id
-            INNER JOIN vehicle v ON vs.vehicle_id = v.id
-            LEFT JOIN vehicle_customer vc ON v.id = vc.vehicle_id AND vc.status = 'ACTIVE'
-            LEFT JOIN parking_customer pc ON vc.customer_id = pc.id
-            WHERE 
-                (:keyword IS NULL OR v.plate_number ILIKE CONCAT('%', :keyword, '%') OR pc.username ILIKE CONCAT('%', :keyword, '%'))
-                AND (:buildingId IS NULL OR pl.building_id = :buildingId)
-                AND (:parkingLotId IS NULL OR vs.parking_lot_id = :parkingLotId)
-                AND (CAST(:startDate AS timestamp) IS NULL OR vs.ends_at >= :startDate)
-                AND (CAST(:endDate AS timestamp) IS NULL OR vs.ends_at <= :endDate)
-            """,
-            nativeQuery = true)
-    Page<VehicleSubscriptionResponse> findSubscriptionDetails(
-            @Param("keyword") String keyword,
-            @Param("buildingId") Long buildingId,
-            @Param("parkingLotId") Long parkingLotId,
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate,
-            Pageable pageable
-    );
+/** Domain-scoped API: no bulk update/delete methods that bypass lifecycle guards. */
+public interface VehicleSubscriptionRepository extends Repository<VehicleSubscriptionEntity, Long> {
 
+    /** One latest order per vehicle; callers batch user names separately. */
     @Query("""
-            SELECT
-                vs.vehicleId AS vehicleId,
-                pl.name AS parkingLotName,
-                vs.registrationType AS ticketType,
-                vs.status AS subscriptionStatus,
-                vs.startsAt AS validFrom,
-                vs.endsAt AS validTo,
-                CASE WHEN vs.endsAt IS NOT NULL AND vs.endsAt < CURRENT_TIMESTAMP THEN TRUE ELSE FALSE END AS expired
-            FROM VehicleSubscriptionEntity vs
-            LEFT JOIN ParkingLotEntity pl ON pl.id = vs.parkingLotId
-            WHERE vs.vehicleId IN :vehicleIds
-              AND NOT EXISTS (
-                  SELECT 1
-                  FROM VehicleSubscriptionEntity newerVs
-                  WHERE newerVs.vehicleId = vs.vehicleId
-                    AND (
-                        newerVs.createdAt > vs.createdAt
-                        OR (newerVs.createdAt = vs.createdAt AND newerVs.id > vs.id)
-                    )
+            select s.vehicleId as vehicleId, lot.name as parkingLotName,
+                   s.registrationType as registrationTypeValue, s.status as statusValue,
+                   s.startsAt as validFromInstant, s.endsAt as validToInstant,
+                   case when s.endsAt < current_timestamp then true else false end as expired
+            from VehicleSubscriptionEntity s
+            left join ParkingLotEntity lot on lot.id = s.parkingLotId
+            where s.vehicleId in :vehicleIds
+              and not exists (
+                select newer.id from VehicleSubscriptionEntity newer
+                where newer.vehicleId = s.vehicleId
+                  and (newer.createdAt > s.createdAt
+                    or (newer.createdAt = s.createdAt and newer.id > s.id))
               )
             """)
     List<RegisteredVehicleSubscriptionProjection> findLatestRegisteredVehicleSubscriptions(
-            @Param("vehicleIds") List<Long> vehicleIds
-    );
+            @Param("vehicleIds") List<Long> vehicleIds);
 
     interface RegisteredVehicleSubscriptionProjection {
         Long getVehicleId();
-
         String getParkingLotName();
-
-        String getTicketType();
-
-        String getSubscriptionStatus();
-
-        OffsetDateTime getValidFrom();
-
-        OffsetDateTime getValidTo();
-
+        vio.barie.core.common.SubscriptionRegistrationType getRegistrationTypeValue();
+        vio.barie.core.common.VehicleSubscriptionStatus getStatusValue();
+        Instant getValidFromInstant();
+        Instant getValidToInstant();
         boolean getExpired();
+
+        default String getTicketType() {
+            return getRegistrationTypeValue() == null ? null : getRegistrationTypeValue().name();
+        }
+        default String getSubscriptionStatus() {
+            return getStatusValue() == null ? null : getStatusValue().name();
+        }
+        default OffsetDateTime getValidFrom() {
+            return getValidFromInstant() == null ? null : getValidFromInstant().atOffset(ZoneOffset.UTC);
+        }
+        default OffsetDateTime getValidTo() {
+            return getValidToInstant() == null ? null : getValidToInstant().atOffset(ZoneOffset.UTC);
+        }
     }
+
+    Optional<VehicleSubscriptionEntity> findById(Long id);
+
+    /** Response graph for a bounded aggregate result, never used by invariant checks. */
+    @EntityGraph(attributePaths = {"subscriptionPackage", "subscriptionPackage.schedules"})
+    @Query("select distinct s from VehicleSubscriptionEntity s where s.id in :ids")
+    List<VehicleSubscriptionEntity> findWithSchedulesByIds(@Param("ids") List<Long> ids);
+
+    <S extends VehicleSubscriptionEntity> S save(S subscription);
+
+    <S extends VehicleSubscriptionEntity> S saveAndFlush(S subscription);
+
+    // Lock only the existing parent row. The same lock serializes the first purchase,
+    // renewal, callback and checkout even when no subscription row exists yet.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select v from VehicleEntity v where v.id = :vehicleId")
+    Optional<VehicleEntity> lockVehicleEntity(@Param("vehicleId") Long vehicleId);
+
+    default Optional<Long> lockVehicle(Long vehicleId) {
+        return lockVehicleEntity(vehicleId).map(VehicleEntity::getId);
+    }
+
+    // Fetching a package/schedule collection while locking can generate an outer
+    // join that PostgreSQL cannot lock. Keep row locks separate from DTO reads.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from VehicleSubscriptionEntity s where s.id = :subscriptionId")
+    Optional<VehicleSubscriptionEntity> lockSubscriptionEntity(@Param("subscriptionId") Long subscriptionId);
+
+    default Optional<Long> lockSubscription(Long subscriptionId) {
+        return lockSubscriptionEntity(subscriptionId).map(VehicleSubscriptionEntity::getId);
+    }
+
+    @Query("select v.vehicleType from VehicleEntity v where v.id = :vehicleId")
+    Optional<String> findVehicleType(@Param("vehicleId") Long vehicleId);
+
+    @Query("select (count(p) > 0) from ParkingLotEntity p where p.id = :parkingLotId")
+    boolean parkingLotExists(@Param("parkingLotId") Long parkingLotId);
+
+    Optional<VehicleSubscriptionEntity> findByRequestKey(String requestKey);
+
+    // These methods explicitly serve response/coverage reads, where schedules are
+    // required. Invariant/existence checks below never load that collection graph.
+    @EntityGraph(attributePaths = {"subscriptionPackage", "subscriptionPackage.schedules"})
+    List<VehicleSubscriptionEntity> findByVehicleIdAndParkingLotIdOrderByStartsAtAscIdAsc(
+            Long vehicleId, Long parkingLotId);
+
+    List<VehicleSubscriptionEntity> findByPreviousSubscriptionIdOrderByIdAsc(Long previousSubscriptionId);
+
+    @Query("""
+            select (count(s) > 0) from VehicleSubscriptionEntity s
+            where s.vehicleId = :vehicleId and s.parkingLotId = :parkingLotId
+              and s.status = vio.barie.core.common.VehicleSubscriptionStatus.PAID
+              and s.startsAt < :until and s.endsAt > :from
+            """)
+    boolean existsPaidOverlapping(@Param("vehicleId") Long vehicleId,
+                                  @Param("parkingLotId") Long parkingLotId,
+                                  @Param("from") Instant from,
+                                  @Param("until") Instant until);
+
+    @Query("""
+            select s from VehicleSubscriptionEntity s
+            where s.vehicleId = :vehicleId and s.parkingLotId = :parkingLotId
+              and s.status = vio.barie.core.common.VehicleSubscriptionStatus.PAID
+              and s.startsAt < :until and s.endsAt > :from
+            order by s.startsAt asc, s.id asc
+            """)
+    List<VehicleSubscriptionEntity> findPaidOverlapping(@Param("vehicleId") Long vehicleId,
+                                                       @Param("parkingLotId") Long parkingLotId,
+                                                       @Param("from") Instant from,
+                                                       @Param("until") Instant until);
+
+    @EntityGraph(attributePaths = {"subscriptionPackage", "subscriptionPackage.schedules"})
+    @Query("""
+            select s from VehicleSubscriptionEntity s
+            where s.vehicleId = :vehicleId and s.parkingLotId = :parkingLotId
+              and s.status = vio.barie.core.common.VehicleSubscriptionStatus.PAID
+              and s.startsAt < :until and s.endsAt > :from
+            order by s.startsAt asc, s.id asc
+            """)
+    List<VehicleSubscriptionEntity> findPaidOverlappingWithPackageSchedules(@Param("vehicleId") Long vehicleId,
+                                                       @Param("parkingLotId") Long parkingLotId,
+                                                       @Param("from") Instant from,
+                                                       @Param("until") Instant until);
+
+    @EntityGraph(attributePaths = {"subscriptionPackage", "subscriptionPackage.schedules"})
+    @Query("""
+            select s from VehicleSubscriptionEntity s
+            where s.vehicleId = :vehicleId and s.parkingLotId = :parkingLotId
+              and s.status = vio.barie.core.common.VehicleSubscriptionStatus.PAID
+              and s.startsAt <= :at and :at < s.endsAt
+            order by s.startsAt asc, s.id asc
+            """)
+    List<VehicleSubscriptionEntity> findPaidAt(@Param("vehicleId") Long vehicleId,
+                                              @Param("parkingLotId") Long parkingLotId,
+                                              @Param("at") Instant at);
 }

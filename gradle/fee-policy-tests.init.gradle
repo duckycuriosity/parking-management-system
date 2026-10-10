@@ -1,0 +1,27 @@
+// Run the new fee module independently while legacy test sources contain syntax errors.
+// Usage: ./gradlew --init-script gradle/fee-policy-tests.init.gradle test
+allprojects {
+    plugins.withId('java') {
+        sourceSets.test.java.setIncludes([
+                'vio/barie/core/service/FeePolicyServiceTest.java',
+                'vio/barie/core/config/auth/FeePolicySecurityTest.java'
+        ])
+        tasks.named('test') {
+            useJUnitPlatform()
+            doFirst {
+                // Use Mockito's supported startup agent instead of dynamic JVM attachment.
+                def agent = configurations.testRuntimeClasspath.files.find {
+                    it.name.startsWith('mockito-core-') && it.name.endsWith('.jar')
+                }
+                if (agent == null) {
+                    throw new GradleException('Mockito startup agent unavailable')
+                }
+                jvmArgs("-javaagent:${agent.absolutePath}")
+            }
+            filter {
+                includeTestsMatching('vio.barie.core.service.FeePolicyServiceTest')
+                includeTestsMatching('vio.barie.core.config.auth.FeePolicySecurityTest')
+            }
+        }
+    }
+}

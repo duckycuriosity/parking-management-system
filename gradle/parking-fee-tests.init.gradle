@@ -1,0 +1,37 @@
+// Select the complete pricing/subscription/parking-fee modules while an unrelated
+// legacy ParkingLotRepositoryTest has a duplicated tail that prevents compilation.
+// This includes all module test sources and does not suppress failing tests.
+// Usage: ./gradlew --init-script gradle/parking-fee-tests.init.gradle test
+allprojects {
+    plugins.withId('java') {
+        sourceSets.test.java.setIncludes([
+                'vio/barie/core/service/FeePolicyServiceTest.java',
+                'vio/barie/core/config/auth/FeePolicySecurityTest.java',
+                'vio/barie/core/persistence/SubscriptionJpaTestSupport.java',
+                'vio/barie/core/persistence/ParkingFeeJpaTestSupport.java',
+                'vio/barie/core/service/FeeCalculatorTestSupport.java',
+                'vio/barie/core/**/*Subscription*Test.java',
+                'vio/barie/core/**/*Subscription*IntegrationTest.java',
+                'vio/barie/core/**/*ParkingFee*Test.java',
+                'vio/barie/core/**/*ParkingFee*IntegrationTest.java',
+                'vio/barie/core/**/*ParkingPayment*Test.java',
+                'vio/barie/core/**/*ParkingPayment*IntegrationTest.java',
+                'vio/barie/core/**/*FeeCalculator*Test.java',
+                'vio/barie/core/**/*TimeBlock*Test.java',
+                'vio/barie/core/**/*DailyEntry*Test.java',
+                'vio/barie/core/**/*Coverage*Test.java'
+        ])
+        tasks.named('test') {
+            useJUnitPlatform()
+            doFirst {
+                def agent = configurations.testRuntimeClasspath.files.find {
+                    it.name.startsWith('mockito-core-') && it.name.endsWith('.jar')
+                }
+                if (agent == null) {
+                    throw new GradleException('Mockito startup agent unavailable')
+                }
+                jvmArgs("-javaagent:${agent.absolutePath}")
+            }
+        }
+    }
+}

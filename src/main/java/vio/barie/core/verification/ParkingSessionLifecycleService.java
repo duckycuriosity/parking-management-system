@@ -2,6 +2,7 @@ package vio.barie.core.verification;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vio.barie.core.common.SessionType;
@@ -22,6 +23,7 @@ import vio.barie.core.repository.ParkingSessionRepository;
 import vio.barie.core.repository.TicketRepository;
 import vio.barie.core.service.CalculatorService;
 import vio.barie.core.service.PaymentService;
+import vio.barie.core.service.ParkingFeeWorkflowGuard;
 import vio.barie.core.service.mqtt.ParkingMessageService;
 import vio.barie.core.service.smoothing.SmoothingAIEvents;
 
@@ -48,6 +50,12 @@ public class ParkingSessionLifecycleService {
     private final CalculatorService calculatorService;
     private final PaymentService paymentService;
     private final SmoothingAIEvents smoothingAIEvents;
+    private ParkingFeeWorkflowGuard feeWorkflowGuard;
+
+    @Autowired
+    public void setFeeWorkflowGuard(ParkingFeeWorkflowGuard guard) {
+        this.feeWorkflowGuard = guard;
+    }
 
     public Optional<ParkingSessionEntity> findOpenSessionForVehicle(Long vehicleId) {
         return parkingSessionRepository.findFirstByVehicleIdAndExitTimeIsNullOrderByEntryTimeDesc(vehicleId);
@@ -111,6 +119,8 @@ public class ParkingSessionLifecycleService {
     @Transactional
     public void closeExit(ParkingSessionEntity openSession, ParkingCustomerEntity customer,
                           BarrierEntity barrier, PendingEventDetection detection) {
+        if (feeWorkflowGuard != null)
+            openSession = feeWorkflowGuard.lockAndAssertLegacyWorkflowAllowed(openSession.getId());
         LaneEntity lane = barrier.getParkingDevice().getLane();
         String barrierId = barrier.getBarrierId();
         VehicleEntity vehicle = openSession.getVehicle();

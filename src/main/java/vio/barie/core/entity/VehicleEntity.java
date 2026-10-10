@@ -13,9 +13,6 @@ import vio.barie.core.entity.base.BaseEntity;
 @EqualsAndHashCode(callSuper = true)
 public class VehicleEntity extends BaseEntity {
 
-    @Column(name = "id", unique = true, nullable = false)
-    private Long id;
-
     @Column(name = "plate_number", unique = true, nullable = false)
     private String plateNumber;
 

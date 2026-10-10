@@ -1,7 +1,7 @@
 package vio.barie.core.dto.payment;
 
-import cn.hutool.json.JSONObject;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import lombok.Data;
 
 import java.util.List;
@@ -14,6 +14,8 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SePayTransactionListResponse {
     private String status;
-    private JSONObject metadata;
+    @JsonAlias("meta")
+    private Map<String, Object> metadata;
+    @JsonAlias("transactions")
     private List<SePayTransaction> data;
 }

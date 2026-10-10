@@ -2,6 +2,8 @@ package vio.barie.core.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.repository.query.Param;
 import vio.barie.core.entity.VehicleEntity;
 
@@ -9,6 +11,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface VehicleRepository extends JpaRepository<VehicleEntity, Long> {
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select v from VehicleEntity v where v.id = :id and v.ownerId = :ownerId")
+    Optional<VehicleEntity> findOwnedForUpdate(@Param("id") Long id, @Param("ownerId") Long ownerId);
     Optional<VehicleEntity> findByPlateNumber(String plateNumber);
 
     Optional<VehicleEntity> findByAiIdentityPlateId(String aiIdentityPlateId);

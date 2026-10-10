@@ -14,7 +14,9 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 @Entity
-@Table(name = "payment")
+@Table(name = "payment", uniqueConstraints = {
+        @UniqueConstraint(name = "uq_payment_invoice_no", columnNames = "invoice_no")
+})
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class PaymentEntity extends BaseEntity {

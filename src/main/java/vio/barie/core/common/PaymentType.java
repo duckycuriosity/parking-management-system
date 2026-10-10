@@ -4,5 +4,6 @@ public enum PaymentType {
     PAID,
     PENDING,
     FAILED,
-    FRAUD
+    FRAUD,
+    REVIEW_REQUIRED
 }

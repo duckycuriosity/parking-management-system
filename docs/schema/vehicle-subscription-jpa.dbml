@@ -1,0 +1,202 @@
+// Phạm vi: schema thuê bao đã triển khai trên nhánh dangpn/fee_policy sau V54 + V55.
+// Bốn bảng thuê bao dưới đây là đầy đủ. Các bảng cũ chỉ thể hiện phần liên quan;
+// không dùng bản vẽ này để tạo lại toàn bộ schema payment/vehicle/parking_lot/building.
+// Nguồn: V54__create_vehicle_subscription.sql, V55__move_subscription_business_rules_to_jpa.sql,
+// entity/repository/service hiện tại và các migration cũ của bảng ngữ cảnh.
+
+Project vehicle_subscription_jpa {
+  database_type: 'PostgreSQL'
+  Note: '''
+    Payment tạo yêu cầu thu tiền và định tuyến callback; vehicle_subscription_receipt lưu từng giao dịch thực nhận đã xác minh; vehicle_subscription lưu đơn và kỳ được cấp quyền.
+    Một payment có nhiều receipt. payment.amount là số tiền yêu cầu; receipt.amount_vnd là số tiền thực nhận. Không cộng hai nguồn cho cùng một khoản thu.
+
+    Sau V55, DB giữ PK, FK, UNIQUE, NOT NULL và index. V55 gỡ 5 function/trigger nghiệp vụ, CHECK của 4 bảng thuê bao và 2 EXCLUDE chống chồng khoảng thời gian. Không có fee_policy, bảng tính tiền dự kiến, multi-tenant hoặc mô hình payment cha-con trong phạm vi bản vẽ này.
+
+    Java/JPA sở hữu quy tắc nghiệp vụ. SubscriptionPackageService khóa phiên bản nhỏ nhất còn tồn tại của cùng package_code, sau đó khóa phiên bản cần sửa. VehicleSubscriptionService khóa vehicle, rồi vehicle_subscription, rồi payment; refresh dữ liệu sau khi chờ khóa. Cùng request/giao dịch được trả lại kết quả cũ; UNIQUE bảo vệ xung đột toàn cục, lỗi khiến transaction rollback và không query tiếp trong transaction đã lỗi.
+
+    Receipt APPLIED, kỳ PAID và payment tương ứng được ghi trong một transaction, kiểm tra liên kết hai chiều trước commit. Event quyền lợi chỉ phát sau commit; callback lặp không phát lại. Lỗi phát event không đảo ngược khoản thu đã commit; bản thiết kế này không bổ sung outbox hoặc bảo đảm chuyển phát MQTT.
+
+    Các guard lifecycle JPA bảo vệ thao tác entity qua persistence context; bulk JPQL/native SQL/direct SQL bỏ qua chúng. Repository thuê bao được giới hạn API và các điểm ghi phải đi qua service sở hữu nghiệp vụ. DB không còn thay Java kiểm tra chồng kỳ, lịch tuần, bất biến hoặc kết quả áp dụng thanh toán.
+
+    Các lớp tính phí/coverage/checkout mới hiện là khung. lockPaidPeriodsForSettlement yêu cầu transaction ghi đã có, giữ khóa vehicle để caller đọc quyền lợi nhất quán; chưa có luồng checkout mới gọi hook này. Phương thức không tự tính phí hoặc thu tiền.
+  '''
+}
+
+Table building {
+  id bigint [pk, increment, note: 'Bảng cũ; BIGSERIAL, Java Long. Chỉ thể hiện khóa và tên để giải thích lọc báo cáo theo tòa nhà.']
+  name varchar(255) [not null, note: 'Tên tòa nhà. Các cột cũ khác nằm ngoài phạm vi bản vẽ.']
+  Note: 'Ngữ cảnh có từ trước; module thuê bao không tạo lại hoặc thay đổi bảng này.'
+}
+
+Table parking_lot {
+  id bigint [pk, increment, note: 'Bảng cũ; BIGSERIAL, Java Long. Định danh bãi áp dụng gói và kỳ thuê bao.']
+  building_id bigint [not null, note: 'FK thật tới building; dùng khi lọc tiền thuê bao theo tòa nhà.']
+  name varchar(255) [note: 'Tên bãi. Các cột cũ khác nằm ngoài phạm vi bản vẽ.']
+  Note: 'Ngữ cảnh có từ trước. Gói bán và kỳ thuê bao đều xác định một parking_lot_id; receipt lấy phạm vi bãi qua đơn cha.'
+}
+
+Table vehicle {
+  id bigint [pk, increment, note: 'Bảng cũ; BIGSERIAL, Java Long. Dòng khóa chung tồn tại trước khi xe có kỳ thuê bao đầu tiên.']
+  plate_number varchar(50) [not null, unique, note: 'Tên cột thực tế của nhánh code là plate_number, không phải plate. Biển số định danh xe.']
+  vehicle_type varchar(20) [not null, note: 'Bảng xe cũ chấp nhận CAR, MOTORBIKE, OTHER; module gói thuê bao chỉ cho CAR hoặc MOTORBIKE.']
+  Note: 'Ngữ cảnh có từ trước; các cột info/AI và created_at không vẽ. VSS dùng khóa JPA trên dòng vehicle để chống chồng kỳ giữa các request/callback đồng thời.'
+}
+
+Table payment {
+  id bigint [pk, increment, note: 'Bảng có từ trước; BIGSERIAL, Java Long. Một bản ghi là yêu cầu thu tiền/invoice, không phải một dòng cho mỗi khoản chuyển thực nhận.']
+  invoice_no varchar(255) [note: 'Định danh invoice dùng tìm đúng yêu cầu thu tiền. V55 bổ sung UNIQUE uq_payment_invoice_no; legacy NULL vẫn được DB cho phép. Service thuê bao bắt buộc invoice không rỗng và tối đa 100 ký tự.']
+  amount numeric(15,2) [note: 'Số tiền yêu cầu. Thuê bao lấy từ price_vnd đã chốt, không ghi đè bằng khoản thiếu/thừa thực nhận.']
+  currency varchar(10) [note: 'Yêu cầu thu tiền thuê bao dùng VND.']
+  payment_method varchar(50) [note: 'Phương thức thu của module cũ; link thuê bao hiện dùng QR.']
+  pay_type varchar(10) [note: 'Mã hình thức thanh toán do gateway trả về.']
+  gateway varchar(50) [note: 'Gateway của yêu cầu thuê bao: SEPAY hoặc MEGAPAY; đối chiếu với nguồn giao dịch đã xác minh.']
+  status varchar(50) [note: 'Trạng thái yêu cầu. Luồng thuê bao ghi PENDING, PAID hoặc REVIEW_REQUIRED; module cũ có trạng thái riêng. Payment PAID một mình không cấp quyền thuê bao.']
+  paid_at timestamp [note: 'Cột thời gian cũ, Java LocalDateTime. Luồng thuê bao chuyển instant tin cậy thành LocalDateTime UTC; không lấy now thay paid_at thiếu. Chỉ giữ thông tin giao dịch đầu tiên, không phải lịch sử đầy đủ.']
+  reference_code varchar(100) [note: 'Tham chiếu giao dịch đầu tiên được lưu trên yêu cầu; receipt giữ đầy đủ từng source/reference nên khoản chuyển thêm không ghi đè trường này.']
+  sepay_tx_id varchar(50) [note: 'Tham chiếu SePay đầu tiên. Migration cũ có UNIQUE index khi giá trị khác NULL; ID giao dịch xác minh có thể là UUID dạng chuỗi, không đổi kiểu khóa chính.']
+  callback_type varchar(50) [note: 'SUBSCRIPTION cho thuê bao mới; giữ nguyên SESSION/TICKET của module cũ. Callback chỉ chạy đúng một nhánh.']
+  callback_context jsonb [note: 'SUBSCRIPTION chứa subscriptionId để định tuyến; có thể kèm linkExpiresAt/paymentLink/qrCode/linkExptime. JSON không phải FK: service phải kiểm tra subscriptionId khớp đơn. Không có cột subscription_id trong payment hiện tại.']
+  result_code varchar(20) [note: 'Kết quả xử lý yêu cầu theo contract hiện tại; luồng thuê bao ghi kết quả APPLIED hoặc REVIEW_REQUIRED của receipt đầu tiên.']
+  result_message varchar(500) [note: 'Thông điệp xử lý hoặc lý do cần đối soát; giao dịch thực nhận và lý do của từng khoản nằm trong receipt.']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`, note: 'Thời điểm tạo yêu cầu theo cột cũ.']
+  updated_at timestamp [note: 'Thời điểm cập nhật yêu cầu theo cột cũ.']
+
+  indexes {
+    invoice_no [unique, name: 'uq_payment_invoice_no']
+    sepay_tx_id [unique, name: 'uq_payment_sepay_tx_id', note: 'Index thật của V25 có WHERE sepay_tx_id IS NOT NULL. DBML không diễn đạt predicate này; UNIQUE vẫn cho phép nhiều NULL trên PostgreSQL.']
+    reference_code [name: 'idx_payment_reference_code']
+    (status, paid_at) [name: 'idx_payment_status_paid_at']
+  }
+
+  Note: '''
+    Bảng cũ, chỉ vẽ các cột cần cho luồng và báo cáo thuê bao. Các FK parking_customer_id/sys_user_id, quan hệ session_payment/ticket_payment và cột khác của module cũ không đổi và nằm ngoài phạm vi bản vẽ.
+    Kiểu/độ dài ở đây theo migration vật lý hiện có: V7/V20/V25/V27/V28. PaymentEntity có một số mapping cũ khác DDL: invoice_no(100), amount(18,2), payment_method(10), status(20), callback_type mặc định(255), sepay_tx_id mặc định(255). V55 không sửa các độ dài/precision đó. Không suy ra một ALTER TYPE từ bản vẽ này.
+    Có thể có nhiều yêu cầu thu cho một đơn; mỗi yêu cầu có thể có nhiều receipt. Không đặt UNIQUE trên receipt.payment_id. Không thêm parent_payment_id.
+    Báo cáo thuê bao lấy thực nhận từ receipt. Báo cáo doanh thu loại payment.callback_type=SUBSCRIPTION khỏi SUM(payment.amount), rồi cộng phần receipt APPLIED; receipt REVIEW_REQUIRED được thống kê riêng và vẫn nằm trong tổng thực nhận VND.
+  '''
+}
+
+Table subscription_package {
+  id bigint [pk, increment, note: 'BIGINT GENERATED BY DEFAULT AS IDENTITY; Java Long. Định danh một phiên bản gói, không phải mã chung của mọi phiên bản.']
+  package_code varchar(100) [not null, note: 'Mã chung cho các phiên bản cùng một gói. Java giữ cố định bãi và loại xe của cả nhóm mã.']
+  name varchar(255) [not null, note: 'Tên gói hiển thị. Khi PUBLISHED, tên và quyền lợi không sửa đè.']
+  version_no integer [not null, note: 'Số phiên bản. Gói mới bắt đầu từ 1; các phiên bản sau lấy max+1 dưới khóa nhóm mã. Nhóm lịch sử có phiên bản đầu khác 1 vẫn dùng dòng nhỏ nhất làm điểm khóa.']
+  parking_lot_id bigint [not null, note: 'Bãi bán gói. Là một phần khóa duy nhất (id, parking_lot_id) dùng cho FK phạm vi của đơn.']
+  vehicle_type varchar(20) [not null, note: 'CAR hoặc MOTORBIKE; Java kiểm tra xe mua gói đúng loại.']
+  price_vnd bigint [not null, note: 'Giá bán của phiên bản; service chốt vào vehicle_subscription.price_vnd khi tạo đơn. Giá không âm; mua gói miễn phí chưa thuộc luồng đã phê duyệt.']
+  duration_days integer [not null, note: 'Số ngày của kỳ. ends_at = starts_at + duration_days x 86400 giây, không cộng tháng lịch.']
+  coverage_mode varchar(20) [not null, note: 'ALL_DAY bao phủ cả kỳ đã trả tiền; WEEKLY bao phủ theo các lịch tuần.']
+  effective_from timestamptz [not null, note: 'Bắt đầu hiệu lực bán của phiên bản; không phải starts_at của kỳ mua.']
+  effective_to timestamptz [note: 'Kết thúc hiệu lực bán, không bao gồm mốc này; NULL là chưa định ngày kết thúc. Java chống chồng hiệu lực các phiên bản PUBLISHED cùng mã.']
+  status varchar(20) [not null, default: 'DRAFT', note: 'DRAFT hoặc PUBLISHED. Chỉ gói PUBLISHED đủ điều kiện bán mới tạo được đơn. Không có thao tác unpublish/delete trong API hiện tại.']
+  sale_enabled boolean [not null, default: true, note: 'Cho phép bán mới. Tắt bán không hủy quyền lợi đã mua; sau publish chỉ cờ này và effective_to được điều chỉnh theo contract.']
+  created_at timestamptz [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at timestamptz [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    (package_code, version_no) [unique, name: 'uq_subscription_package_code_version']
+    (id, parking_lot_id) [unique, name: 'uq_subscription_package_id_scope']
+    (parking_lot_id, vehicle_type, effective_from) [name: 'idx_subscription_package_catalog']
+  }
+
+  Note: '''
+    Bảng đầy đủ theo V54 sau V55. PK/FK/UNIQUE/NOT NULL/index vẫn trong DB; không vẽ CHECK hoặc EXCLUDE đã bị V55 gỡ.
+    SubscriptionPackageService kiểm tra dữ liệu, lịch, trạng thái, phạm vi nhóm mã và chồng hiệu lực bán. Entity lifecycle giữ code/version/bãi/loại xe ổn định và bảo vệ điều khoản PUBLISHED. Thay giá/quyền lợi tạo phiên bản mới; đơn cũ vẫn trỏ phiên bản đã mua.
+  '''
+}
+
+Table subscription_package_schedule {
+  id bigint [pk, increment, note: 'BIGINT identity, Java Long. Một dòng biểu diễn một khung tuần của phiên bản gói.']
+  package_id bigint [not null, note: 'FK tới chính phiên bản subscription_package, không tới package_code.']
+  weekday integer [not null, note: '1=Thứ Hai, 2=Thứ Ba, 3=Thứ Tư, 4=Thứ Năm, 5=Thứ Sáu, 6=Thứ Bảy, 7=Chủ nhật; là ngày bắt đầu khung.']
+  start_time time [not null, note: 'Giờ địa phương bắt đầu của weekday. Java LocalTime; dùng precision tối đa microsecond.']
+  end_time time [not null, note: 'Lớn hơn start_time: hết cùng ngày; nhỏ hơn: hết ngày kế tiếp; bằng: khung 24 giờ. Không có end_day_offset.']
+  created_at timestamptz [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at timestamptz [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    (package_id, weekday, start_time, end_time) [unique, name: 'uq_subscription_package_schedule_window']
+    package_id [name: 'idx_subscription_package_schedule_package']
+  }
+
+  Note: '''
+    Bảng đầy đủ. ALL_DAY không có lịch; WEEKLY cần ít nhất một khung trước publish. Java kiểm tra weekday/giờ và không chồng khung trong tuần, bao gồm Chủ nhật qua Thứ Hai. Các khung [start,end) nối nhau được chấp nhận.
+    Lịch chỉ sửa khi parent còn DRAFT; lịch PUBLISHED bị entity lifecycle từ chối insert/update/delete. UNIQUE chỉ chống dòng giống hệt, không tự kiểm tra giao thời gian. Giờ địa phương ở đây không thay thế instant UTC của hiệu lực/kỳ/thanh toán.
+  '''
+}
+
+Table vehicle_subscription {
+  id bigint [pk, increment, note: 'BIGINT identity, Java Long. Mỗi dòng là một đơn/kỳ; gia hạn tạo dòng mới.']
+  request_key varchar(100) [not null, note: 'Khóa chống tạo trùng của request đăng ký/gia hạn. Replay cùng nội dung trả đơn cũ; khác nội dung trả 409. UNIQUE toàn bảng.']
+  vehicle_id bigint [not null, note: 'Xe sở hữu kỳ; là phạm vi khóa chung của nghiệp vụ.']
+  parking_lot_id bigint [not null, note: 'Bãi sử dụng thuê bao; cùng xe có thể có kỳ ở bãi khác.']
+  package_id bigint [not null, note: 'Phiên bản PUBLISHED đã chọn/chốt. FK tổng hợp bảo đảm phiên bản thuộc đúng bãi của đơn.']
+  previous_subscription_id bigint [note: 'NULL cho NEW; RENEW trỏ kỳ trước PAID cùng xe/bãi. FK tổng hợp kiểm tra cùng phạm vi; Java kiểm tra PAID và mốc nối kỳ.']
+  registration_type varchar(20) [not null, note: 'NEW hoặc RENEW. Gia hạn không sửa ends_at của dòng cũ.']
+  price_vnd bigint [not null, note: 'Giá đã chốt khi tạo đơn, lấy từ phiên bản gói. Không đổi khi gói mới thay giá hoặc khi tiền chuyển sai.']
+  starts_at timestamptz [not null, note: 'Bắt đầu kỳ. NEW dùng startsAt rõ ràng từ request; RENEW bằng ends_at của kỳ trước. Không tự bù khoảng quá hạn.']
+  ends_at timestamptz [not null, note: 'Kết thúc không bao gồm mốc này: kỳ [starts_at,ends_at). Backend tính N x 24 giờ. Hai kỳ kề nhau tại một mốc không chồng.']
+  payment_deadline_at timestamptz [not null, note: 'Hạn trả tiền được cung cấp rõ và còn ở tương lai khi tạo đơn. paid_at đúng mốc này được chấp nhận; không dùng received_at thay thế.']
+  status varchar(30) [not null, default: 'PENDING_PAYMENT', note: 'PENDING_PAYMENT, PAID, CANCELLED, PAYMENT_EXCEPTION. Đây là trạng thái áp dụng thanh toán, không phải trạng thái thời gian/coverage.']
+  paid_at timestamptz [note: 'Instant trả tiền tin cậy của receipt APPLIED cấp kỳ; NULL khi chưa được cấp quyền. PAID hết hạn vẫn giữ PAID, không ghi đè thành EXPIRED.']
+  paid_receipt_id bigint [note: 'Receipt APPLIED đã cấp chính kỳ này. UNIQUE và FK (paid_receipt_id,id) -> receipt(id,subscription_id) bảo đảm không lấy receipt của đơn khác. Java kiểm tra outcome/giá/thời gian tương ứng.']
+  created_at timestamptz [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at timestamptz [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    request_key [unique, name: 'uq_vehicle_subscription_request_key']
+    paid_receipt_id [unique, name: 'uq_vehicle_subscription_paid_receipt']
+    (id, vehicle_id, parking_lot_id) [unique, name: 'uq_vehicle_subscription_id_scope']
+    (vehicle_id, parking_lot_id, starts_at) [name: 'idx_vehicle_subscription_vehicle_period']
+    previous_subscription_id [name: 'idx_vehicle_subscription_previous']
+    package_id [name: 'idx_vehicle_subscription_package']
+  }
+
+  Note: '''
+    Bảng đầy đủ. VehicleSubscriptionService quản lý tạo đơn, gia hạn, tra cứu và áp dụng thanh toán; entity lifecycle bảo vệ giá/điều khoản đã chốt và kỳ PAID.
+    Java chống chồng các kỳ PAID của cùng xe/bãi dưới khóa vehicle. Đơn chờ trả tiền chưa cấp quyền. PAID có thể UPCOMING, IN_TERM hoặc EXPIRED theo thời gian; IN_TERM chưa kết luận được bao phủ bởi lịch WEEKLY.
+    Nếu tiền thực nhận không phù hợp, ghi receipt REVIEW_REQUIRED, đơn PENDING_PAYMENT chuyển PAYMENT_EXCEPTION. Đơn đã PAID giữ nguyên quyền lợi khi có khoản chuyển thêm. Không có tự động cộng tiền thiếu/hoàn tiền/mở lại đơn hoặc chuyển receipt review thành applied.
+  '''
+}
+
+Table vehicle_subscription_receipt {
+  id bigint [pk, increment, note: 'BIGINT identity, Java Long. Mỗi dòng là một giao dịch tiền thực nhận đã được backend xác minh.']
+  subscription_id bigint [not null, note: 'Đơn/kỳ mà giao dịch hướng tới; FK thật tới vehicle_subscription.']
+  payment_id bigint [not null, note: 'Yêu cầu thu/invoice của giao dịch. Không UNIQUE: một invoice có thể nhận nhiều lần chuyển tiền khác nhau.']
+  source varchar(50) [not null, note: 'Nguồn xác minh, hiện là SEPAY hoặc MEGAPAY. Kết hợp reference làm định danh giao dịch thực toàn hệ thống thuê bao.']
+  reference varchar(100) [not null, note: 'ID giao dịch thực, khác invoice_no. Cùng source+reference với cùng dữ kiện là replay; khác dữ kiện quan trọng là xung đột.']
+  invoice_no varchar(100) [not null, note: 'Invoice chụp lại để audit; Java kiểm tra khớp payment.invoice_no, gateway và callback_context.subscriptionId. Không tạo thêm FK cho invoice.']
+  currency varchar(10) [not null, note: 'Đơn vị của khoản thực nhận đã xác minh. APPLIED chỉ cho VND; không trộn các đồng tiền khi báo cáo.']
+  amount_vnd bigint [not null, note: 'Số tiền thực nhận của riêng giao dịch, không âm. APPLIED phải đúng price_vnd đã chốt; thiếu/thừa được giữ làm bằng chứng review. Báo cáo hiện tại chỉ cộng currency=VND.']
+  paid_at timestamptz [note: 'Instant trả tiền do nguồn tin cậy cung cấp; NULL khi nguồn không cung cấp thời gian xác thực được. Không thay bằng giờ callback/server now.']
+  received_at timestamptz [not null, note: 'Instant backend tiếp nhận kết quả đã xác minh. Tách khỏi paid_at; nhận callback muộn không nhất thiết là trả tiền muộn.']
+  outcome varchar(30) [not null, note: 'APPLIED hoặc REVIEW_REQUIRED. APPLIED phải đi cùng đúng kỳ PAID trong một transaction; trạng thái receipt không có luồng sửa lại.']
+  reason_code varchar(100) [note: 'NULL cho APPLIED; lý do cụ thể cho REVIEW_REQUIRED, ví dụ SECOND_SETTLEMENT, AMOUNT_MISMATCH, PAYMENT_TIME_UNKNOWN, PAID_AFTER_DEADLINE, PERIOD_ALREADY_EXPIRED hoặc PAID_PERIOD_OVERLAP.']
+  metadata jsonb [not null, default: `'{}'::jsonb`, note: 'Map các dữ kiện xác minh cho phép để audit; không chứa token, bí mật hoặc toàn bộ callback thô.']
+  created_at timestamptz [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    (source, reference) [unique, name: 'uq_subscription_receipt_source_reference']
+    (id, subscription_id) [unique, name: 'uq_subscription_receipt_id_parent']
+    payment_id [name: 'idx_subscription_receipt_payment']
+    (subscription_id, received_at, id) [name: 'idx_subscription_receipt_parent_received']
+  }
+
+  Note: '''
+    Bảng đầy đủ và chỉ thêm dữ liệu qua JPA. Repository không có delete/bulk-update; entity lifecycle từ chối update/delete receipt đã ghi. Không còn trigger append-only sau V55.
+    Một invoice 300000 VND: TX001 nhận 300000 -> APPLIED/cấp một kỳ; callback TX001 lặp -> không thêm dòng; TX002 nhận thêm 300000 -> REVIEW_REQUIRED/SECOND_SETTLEMENT, không cấp kỳ nữa. Tổng thực nhận là 600000; tiền đã áp dụng là 300000.
+    Gateway xác minh trước khi gọi service; frontend không có API tự xác nhận trả tiền. MegaPay hiện chưa cung cấp paid_at tin cậy trong contract đã tích hợp nên khoản nhận được lưu REVIEW_REQUIRED/PAYMENT_TIME_UNKNOWN, không đoán thời điểm để cấp quyền.
+  '''
+}
+
+// Các Ref dưới đây là FK vật lý, không phải quan hệ JSON giả định.
+Ref fk_parking_lot_building: parking_lot.building_id > building.id
+Ref: subscription_package.parking_lot_id > parking_lot.id
+Ref: subscription_package_schedule.package_id > subscription_package.id
+Ref: vehicle_subscription.vehicle_id > vehicle.id
+Ref: vehicle_subscription.parking_lot_id > parking_lot.id
+Ref fk_vehicle_subscription_package_scope: vehicle_subscription.(package_id, parking_lot_id) > subscription_package.(id, parking_lot_id)
+Ref fk_vehicle_subscription_previous_scope: vehicle_subscription.(previous_subscription_id, vehicle_id, parking_lot_id) > vehicle_subscription.(id, vehicle_id, parking_lot_id)
+Ref: vehicle_subscription_receipt.subscription_id > vehicle_subscription.id
+Ref: vehicle_subscription_receipt.payment_id > payment.id
+Ref fk_vehicle_subscription_paid_receipt_parent: vehicle_subscription.(paid_receipt_id, id) > vehicle_subscription_receipt.(id, subscription_id)

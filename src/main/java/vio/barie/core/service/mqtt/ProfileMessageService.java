@@ -112,6 +112,9 @@ public class ProfileMessageService {
                 UUID uuid = UUID.randomUUID();
                 newCustomer.setAiIdentityId("temp_customer" + uuid.toString());
                 newCustomer.setAiProfileId(profileId);
+                // A recognized provider identity is ready, but is not automatically
+                // attached to a PMS owner or authorized for any vehicle.
+                newCustomer.setAiSyncState("SYNCED");
                 newCustomer.setUsername(profileName);
                 newCustomer.setZaloId("null");
                 try {

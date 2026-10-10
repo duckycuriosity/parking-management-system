@@ -11,6 +11,10 @@ import java.util.List;
 @Builder
 public class RevenueReportResponse {
     private BigDecimal totalRevenue;
+    private BigDecimal totalReceivedAmount;
+    private BigDecimal subscriptionAppliedAmount;
+    private BigDecimal subscriptionReviewRequiredAmount;
+    private long totalReceivedTransactions;
     private BigDecimal avgDailyRevenue;
     private long totalTransactions;
     private Page<DailyDetail> dailyDetails;
@@ -21,5 +25,9 @@ public class RevenueReportResponse {
         private String date;
         private long transactionCount;
         private BigDecimal revenue;
+        private BigDecimal receivedAmount;
+        private BigDecimal subscriptionAppliedAmount;
+        private BigDecimal subscriptionReviewRequiredAmount;
+        private long receivedTransactionCount;
     }
 }

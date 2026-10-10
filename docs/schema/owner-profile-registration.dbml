@@ -1,0 +1,64 @@
+// Physical additions V57/V58. Context tables show only columns needed for references.
+Project PMS_Owner_Profile_Registration {
+  database_type: 'PostgreSQL'
+  Note: 'Registration graph, Core AI identity and QR/payment are separate operations. Canonical subscription/payment structure is in vehicle-subscription-jpa.dbml.'
+}
+Table owner_account {
+  id bigint [pk, increment]
+  full_name varchar(255) [not null]
+  phone varchar(30) [not null, unique, note: 'Existing V47 uniqueness retained; no automatic same-person matching.']
+  identity_number varchar(30) [note: 'Optional; existing partial UNIQUE for non-NULL.']
+  ai_profile_id bigint [unique, note: 'Backend-confirmed Core AI profileId; NULL before successful sync. Not PMS primary key.']
+  ai_identity_id varchar(100) [note: 'Provider UUID retained for consistency checks.']
+  driver_customer_id bigint [unique, note: 'Explicit same person, checked to have owner_id matching this owner.']
+  image_url text [note: 'Backend AI result; existing JSON array representation.']
+  status varchar(20) [not null, note: 'Profile ACTIVE/INACTIVE; distinct from readiness.']
+  ai_sync_state varchar(40) [not null, default: 'NOT_SYNCED', note: 'NOT_SYNCED/IN_PROGRESS/SYNCED/RECONCILIATION_REQUIRED.']
+  ai_sync_token varchar(36) [note: 'Durable attempt correlation; not sent to client.']
+  ai_sync_started_at timestamptz
+  ai_sync_profile_id bigint [note: 'Known provider ID for safe PUT retry after stale/uncertain apply.']
+  row_version bigint [not null, default: 0, note: 'Optimistic locking.']
+}
+Table parking_customer {
+  id bigint [pk, increment, note: 'Existing table; not a parallel people table.']
+  owner_id bigint
+  username varchar(255)
+  phone_number varchar(20)
+  ai_profile_id bigint [unique, note: 'Existing V14 physical BIGINT; nullable before AI. Unique for non-NULL after duplicate preflight.']
+  ai_identity_id varchar(100) [note: 'Nullable before AI; wire profileId contract retained.']
+  image_url varchar(500) [note: 'Existing primary image URL for recognition.']
+  status varchar(20)
+  ai_sync_state varchar(40) [not null, default: 'NOT_SYNCED']
+  ai_sync_token varchar(36)
+  ai_sync_started_at timestamptz
+  ai_sync_profile_id bigint
+  row_version bigint [not null, default: 0]
+}
+Table vehicle {
+  id bigint [pk, increment]
+  owner_id bigint
+  plate_number varchar(255) [not null, unique, note: 'Existing physical length; request bound 50. Shared normalization before insert.']
+  vehicle_type varchar(20) [not null]
+  status varchar(20)
+}
+Table vehicle_customer {
+  id bigint [pk, increment]
+  vehicle_id bigint [not null]
+  customer_id bigint [not null]
+  relation_type varchar(30) [not null, note: 'OWNER/AUTHORIZED_USER selected explicitly; does not infer same person.']
+  status varchar(20) [not null, note: 'Explicit grant ACTIVE; revoke REVOKED. Omission does not change it.']
+  indexes { (vehicle_id, customer_id) [unique] }
+}
+Table owner_profile_registration {
+  request_key varchar(100) [pk, note: 'Whole command idempotency, not just vehicle_subscription.']
+  request_hash varchar(64) [not null, note: 'SHA-256 of choices; changed payload with same key is conflict.']
+  owner_id bigint [note: 'Filled in same transaction. Incomplete command never commits through service.']
+  result_ids jsonb [note: 'Internal vehicle/customer/relation/subscription IDs and draft mappings; no raw financial evidence.']
+  row_version bigint [not null, default: 0, note: 'Nullable Java version forces persist for new assigned key.']
+}
+Ref: parking_customer.owner_id > owner_account.id
+Ref: vehicle.owner_id > owner_account.id
+Ref: vehicle_customer.vehicle_id > vehicle.id
+Ref: vehicle_customer.customer_id > parking_customer.id
+Ref: owner_account.driver_customer_id > parking_customer.id
+Ref: owner_profile_registration.owner_id > owner_account.id

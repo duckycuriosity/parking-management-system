@@ -22,6 +22,7 @@ import vio.barie.core.service.smoothing.SmoothingAIEvents;
 import vio.barie.core.utils.DirectionType;
 import vio.barie.core.verification.ParkingSessionLifecycleService;
 import vio.barie.core.verification.VehicleVerificationService;
+import vio.barie.core.verification.OwnerVehicleEntryAuthorization;
 
 import java.util.List;
 import java.util.Optional;
@@ -44,6 +45,7 @@ public class FacePlateVerificationService implements VehicleVerificationService 
     private final SmoothingAIEvents smoothingAIEvents;
     private final ParkingSessionLifecycleService sessionLifecycleService;
     private final LaneIncidentService laneIncidentService;
+    private final OwnerVehicleEntryAuthorization entryAuthorization;
 
     @Override
     public VerificationMode getMode() {
@@ -84,7 +86,8 @@ public class FacePlateVerificationService implements VehicleVerificationService 
 
             ParkingCustomerEntity customer = null;
             if (detection.getProfileId() != null) {
-                customer = parkingCustomerRepository.findByAiProfileId(detection.getProfileId()).orElse(null);
+                customer = parkingCustomerRepository.findByAiProfileId(detection.getProfileId())
+                        .filter(person -> "SYNCED".equals(person.getAiSyncState())).orElse(null);
             }
 
             if (vehicle == null || customer == null) {
@@ -92,6 +95,14 @@ public class FacePlateVerificationService implements VehicleVerificationService 
                         detection.getPlateNumber(), detection.getProfileId());
                 ioTService.publishErrorWhenHandlingEvent("Không tìm thấy xe hoặc khách hàng tương ứng cho lượt vào", "", detection.getType(),
                         detection.getEntryBarrierId(), detection.getPlateNumber(), detection.getProfileId(), "VEHICLE_OR_CUSTOMER_NOT_FOUND", null);
+                return;
+            }
+
+            // Revoking an explicit PMS grant must affect entry. Exit continues to
+            // use the existing open-session rules, so revocation does not strand a car.
+            if (!entryAuthorization.allows(vehicle, customer)) {
+                ioTService.publishErrorWhenHandlingEvent("Người sử dụng không có quyền vào bãi với xe này", "", detection.getType(),
+                        detection.getEntryBarrierId(), detection.getPlateNumber(), detection.getProfileId(), "VEHICLE_USER_NOT_AUTHORIZED", null);
                 return;
             }
 
@@ -136,7 +147,8 @@ public class FacePlateVerificationService implements VehicleVerificationService 
 
             ParkingCustomerEntity customer = null;
             if (detection.getProfileId() != null) {
-                customer = parkingCustomerRepository.findByAiProfileId(detection.getProfileId()).orElse(null);
+                customer = parkingCustomerRepository.findByAiProfileId(detection.getProfileId())
+                        .filter(person -> "SYNCED".equals(person.getAiSyncState())).orElse(null);
             }
 
             String barrierId = detection.getExitBarrierId();

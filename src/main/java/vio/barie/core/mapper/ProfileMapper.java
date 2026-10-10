@@ -11,6 +11,7 @@ public class ProfileMapper {
         entity.setUsername(ai.getName());
         entity.setZaloId("");
         entity.setAiProfileId(ai.getId());
+        entity.setAiSyncState("SYNCED");
         return entity;
     }
 }

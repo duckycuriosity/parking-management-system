@@ -1,322 +1,130 @@
 package vio.barie.core.dto.owneraccount;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
+import jakarta.validation.constraints.*;
+import lombok.*;
+import vio.barie.core.dto.subscription.SubscriptionResponse;
 import java.time.OffsetDateTime;
 import java.util.List;
 
 public final class OwnerAccountDtos {
-    private OwnerAccountDtos() {
-    }
+    private OwnerAccountDtos() {}
 
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class OwnerAccountPaginationRequest {
-        @Builder.Default
-        private int page = 0;
-
-        @Builder.Default
-        private int size = 20;
-
-        private String searchTerm;
-        private String status;
-        private String fromDate;
-        private String toDate;
+        @Builder.Default private int page = 0;
+        @Builder.Default private int size = 20;
+        private String searchTerm, status, fromDate, toDate;
     }
-
-    @Data
-    public static class OwnerAccountRequest {
-        @NotBlank(message = "fullName is required")
-        @Size(max = 255, message = "fullName must not exceed 255 characters")
-        private String fullName;
-
-        @NotBlank(message = "phone is required")
-        @Size(max = 30, message = "phone must not exceed 30 characters")
-        private String phone;
-
-        @Size(max = 30, message = "identityNumber must not exceed 30 characters")
-        private String identityNumber;
-
-        private String address;
-        private String imageUrl;
-        private String zaloLink;
-        private String note;
-
-        @NotBlank(message = "status is required")
-        @Size(max = 20, message = "status must not exceed 20 characters")
-        private String status;
+    @Data @EqualsAndHashCode(callSuper = false)
+    public static class OwnerAccountRequest extends OwnerProfileCommand {
+        @NotBlank @Size(max = 255) private String fullName;
+        @NotBlank @Size(max = 30) private String phone;
+        @Size(max = 30) private String identityNumber;
+        private String address, zaloLink, note;
+        /** Optional explicit administration action; new records default to ACTIVE. */
+        @Pattern(regexp = "ACTIVE|INACTIVE") private String status;
     }
-
-    @Data
-    @Builder
+    @Data @Builder
     public static class OwnerAccountResponse {
-        private Long id;
-        private String fullName;
-        private String phone;
-        private String identityNumber;
-        private String address;
-        private String imageUrl;
-        private String zaloLink;
-        private String note;
-        private String status;
+        private Long id, aiProfileId, driverCustomerId;
+        private String fullName, phone, identityNumber, address, imageUrl, zaloLink, note, status, aiSyncState;
         private Long vehicleCount;
-        private OffsetDateTime createdAt;
-        private OffsetDateTime updatedAt;
+        private OffsetDateTime createdAt, updatedAt;
     }
-
-    @Data
-    @Builder
+    @Data @Builder
     public static class OwnerAccountVehicleParkingCustomerResponse {
-        private Long id;
-        private String fullName;
-        private String phone;
-        private String identityNumber;
-        private String address;
-        private String imageUrl;
-        private String zaloLink;
-        private String note;
-        private String status;
+        private String requestKey;
+        private Long id, aiProfileId, driverCustomerId;
+        private String fullName, phone, identityNumber, address, imageUrl, zaloLink, note, status, aiSyncState;
         private Long vehicleCount;
-        private OffsetDateTime createdAt;
-        private OffsetDateTime updatedAt;
+        private OffsetDateTime createdAt, updatedAt;
         private List<VehicleResponse> vehicles;
         private List<CustomerResponse> customers;
         private List<VehicleCustomerResponse> vehicleCustomers;
-
-        @Data
-        @Builder
+        @Data @Builder
         public static class VehicleResponse {
             private Long id;
-            private String clientId;
-            private String plate;
-            private String vehicleType;
-            private String status;
+            private String clientId, plate, vehicleType, status;
+            private SubscriptionResponse subscription;
         }
-
-        @Data
-        @Builder
+        @Data @Builder
         public static class CustomerResponse {
-            private Long id;
-            private String clientId;
-            private String name;
-            private String phone;
-            private String imageUrl;
-            private String profileId;
-            private String status;
+            private Long id, aiProfileId;
+            private String clientId, name, phone, imageUrl, status, aiSyncState;
+            /** Response compatibility only. Never accepted in a command. */
+            @Deprecated private String profileId;
         }
-
-        @Data
-        @Builder
+        @Data @Builder
         public static class VehicleCustomerResponse {
-            private Long id;
-            private Long vehicleId;
-            private Long customerId;
-            private String relationType;
-            private String status;
+            private Long id, vehicleId, customerId;
+            private String relationType, status;
         }
     }
-
-    @Data
-    @Builder
+    @Data @Builder
     public static class ParkingCustomerResponse {
-        private Long id;
-        private Long ownerId;
-        private String name;
-        private String phone;
-        private String imageUrl;
-        private String profileId;
-        private String status;
-        private OffsetDateTime createdAt;
-        private OffsetDateTime updatedAt;
+        private Long id, ownerId, aiProfileId;
+        private String name, phone, imageUrl, status, aiSyncState;
+        @Deprecated private String profileId;
+        private OffsetDateTime createdAt, updatedAt;
     }
-
-    @Data
-    public static class ParkingCustomerUpdateRequest {
-        @Size(max = 255, message = "name must not exceed 255 characters")
-        private String name;
-
-        @Size(max = 30, message = "phone must not exceed 30 characters")
-        private String phone;
-
-        private String imageUrl;
-
-        @Size(max = 255, message = "profileId must not exceed 255 characters")
-        private String profileId;
-
-        @Size(max = 20, message = "status must not exceed 20 characters")
-        private String status;
+    @Data @EqualsAndHashCode(callSuper = false)
+    public static class ParkingCustomerUpdateRequest extends OwnerProfileCommand {
+        @Size(max = 255) private String name;
+        @Size(max = 20) private String phone;
+        @Pattern(regexp = "ACTIVE|INACTIVE") private String status;
     }
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class SubscriptionRegistrantPageRequest {
-        @Builder.Default
-        private int page = 0;
-
-        @Builder.Default
-        private int size = 20;
-
-        private String searchTerm;
-        private String status;
-        private String fromDate;
-        private String toDate;
+        @Builder.Default private int page = 0;
+        @Builder.Default private int size = 20;
+        private String searchTerm, status, fromDate, toDate;
     }
-
-    @Data
-    @Builder
+    @Data @Builder
     public static class SubscriptionRegistrantPageResponse {
         private Long ownerId;
-        private String fullName;
-        private String customerCode;
-        private String address;
-        private String imageUrl;
-        private String phone;
-        private String zaloLink;
-        private String note;
-        private String status;
+        private String fullName, customerCode, address, imageUrl, phone, zaloLink, note, status;
         private long registeredVehicleCount;
-        private OffsetDateTime createdAt;
-        private OffsetDateTime updatedAt;
+        private OffsetDateTime createdAt, updatedAt;
     }
-
-    @Data
-    @Builder
+    @Data @Builder
     public static class RegisteredVehicleResponse {
         private Long vehicleId;
-        private String plate;
-        private String vehicleType;
-        private String vehicleStatus;
-        private String userName;
-        private String parkingLotName;
-        private String buildingName;
-        private String packageName;
-        private String packageType;
-        private String ticketType;
-        private String subscriptionStatus;
-        private OffsetDateTime validFrom;
-        private OffsetDateTime validTo;
+        private String plate, vehicleType, vehicleStatus, userName, parkingLotName, buildingName;
+        private String packageName, packageType, ticketType, subscriptionStatus;
+        private OffsetDateTime validFrom, validTo;
         private boolean expired;
     }
-
-    @Data
-    public static class SubscriptionVehicleCreateRequest {
-        @NotBlank(message = "plate is required")
-        @Size(max = 30, message = "plate must not exceed 30 characters")
-        private String plate;
-
-        @NotBlank(message = "vehicleType is required")
-        @Size(max = 20, message = "vehicleType must not exceed 20 characters")
-        private String vehicleType;
-
-        @NotBlank(message = "vehicle status is required")
-        @Size(max = 20, message = "vehicle status must not exceed 20 characters")
-        private String status;
-
-        @Valid
-        private ProfileSaveRequest.Subscription subscription;
-
-        @Valid
-        private List<ExistingUser> users;
-
-        @Valid
-        private List<NewUser> newUsers;
-
-        @Data
-        public static class ExistingUser {
-            @NotNull(message = "customerId is required")
-            private Long customerId;
-
-            @NotBlank(message = "relationType is required")
-            @Size(max = 30, message = "relationType must not exceed 30 characters")
-            private String relationType;
-
-            @NotBlank(message = "user relation status is required")
-            @Size(max = 20, message = "user relation status must not exceed 20 characters")
-            private String status;
-        }
-
-        @Data
-        public static class NewUser {
-            @NotBlank(message = "name is required")
-            @Size(max = 255, message = "name must not exceed 255 characters")
-            private String name;
-
-            @Size(max = 30, message = "phone must not exceed 30 characters")
-            private String phone;
-
-            private String imageUrl;
-
-            @Size(max = 255, message = "profileId must not exceed 255 characters")
-            private String profileId;
-
-            private List<Integer> indexs;
-
-            @NotBlank(message = "relationType is required")
-            @Size(max = 30, message = "relationType must not exceed 30 characters")
-            private String relationType;
-
-            @NotBlank(message = "user status is required")
-            @Size(max = 20, message = "user status must not exceed 20 characters")
-            private String status;
-        }
+    @Data @EqualsAndHashCode(callSuper = false)
+    public static class SubscriptionVehicleCreateRequest extends OwnerProfileCommand {
+        @NotBlank @Size(max = 100) private String requestKey;
+        @NotBlank @Size(max = 50) private String plate;
+        @NotBlank @Size(max = 20) private String vehicleType;
+        @Valid private ProfileSaveRequest.Subscription subscription;
+        @Valid @Size(max = 100) private List<ProfileSaveRequest.Customer> customers;
     }
-
-    @Data
-    @Builder
+    @Data @Builder
     public static class SubscriptionVehicleCreateResponse {
-        private Long vehicleId;
-        private Long ownerId;
-        private String plate;
-        private String vehicleType;
-        private String status;
+        private Long vehicleId, ownerId;
+        private String plate, vehicleType, status;
         private OffsetDateTime createdAt;
+        private SubscriptionResponse subscription;
         private List<UserResponse> users;
-
-        @Data
-        @Builder
+        @Data @Builder
         public static class UserResponse {
-            private Long customerId;
-            private String name;
-            private String phone;
-            private String imageUrl;
-            private String profileId;
-            private String relationType;
-            private String relationStatus;
+            private Long customerId, aiProfileId;
+            private String name, phone, imageUrl, aiSyncState;
+            @Deprecated private String profileId;
+            private String relationType, relationStatus;
         }
     }
-
-    @Data
-    public static class VehicleUserSaveRequest {
-        private Long customerId;
-
-        @Size(max = 255, message = "name must not exceed 255 characters")
-        private String name;
-
-        @Size(max = 30, message = "phone must not exceed 30 characters")
-        private String phone;
-
-        private String imageUrl;
-
-        @Size(max = 255, message = "profileId must not exceed 255 characters")
-        private String profileId;
-
-        @NotBlank(message = "relationType is required")
-        @Size(max = 30, message = "relationType must not exceed 30 characters")
-        private String relationType;
-
-        @NotBlank(message = "status is required")
-        @Size(max = 20, message = "status must not exceed 20 characters")
-        private String status;
+    @Data @EqualsAndHashCode(callSuper = false)
+    public static class VehicleUserSaveRequest extends OwnerProfileCommand {
+        @NotBlank @Size(max = 100) private String requestKey;
+        @Positive private Long customerId;
+        private boolean ownerAsDriver;
+        @Size(max = 255) private String name;
+        @Size(max = 20) private String phone;
+        @NotBlank @Pattern(regexp = "OWNER|AUTHORIZED_USER") private String relationType;
     }
 }

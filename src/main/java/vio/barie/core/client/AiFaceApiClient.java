@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 import vio.barie.core.dto.AiFaceCheckResponse;
 import org.springframework.util.MultiValueMap;
 import vio.barie.core.dto.AiProfileResponse;
+import vio.barie.core.config.exception.ServiceException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -128,28 +129,9 @@ public class AiFaceApiClient {
         appendImagesToBody(body, images);
 
         HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-        try {
-            ResponseEntity<String> res = restTemplate.exchange(
-                    baseUrl + "/faces",
-                    HttpMethod.POST,
-                    requestEntity,
-                    String.class);
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode rootNode = mapper.readTree(res.getBody());
-            JsonNode dataNode = rootNode;
-            if (rootNode.has("profile")) {
-                dataNode = rootNode.get("profile"); // Lấy đúng chữ "profile"
-            } else if (rootNode.has("data")) {
-                dataNode = rootNode.get("data");    // Dự phòng nếu có chữ "data"
-            }
-            if (dataNode.isArray() && dataNode.size() > 0) {
-                dataNode = dataNode.get(0);
-            }
-            return mapper.treeToValue(dataNode, AiProfileResponse.class);
-        } catch (Exception e) {
-            log.error("Lỗi parse JSON từ AI Server: {}", e.getMessage(), e);
-            throw new RuntimeException("Không thể đọc phản hồi từ AI Server");
-        }
+        ResponseEntity<String> res = restTemplate.exchange(
+                baseUrl + "/faces", HttpMethod.POST, requestEntity, String.class);
+        return parseProfileResponse(res.getBody());
     }
 
     public AiProfileResponse getProfile(Integer profileId) {
@@ -179,28 +161,9 @@ public class AiFaceApiClient {
         if (name != null) body.add("name", name);
         appendImagesToBody(body, images);
         HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-        try {
-            ResponseEntity<String> res = restTemplate.exchange(
-                    baseUrl + "/faces/" + profileId,
-                    HttpMethod.PUT,
-                    requestEntity,
-                    String.class);
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode rootNode = mapper.readTree(res.getBody());
-            JsonNode dataNode = rootNode;
-            if (rootNode.has("profile")) {
-                dataNode = rootNode.get("profile");
-            } else if (rootNode.has("data")) {
-                dataNode = rootNode.get("data");
-            }
-            if (dataNode.isArray() && dataNode.size() > 0) {
-                dataNode = dataNode.get(0);
-            }
-            return mapper.treeToValue(dataNode, AiProfileResponse.class);
-        } catch (Exception e) {
-            log.error("Lỗi parse JSON từ AI Server: {}", e.getMessage(), e);
-            throw new RuntimeException("Không thể đọc phản hồi từ AI Server");
-        }
+        ResponseEntity<String> res = restTemplate.exchange(
+                baseUrl + "/faces/" + profileId, HttpMethod.PUT, requestEntity, String.class);
+        return parseProfileResponse(res.getBody());
     }
 
     public void deleteProfile(Integer profileId) {
@@ -213,10 +176,14 @@ public class AiFaceApiClient {
 
     private void appendImagesToBody(MultiValueMap<String, Object> body, List<MultipartFile> images) {
         if (images != null && !images.isEmpty()) {
-            // Giới hạn tối đa 5 file
-            int limit = Math.min(images.size(), 5);
-            for (int i = 0; i < limit; i++) {
+            if (images.size() > 5) {
+                throw new ServiceException("At most five face images may be submitted", 400);
+            }
+            for (int i = 0; i < images.size(); i++) {
                 MultipartFile file = images.get(i);
+                if (file == null || file.isEmpty()) {
+                    throw new ServiceException("Face image must not be empty", 400);
+                }
                 if (!file.isEmpty()) {
                     try {
                         ByteArrayResource resource = new ByteArrayResource(file.getBytes()) {
@@ -227,11 +194,31 @@ public class AiFaceApiClient {
                         };
                         body.add("images", resource);
                     } catch (IOException e) {
-                        log.error("Lỗi đọc byte từ MultipartFile: {}", e.getMessage());
+                        throw new ServiceException("Cannot read face image before sending to Core AI", 400);
                     }
                 }
             }
         }
     }
 
+    private AiProfileResponse parseProfileResponse(String body) {
+        try {
+            if (body == null || body.isBlank()) {
+                throw new ServiceException("Core AI returned an empty profile response", 502);
+            }
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(body);
+            JsonNode profile = root.has("profile") ? root.get("profile")
+                    : root.has("data") ? root.get("data") : root;
+            if (profile != null && profile.isArray() && profile.size() == 1) {
+                profile = profile.get(0);
+            }
+            if (profile == null || !profile.isObject()) {
+                throw new ServiceException("Core AI returned an invalid profile response", 502);
+            }
+            return mapper.treeToValue(profile, AiProfileResponse.class);
+        } catch (IOException e) {
+            throw new ServiceException("Cannot parse Core AI profile response", e);
+        }
+    }
 }
