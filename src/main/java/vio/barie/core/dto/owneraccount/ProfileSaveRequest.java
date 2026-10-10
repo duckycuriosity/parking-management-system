@@ -57,11 +57,11 @@ public class ProfileSaveRequest {
         private String plate;
 
         @NotBlank(message = "vehicleType is required")
-        @Size(max = 20, message = "vehicleType must not exceed 20 characters")
+//        @Size(max = 20, message = "vehicleType must not exceed 20 characters")
         private String vehicleType;
 
         @NotBlank(message = "vehicle status is required")
-        @Size(max = 20, message = "vehicle status must not exceed 20 characters")
+//        @Size(max = 20, message = "vehicle status must not exceed 20 characters")
         private String status;
 
         @Valid
@@ -82,14 +82,14 @@ public class ProfileSaveRequest {
         @NotNull(message = "packageId is required")
         private Long packageId;
 
-        @NotBlank(message = "registrationType is required")
-        @Size(max = 20, message = "registrationType must not exceed 20 characters")
-        private String registrationType;
+//        @NotBlank(message = "registrationType is required")
+//        @Size(max = 20, message = "registrationType must not exceed 20 characters")
+//        private String registrationType;
 
-        private Long previousSubscriptionId;
+//        private Long previousSubscriptionId;
 
-        @NotNull(message = "priceVnd is required")
-        private Long priceVnd;
+//        @NotNull(message = "priceVnd is required")
+//        private Long priceVnd;
 
         @NotNull(message = "startsAt is required")
         private OffsetDateTime startsAt;
@@ -97,54 +97,54 @@ public class ProfileSaveRequest {
         @NotNull(message = "endsAt is required")
         private OffsetDateTime endsAt;
 
-        private OffsetDateTime paymentDeadlineAt;
+//        private OffsetDateTime paymentDeadlineAt;
 
-        @NotBlank(message = "subscription status is required")
-        @Size(max = 30, message = "subscription status must not exceed 30 characters")
-        private String status;
+//        @NotBlank(message = "subscription status is required")
+//        @Size(max = 30, message = "subscription status must not exceed 30 characters")
+//        private String status;
 
-        private OffsetDateTime paidAt;
+//        private OffsetDateTime paidAt;
 
-        @Size(max = 50, message = "paymentSource must not exceed 50 characters")
-        private String paymentSource;
+//        @Size(max = 50, message = "paymentSource must not exceed 50 characters")
+//        private String paymentSource;
 
-        @Size(max = 255, message = "paymentReference must not exceed 255 characters")
-        private String paymentReference;
+//        @Size(max = 255, message = "paymentReference must not exceed 255 characters")
+//        private String paymentReference;
 
-        private String paymentReceipt;
+//        private String paymentReceipt;
     }
 
     @Data
     public static class Customer {
         private Long id;
-        private Long relationId;
-        @JsonAlias({"imageIndexes", "indexes"})
-        private List<Integer> indexs;
-        private Boolean isUsed;
+//        private Long relationId;
+//        @JsonAlias({"imageIndexes", "indexes"})
+//        private List<Integer> indexs;
+//        private Boolean isUsed;
 
         @NotBlank(message = "customer name is required")
         @Size(max = 255, message = "customer name must not exceed 255 characters")
         private String name;
 
-        @Size(max = 30, message = "customer phone must not exceed 30 characters")
+//        @Size(max = 30, message = "customer phone must not exceed 30 characters")
         private String phone;
 
-        private String imageUrl;
-        private String aiIdentityId;
+//        private String imageUrl;
+//        private String aiIdentityId;
 
-        @Size(max = 255, message = "profileId must not exceed 255 characters")
-        private String profileId;
+//        @Size(max = 255, message = "profileId must not exceed 255 characters")
+//        private String profileId;
 
-        @NotBlank(message = "customer status is required")
-        @Size(max = 20, message = "customer status must not exceed 20 characters")
-        private String status;
+//        @NotBlank(message = "customer status is required")
+//        @Size(max = 20, message = "customer status must not exceed 20 characters")
+//        private String status;
 
         @NotBlank(message = "relationType is required")
         @Size(max = 30, message = "relationType must not exceed 30 characters")
         private String relationType;
 
-        @NotBlank(message = "relation status is required")
-        @Size(max = 20, message = "relation status must not exceed 20 characters")
-        private String relationStatus;
+//        @NotBlank(message = "relation status is required")
+//        @Size(max = 20, message = "relation status must not exceed 20 characters")
+//        private String relationStatus;
     }
 }

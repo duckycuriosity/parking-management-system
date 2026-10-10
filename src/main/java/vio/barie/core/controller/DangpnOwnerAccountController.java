@@ -51,6 +51,7 @@ public class DangpnOwnerAccountController {
     }
 
     // Lấy danh sách chủ hồ sơ có lọc và phân trang bằng body pagination request.
+    //có
     @PostMapping("/list")
     public ResponseEntity<?> list(@Valid @RequestBody(required = false) OwnerAccountPaginationRequest paginationRequest) {
         if (paginationRequest == null) {
@@ -61,25 +62,25 @@ public class DangpnOwnerAccountController {
     }
 
     // lấy thông tin chủ hồ sơ
-    @PostMapping("/subscription-registrants/list")
-    public ResponseEntity<?> listSubscriptionRegistrants(@Valid @RequestBody(required = false) SubscriptionRegistrantPageRequest request) {
-        if (request == null) {
-            request = SubscriptionRegistrantPageRequest.builder().build();
-        }
-        return Result.success(ownerAccountService.listSubscriptionRegistrants(request));
-    }
+//    @PostMapping("/subscription-registrants/list")
+//    public ResponseEntity<?> listSubscriptionRegistrants(@Valid @RequestBody(required = false) SubscriptionRegistrantPageRequest request) {
+//        if (request == null) {
+//            request = SubscriptionRegistrantPageRequest.builder().build();
+//        }
+//        return Result.success(ownerAccountService.listSubscriptionRegistrants(request));
+//    }
 
-    @PostMapping
-    public ResponseEntity<?> create(@Valid @RequestBody OwnerAccountRequest request) {
-        return Result.success(ownerAccountService.create(request));
-    }
+//    @PostMapping
+//    public ResponseEntity<?> create(@Valid @RequestBody OwnerAccountRequest request) {
+//        return Result.success(ownerAccountService.create(request));
+//    }
 
     // Tạo trọn bộ hồ sơ gồm chủ hồ sơ, xe, người sử dụng xe và quan hệ xe-người dùng.
-    @PostMapping("/profiles")
-    public ResponseEntity<?> createProfile(@Valid @RequestBody ProfileSaveRequest request) {
-        return Result.success(ownerAccountProfileService.createProfile(request));
-    }
-
+//    @PostMapping("/profiles")
+//    public ResponseEntity<?> createProfile(@Valid @RequestBody ProfileSaveRequest request) {
+//        return Result.success(ownerAccountProfileService.createProfile(request));
+//    }
+//++ them thue bao
     @PostMapping(value = "/profiles/with-images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<?> createProfileWithImages(
@@ -100,13 +101,14 @@ public class DangpnOwnerAccountController {
     }
 
     // Thêm xe mới vào một người đăng ký thuê bao và gắn người sử dụng xe ban đầu.
-    @PostMapping("/subscription-registrants/{ownerId}/vehicles")
-    public ResponseEntity<?> addSubscriptionRegistrantVehicle(
-            @PathVariable Long ownerId,
-            @Valid @RequestBody SubscriptionVehicleCreateRequest request) {
-        return Result.success(ownerAccountProfileService.addVehicle(ownerId, request));
-    }
+//    @PostMapping("/subscription-registrants/{ownerId}/vehicles")
+//    public ResponseEntity<?> addSubscriptionRegistrantVehicle(
+//            @PathVariable Long ownerId,
+//            @Valid @RequestBody SubscriptionVehicleCreateRequest request) {
+//        return Result.success(ownerAccountProfileService.addVehicle(ownerId, request));
+//    }
 
+    //THêm xe mới++
     @PostMapping(value = "/subscription-registrants/{ownerId}/vehicles", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> addSubscriptionRegistrantVehicleWithImages(
             @PathVariable Long ownerId,
@@ -116,6 +118,7 @@ public class DangpnOwnerAccountController {
         return Result.success(ownerAccountProfileService.addVehicle(ownerId, request, images));
     }
 
+    //++ lấy danh sách xe theo thuê bao
     @GetMapping("/subscription-registrants/{ownerId}/vehicles")
     public ResponseEntity<?> listRegisteredVehicles(@PathVariable Long ownerId) {
         return Result.success(ownerAccountService.listRegisteredVehicles(ownerId));
@@ -129,13 +132,13 @@ public class DangpnOwnerAccountController {
         return Result.success(ownerAccountProfileService.updateCustomer(customerId, request));
     }
 
-    // Thêm mới hoặc cập nhật người sử dụng xe rồi upsert quan hệ người dùng với xe.
-    @PostMapping("/vehicles/{vehicleId}/users")
-    public ResponseEntity<?> saveVehicleUser(
-            @PathVariable Long vehicleId,
-            @Valid @RequestBody VehicleUserSaveRequest request) {
-        return Result.success(ownerAccountProfileService.saveVehicleUser(vehicleId, request));
-    }
+//    // Thêm mới hoặc cập nhật người sử dụng xe rồi upsert quan hệ người dùng với xe.
+//    @PostMapping("/vehicles/{vehicleId}/users")
+//    public ResponseEntity<?> saveVehicleUser(
+//            @PathVariable Long vehicleId,
+//            @Valid @RequestBody VehicleUserSaveRequest request) {
+//        return Result.success(ownerAccountProfileService.saveVehicleUser(vehicleId, request));
+//    }
 
 
     // Cập nhật thông tin chủ hồ sơ cơ bản theo ownerId.
