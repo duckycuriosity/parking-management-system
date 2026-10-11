@@ -15,4 +15,5 @@ public class DeviceStatsResponse {
     private long totalPi;
     private long onlinePi;
     private long offlinePi;
+    private Double activePercentage;
 }

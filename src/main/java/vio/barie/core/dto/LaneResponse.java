@@ -20,5 +20,6 @@ public class LaneResponse {
     private List<Long> cameraIds;
     private Long parkingDeviceIds;
     private String parkingDeviceCode;
+    private String laneCode;
    
 }

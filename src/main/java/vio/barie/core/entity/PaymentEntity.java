@@ -19,6 +19,21 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 public class PaymentEntity extends BaseEntity {
 
+    @Column(name = "session_id")
+    private Long sessionId;
+    // thông tin tk ngân hàng snapshot (dạng chụp)
+    @Column(name = "beneficiary_account_id")
+    private Long beneficiaryAccountId;
+
+    @Column(name = "bank_name", length = 255)
+    private String bankName;
+
+    @Column(name = "account_number", length = 100)
+    private String accountNumber;
+
+    @Column(name = "account_holder_name", length = 255)
+    private String accountHolderName;
+
     // === Trường nghiệp vụ bãi xe ===
     @Column(name = "invoice_no", length = 100)
     private String invoiceNo;
