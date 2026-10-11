@@ -18,6 +18,7 @@ import vio.barie.core.dto.owneraccount.OwnerAccountDtos.SubscriptionRegistrantPa
 import vio.barie.core.entity.OwnerAccountEntity;
 import vio.barie.core.repository.OwnerAccountRepository;
 import vio.barie.core.repository.OwnerAccountSpecification;
+import vio.barie.core.repository.ParkingCustomerRepository;
 import vio.barie.core.repository.VehicleCustomerRepository;
 import vio.barie.core.repository.VehicleRepository;
 import vio.barie.core.repository.VehicleSubscriptionRepository;
@@ -43,6 +44,7 @@ public class OwnerAccountService {
 
     private final OwnerAccountRepository ownerAccountRepository;
     private final VehicleRepository vehicleRepository;
+    private final ParkingCustomerRepository parkingCustomerRepository;
     private final VehicleSubscriptionRepository vehicleSubscriptionRepository;
     private final VehicleCustomerRepository vehicleCustomerRepository;
 
@@ -63,7 +65,7 @@ public class OwnerAccountService {
         int size = request.getSize() <= 0 ? 20 : Math.min(request.getSize(), 100);
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
 
-        return ownerAccountRepository.findAll(
+        Page<OwnerAccountEntity> owners = ownerAccountRepository.findAll(
                 OwnerAccountSpecification.filter(
                         request.getSearchTerm(),
                         request.getStatus(),
@@ -71,7 +73,12 @@ public class OwnerAccountService {
                         toDate
                 ),
                 pageable
-        ).map(this::toResponse);
+        );
+        if (owners.isEmpty()) return owners.map(owner -> toResponse(owner, 0L));
+        List<Long> ownerIds = owners.getContent().stream().map(OwnerAccountEntity::getId).toList();
+        Map<Long, Long> counts = vehicleRepository.countByOwnerIds(ownerIds).stream()
+                .collect(Collectors.toMap(VehicleRepository.OwnerVehicleCount::getOwnerId, VehicleRepository.OwnerVehicleCount::getVehicleCount));
+        return owners.map(owner -> toResponse(owner, counts.getOrDefault(owner.getId(), 0L)));
     }
 
     @Transactional(readOnly = true)
@@ -119,7 +126,7 @@ public class OwnerAccountService {
                         ));
 
         Map<Long, LinkedHashSet<String>> userNamesByVehicleId = new LinkedHashMap<>();
-        vehicleCustomerRepository.findUserNamesByVehicleIds(vehicleIds).forEach(row -> {
+        vehicleCustomerRepository.findActiveUserNamesByVehicleIds(vehicleIds).forEach(row -> {
             String userName = trimToNull(row.getUserName());
             if (userName != null) {
                 userNamesByVehicleId
@@ -154,6 +161,9 @@ public class OwnerAccountService {
     @Transactional
     public void delete(Long id) {
         OwnerAccountEntity entity = findEntity(id);
+        if (vehicleRepository.existsByOwnerId(id) || parkingCustomerRepository.existsByOwnerId(id)) {
+            throw new ServiceException("Remove owned vehicles and drivers before deleting the owner", 409);
+        }
         ownerAccountRepository.delete(entity);
     }
 
@@ -170,7 +180,12 @@ public class OwnerAccountService {
         entity.setImageUrl(trimToNull(request.getImageUrl()));
         entity.setZaloLink(trimToNull(request.getZaloLink()));
         entity.setNote(trimToNull(request.getNote()));
-        entity.setStatus(request.getStatus().trim());
+        if (request.getStatus() != null) {
+            if (!java.util.Set.of("ACTIVE", "INACTIVE").contains(request.getStatus())) throw new ServiceException("Invalid owner status", 400);
+            entity.setStatus(request.getStatus());
+        } else if (entity.getStatus() == null) {
+            entity.setStatus("ACTIVE");
+        }
     }
 
     private String trimToNull(String value) {
@@ -202,6 +217,10 @@ public class OwnerAccountService {
     }
 
     private OwnerAccountResponse toResponse(OwnerAccountEntity entity) {
+        return toResponse(entity, vehicleRepository.countByOwnerId(entity.getId()));
+    }
+
+    private OwnerAccountResponse toResponse(OwnerAccountEntity entity, long vehicleCount) {
         return OwnerAccountResponse.builder()
                 .id(entity.getId())
                 .fullName(entity.getFullName())
@@ -212,7 +231,7 @@ public class OwnerAccountService {
                 .zaloLink(entity.getZaloLink())
                 .note(entity.getNote())
                 .status(entity.getStatus())
-                .vehicleCount(vehicleRepository.countByOwnerId(entity.getId()))
+                .vehicleCount(vehicleCount)
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();

@@ -5,10 +5,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.client.RestClient;
 import vio.barie.core.repository.PaymentRepository;
 import vio.barie.core.repository.TicketRepository;
 import vio.barie.core.service.CalculatorService;
+import vio.barie.core.service.VehicleSubscriptionPaymentService;
 import vio.barie.core.service.mqtt.ParkingMessageService;
 import vio.barie.core.service.payment.common.PaymentGateway;
 import vio.barie.core.service.payment.megapay.MegaPayGateway;
@@ -25,12 +27,13 @@ public class PaymentConfig {
     private final SePayConfig sePayConfig;
     private final ParkingMessageService ioTService;
     private final CalculatorService calculatorService;
+    private final ObjectProvider<VehicleSubscriptionPaymentService> subscriptionPayments;
 
     @Bean
     public PaymentGateway paymentGateway() {
         return switch (method) {
-            case "megapay" -> new MegaPayGateway(paymentRepository,ticketRepository,megaPayConfig,ioTService);
-            case "sepay"   -> new SePayGateway(paymentRepository,ticketRepository,sePayConfig,ioTService,calculatorService);
+            case "megapay" -> new MegaPayGateway(paymentRepository,ticketRepository,megaPayConfig,ioTService,subscriptionPayments);
+            case "sepay"   -> new SePayGateway(paymentRepository,ticketRepository,sePayConfig,ioTService,calculatorService,subscriptionPayments);
             default -> throw new IllegalArgumentException("Unknown gateway: " + method);
         };
     }

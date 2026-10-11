@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -24,6 +25,7 @@ import vio.barie.core.entity.TicketEntity;
 import vio.barie.core.repository.PaymentRepository;
 import vio.barie.core.repository.TicketRepository;
 import vio.barie.core.service.mqtt.ParkingMessageService;
+import vio.barie.core.service.VehicleSubscriptionPaymentService;
 import vio.barie.core.service.payment.common.PaymentGateway;
 import vio.barie.core.utils.MegaPaySignatureUtil;
 import vio.barie.core.utils.Sanitize;
@@ -49,12 +51,13 @@ public class MegaPayGateway implements PaymentGateway {
     private final MegaPayConfig config;
     private final RestClient restClient = RestClient.create();
     private final ParkingMessageService ioTService;
+    private final ObjectProvider<VehicleSubscriptionPaymentService> subscriptionPayments;
 
     // TẠO PAYMENT LINK — lưu PaymentEntity với trạng thái PENDING
     public CreatePaymentResponse createPaymentLink(CreatePaymentRequest req) {
         String timeStamp = String.valueOf(System.currentTimeMillis());
         String amountStr = String.valueOf(req.getAmount());
-        String invoiceNo = generateInvoiceNo(req);
+        String invoiceNo = req.getInvoiceNo() != null ? req.getInvoiceNo() : generateInvoiceNo();
 
         String linkExptime = generateExpireTime();
         String payType = req.getPayType() != null ? req.getPayType() : config.getPayType();
@@ -70,6 +73,7 @@ public class MegaPayGateway implements PaymentGateway {
         params.put("currency", "VND");
         params.put("amount", amountStr);
         params.put("invoiceNo", invoiceNo);
+        if (req.getInvoiceNo() != null) params.put("merTrxId", invoiceNo);
         params.put("goodsNm", Sanitize.clean(req.getGoodsName()));
         params.put("payType", payType);
         params.put("callBackUrl", config.getCallbackUrl());
@@ -85,11 +89,10 @@ public class MegaPayGateway implements PaymentGateway {
 
         try {
             CreatePaymentResponse response = createPaymentLink(params);
-            response.setPaymentLink(decodePaymentLink(response.getPaymentLink()));
-
             if (!"00_000".equals(response.getResultCd())) {
                 throw new ServiceException("Tạo link thanh toán thất bại: " + response.getResultMsg(), 400);
             }
+            response.setPaymentLink(decodePaymentLink(response.getPaymentLink()));
             return response;
 
         } catch (ServiceException e) {
@@ -124,6 +127,19 @@ public class MegaPayGateway implements PaymentGateway {
                 .orElseThrow(() -> new ServiceException(
                         "IPN: không tìm thấy payment với invoiceNo={}" + response.getInvoiceNo(),
                         404));
+
+        if (PaymentCallbackType.SUBSCRIPTION.name().equals(payment.getCallbackType())) {
+            if (!payment.getInvoiceNo().equals(response.getMerTrxId())) {
+                throw new ServiceException("Signed MegaPay transaction does not match subscription invoice", 400);
+            }
+            if (response.isSuccess()) {
+                // The current contract does not establish a trustworthy paidAt for MegaPay.
+                subscriptionPayments.getObject().applyVerifiedPayment(payment.getInvoiceNo(), "MEGAPAY",
+                        response.getTrxId(), new BigDecimal(response.getAmount()), response.getCurrency(),
+                        null, response.getResultCd(), response.getResultMsg());
+            }
+            return;
+        }
 
         // xac nhan thanh toan da hoan thanh
         if (payment.getCallbackType().equals(PaymentCallbackType.SESSION.name())){
@@ -201,6 +217,8 @@ public class MegaPayGateway implements PaymentGateway {
             if (resp == null) return null;
 
             paymentRepository.findByInvoiceNo(invoiceNo).ifPresent(tx -> {
+                // Inquiry must not bypass subscription verification and grant a PAID period.
+                if (PaymentCallbackType.SUBSCRIPTION.name().equals(tx.getCallbackType())) return;
                 String rc = resp.getResultCd();
                 if ("00_000".equals(rc)) {
                     tx.setStatus(PaymentType.PAID.name());
@@ -243,9 +261,11 @@ public class MegaPayGateway implements PaymentGateway {
         }
     }
 
-    private String generateInvoiceNo(CreatePaymentRequest req) {
-        return "viotech_" + System.currentTimeMillis();
+    public String generateInvoiceNo(Long paymentId) {
+        return "viotech_" + (paymentId == null ? String.valueOf(System.currentTimeMillis()) : "0" + paymentId);
     }
+
+    public String gatewayName() { return "MEGAPAY"; }
 
     private String generateExpireTime() {
         // QR hết hạn sau 15 phút

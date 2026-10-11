@@ -7,6 +7,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.InsufficientAuthenticationException;
@@ -36,6 +38,26 @@ public class SecurityConfig {
 
     private final UserContextFilter userContextFilter;
     private final JwtAuthConverter jwtAuthConverter;
+
+    /** Protect the operator registration APIs using the existing JWT and permission model. */
+    @Bean
+    @Order(1)
+    public SecurityFilterChain ownerAccountSecurityFilterChain(HttpSecurity http) throws Exception {
+        return http.securityMatcher("/api/dangpnOwnerAccount/**", "/api/owner-accounts/**")
+                .cors(cors -> {})
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/**").hasAuthority("CAN_VIEW")
+                        .requestMatchers(HttpMethod.POST, "/api/dangpnOwnerAccount/list", "/api/owner-accounts/list")
+                            .hasAuthority("CAN_VIEW")
+                        .anyRequest().hasAuthority("CAN_EDIT"))
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthConverter)))
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(customAuthEntryPoint())
+                        .accessDeniedHandler(customAccessDeniedHandler()))
+                .addFilterAfter(userContextFilter, BearerTokenAuthenticationFilter.class)
+                .build();
+    }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {

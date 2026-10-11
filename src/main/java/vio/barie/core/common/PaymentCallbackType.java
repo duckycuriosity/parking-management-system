@@ -14,5 +14,8 @@ public enum PaymentCallbackType {
      * context: {"ticketId": 456, "customerId": 789}
      * → kích hoạt ticket status = ACTIVE
      */
-    TICKET
+    TICKET,
+
+    /** Existing payment context: {"subscriptionId": 123}. */
+    SUBSCRIPTION
 }

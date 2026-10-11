@@ -13,51 +13,27 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 public interface VehicleSubscriptionRepository extends JpaRepository<VehicleSubscriptionEntity, Long> {
-    @Query(value = """
-            SELECT 
-                vs.id AS subscriptionId,
-                v.plate_number AS plateNumber,
-                pc.username AS subscriberName,
-                pl.name AS parkingLotName,
-                vs.ends_at AS expirationDate,
-                sp.name AS ticketType,
-                vs.status AS status
-            FROM vehicle_subscription vs
-            INNER JOIN parking_lot pl ON vs.parking_lot_id = pl.id
-            INNER JOIN subscription_package sp ON vs.package_id = sp.id
-            INNER JOIN vehicle v ON vs.vehicle_id = v.id
-            LEFT JOIN vehicle_customer vc ON v.id = vc.vehicle_id AND vc.status = 'ACTIVE'
-            LEFT JOIN parking_customer pc ON vc.customer_id = pc.id
-            WHERE 
-                (:keyword IS NULL OR v.plate_number ILIKE CONCAT('%', :keyword, '%') OR pc.username ILIKE CONCAT('%', :keyword, '%'))
-                AND (:buildingId IS NULL OR pl.building_id = :buildingId)
-                AND (:parkingLotId IS NULL OR vs.parking_lot_id = :parkingLotId)
-                AND (CAST(:startDate AS timestamp) IS NULL OR vs.ends_at >= :startDate)
-                AND (CAST(:endDate AS timestamp) IS NULL OR vs.ends_at <= :endDate)
-            """,
-            countQuery = """
-            SELECT count(vs.id) 
-            FROM vehicle_subscription vs
-            INNER JOIN parking_lot pl ON vs.parking_lot_id = pl.id
-            INNER JOIN vehicle v ON vs.vehicle_id = v.id
-            LEFT JOIN vehicle_customer vc ON v.id = vc.vehicle_id AND vc.status = 'ACTIVE'
-            LEFT JOIN parking_customer pc ON vc.customer_id = pc.id
-            WHERE 
-                (:keyword IS NULL OR v.plate_number ILIKE CONCAT('%', :keyword, '%') OR pc.username ILIKE CONCAT('%', :keyword, '%'))
-                AND (:buildingId IS NULL OR pl.building_id = :buildingId)
-                AND (:parkingLotId IS NULL OR vs.parking_lot_id = :parkingLotId)
-                AND (CAST(:startDate AS timestamp) IS NULL OR vs.ends_at >= :startDate)
-                AND (CAST(:endDate AS timestamp) IS NULL OR vs.ends_at <= :endDate)
-            """,
-            nativeQuery = true)
-    Page<VehicleSubscriptionResponse> findSubscriptionDetails(
-            @Param("keyword") String keyword,
-            @Param("buildingId") Long buildingId,
+    @Query("""
+            select s from VehicleSubscriptionEntity s
+            where exists (select p.id from SubscriptionPackageEntity p where p.id = s.packageId)
+              and exists (select lot.id from ParkingLotEntity lot where lot.id = s.parkingLotId
+                    and (:buildingId is null or lot.building.id = :buildingId))
+              and (:parkingLotId is null or s.parkingLotId = :parkingLotId)
+              and (:startDate is null or s.endsAt >= :startDate)
+              and (:endDate is null or s.endsAt <= :endDate)
+              and exists (select v.id from VehicleEntity v where v.id = s.vehicleId and (
+                    :keyword is null or lower(v.plateNumber) like :keyword escape '!'
+                    or exists (select o.id from OwnerAccountEntity o where o.id = v.ownerId
+                        and lower(o.fullName) like :keyword escape '!')
+                    or exists (select r.id from VehicleCustomerEntity r, ParkingCustomerEntity c
+                        where r.vehicleId = v.id and r.customerId = c.id and r.status = 'ACTIVE'
+                        and lower(c.username) like :keyword escape '!')))
+            """)
+    Page<VehicleSubscriptionEntity> findForListing(
+            @Param("keyword") String keyword, @Param("buildingId") Long buildingId,
             @Param("parkingLotId") Long parkingLotId,
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate,
-            Pageable pageable
-    );
+            @Param("startDate") OffsetDateTime startDate, @Param("endDate") OffsetDateTime endDate,
+            Pageable pageable);
 
     @Query("""
             SELECT

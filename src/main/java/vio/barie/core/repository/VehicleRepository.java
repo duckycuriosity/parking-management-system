@@ -19,6 +19,16 @@ public interface VehicleRepository extends JpaRepository<VehicleEntity, Long> {
 
     long countByOwnerId(Long ownerId);
 
+    boolean existsByOwnerId(Long ownerId);
+
+    @Query("SELECT v.ownerId AS ownerId, COUNT(v) AS vehicleCount FROM VehicleEntity v WHERE v.ownerId IN :ownerIds GROUP BY v.ownerId")
+    List<OwnerVehicleCount> countByOwnerIds(@Param("ownerIds") List<Long> ownerIds);
+
+    interface OwnerVehicleCount {
+        Long getOwnerId();
+        long getVehicleCount();
+    }
+
     Optional<VehicleEntity> findByIdAndOwnerId(Long id, Long ownerId);
 
     VehicleEntity findPlateByPlateNumber(String plateNumber);
