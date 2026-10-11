@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
 @Data
 @Builder
@@ -14,9 +15,4 @@ public class PaymentInquiryResponse {
     private BigDecimal amount;
     // Chứa ca body
     private String metadata;
-    // Subscription inquiries report the local verified outcome, not an unprocessed provider success.
-    private String callbackType;
-    private Long subscriptionId;
-    private String resultCode;
-    private String resultMessage;
 }

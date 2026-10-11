@@ -14,8 +14,5 @@ public enum PaymentCallbackType {
      * context: {"ticketId": 456, "customerId": 789}
      * → kích hoạt ticket status = ACTIVE
      */
-    TICKET,
-
-    /** Purchase of one immutable vehicle_subscription period; never opens a barrier. */
-    SUBSCRIPTION
+    TICKET
 }

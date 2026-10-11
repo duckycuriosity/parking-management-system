@@ -2,7 +2,6 @@ package vio.barie.core.service;
 
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -64,7 +63,7 @@ public class OwnerAccountService {
         int size = request.getSize() <= 0 ? 20 : Math.min(request.getSize(), 100);
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
 
-        Page<OwnerAccountEntity> owners = ownerAccountRepository.findAll(
+        return ownerAccountRepository.findAll(
                 OwnerAccountSpecification.filter(
                         request.getSearchTerm(),
                         request.getStatus(),
@@ -72,12 +71,7 @@ public class OwnerAccountService {
                         toDate
                 ),
                 pageable
-        );
-        Map<Long, Long> counts = owners.isEmpty() ? Map.of() : ownerAccountRepository
-                .vehicleCounts(owners.getContent().stream().map(OwnerAccountEntity::getId).toList()).stream()
-                .collect(Collectors.toMap(OwnerAccountRepository.OwnerVehicleCount::getOwnerId,
-                        OwnerAccountRepository.OwnerVehicleCount::getVehicleCount));
-        return owners.map(owner -> toResponse(owner, counts.getOrDefault(owner.getId(), 0L)));
+        ).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -125,7 +119,7 @@ public class OwnerAccountService {
                         ));
 
         Map<Long, LinkedHashSet<String>> userNamesByVehicleId = new LinkedHashMap<>();
-        vehicleCustomerRepository.findActiveUserNamesByVehicleIds(vehicleIds).forEach(row -> {
+        vehicleCustomerRepository.findUserNamesByVehicleIds(vehicleIds).forEach(row -> {
             String userName = trimToNull(row.getUserName());
             if (userName != null) {
                 userNamesByVehicleId
@@ -147,33 +141,20 @@ public class OwnerAccountService {
     public OwnerAccountResponse create(OwnerAccountRequest request) {
         OwnerAccountEntity entity = new OwnerAccountEntity();
         applyRequest(entity, request);
-        return saveOwner(entity);
+        return toResponse(ownerAccountRepository.save(entity));
     }
 
     @Transactional
     public OwnerAccountResponse update(Long id, OwnerAccountRequest request) {
         OwnerAccountEntity entity = findEntity(id);
         applyRequest(entity, request);
-        return saveOwner(entity);
+        return toResponse(ownerAccountRepository.save(entity));
     }
 
     @Transactional
     public void delete(Long id) {
         OwnerAccountEntity entity = findEntity(id);
-        try {
-            ownerAccountRepository.delete(entity);
-            ownerAccountRepository.flush();
-        } catch (DataIntegrityViolationException failure) {
-            throw OwnerProfileIntegrity.ownerDeleteConflict(failure);
-        }
-    }
-
-    private OwnerAccountResponse saveOwner(OwnerAccountEntity entity) {
-        try {
-            return toResponse(ownerAccountRepository.saveAndFlush(entity));
-        } catch (DataIntegrityViolationException failure) {
-            throw OwnerProfileIntegrity.uniqueConflict(failure);
-        }
+        ownerAccountRepository.delete(entity);
     }
 
     private OwnerAccountEntity findEntity(Long id) {
@@ -186,16 +167,10 @@ public class OwnerAccountService {
         entity.setPhone(request.getPhone().trim());
         entity.setIdentityNumber(trimToNull(request.getIdentityNumber()));
         entity.setAddress(trimToNull(request.getAddress()));
+        entity.setImageUrl(trimToNull(request.getImageUrl()));
         entity.setZaloLink(trimToNull(request.getZaloLink()));
         entity.setNote(trimToNull(request.getNote()));
-        if (request.getStatus() != null) {
-            if (!java.util.Set.of("ACTIVE", "INACTIVE").contains(request.getStatus())) {
-                throw new ServiceException("Unsupported owner status", 400);
-            }
-            entity.setStatus(request.getStatus());
-        } else if (entity.getId() == null) {
-            entity.setStatus("ACTIVE");
-        }
+        entity.setStatus(request.getStatus().trim());
     }
 
     private String trimToNull(String value) {
@@ -227,10 +202,6 @@ public class OwnerAccountService {
     }
 
     private OwnerAccountResponse toResponse(OwnerAccountEntity entity) {
-        return toResponse(entity, vehicleRepository.countByOwnerId(entity.getId()));
-    }
-
-    private OwnerAccountResponse toResponse(OwnerAccountEntity entity, long vehicleCount) {
         return OwnerAccountResponse.builder()
                 .id(entity.getId())
                 .fullName(entity.getFullName())
@@ -238,13 +209,10 @@ public class OwnerAccountService {
                 .identityNumber(entity.getIdentityNumber())
                 .address(entity.getAddress())
                 .imageUrl(entity.getImageUrl())
-                .aiProfileId(entity.getAiProfileId())
-                .aiSyncState(entity.getAiSyncState())
-                .driverCustomerId(entity.getDriverCustomerId())
                 .zaloLink(entity.getZaloLink())
                 .note(entity.getNote())
                 .status(entity.getStatus())
-                .vehicleCount(vehicleCount)
+                .vehicleCount(vehicleRepository.countByOwnerId(entity.getId()))
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();

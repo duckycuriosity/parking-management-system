@@ -9,10 +9,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface VehicleCustomerRepository extends JpaRepository<VehicleCustomerEntity, Long> {
-    boolean existsByVehicleIdAndStatus(Long vehicleId, String status);
-
-    @Query("select (count(r) > 0) from VehicleCustomerEntity r join ParkingCustomerEntity c on c.id = r.customerId where r.vehicleId = :vehicleId and r.status = 'ACTIVE' and (c.status is null or c.status <> 'INACTIVE')")
-    boolean hasActiveUser(@Param("vehicleId") Long vehicleId);
     boolean existsByVehicleIdAndCustomerId(Long vehicleId, Long customerId);
 
     Optional<VehicleCustomerEntity> findByVehicleIdAndCustomerId(Long vehicleId, Long customerId);
@@ -50,7 +46,6 @@ public interface VehicleCustomerRepository extends JpaRepository<VehicleCustomer
             INNER JOIN ParkingCustomerEntity pc ON pc.id = vc.customerId
             WHERE vc.vehicleId IN :vehicleIds
               AND vc.status = 'ACTIVE'
-              AND (pc.status IS NULL OR pc.status <> 'INACTIVE')
               AND pc.username IS NOT NULL
             ORDER BY vc.vehicleId ASC, pc.username ASC
             """)

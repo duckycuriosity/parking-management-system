@@ -5,7 +5,6 @@ import cn.hutool.json.JSONUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.MediaType;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
@@ -20,17 +19,12 @@ import vio.barie.core.dto.payment.CreatePaymentRequest;
 import vio.barie.core.dto.payment.CreatePaymentResponse;
 import vio.barie.core.dto.payment.MegaPayResponse;
 import vio.barie.core.dto.payment.PaymentInquiryResponse;
-import vio.barie.core.dto.subscription.VerifiedSubscriptionPayment;
-import vio.barie.core.dto.fee.VerifiedParkingPayment;
 import vio.barie.core.entity.PaymentEntity;
 import vio.barie.core.entity.TicketEntity;
 import vio.barie.core.repository.PaymentRepository;
 import vio.barie.core.repository.TicketRepository;
 import vio.barie.core.service.mqtt.ParkingMessageService;
-import vio.barie.core.service.VehicleSubscriptionService;
-import vio.barie.core.service.ParkingPaymentService;
 import vio.barie.core.service.payment.common.PaymentGateway;
-import vio.barie.core.service.payment.common.PaymentLinkRejectedException;
 import vio.barie.core.utils.MegaPaySignatureUtil;
 import vio.barie.core.utils.Sanitize;
 
@@ -40,7 +34,6 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
-import java.time.Instant;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
@@ -56,31 +49,12 @@ public class MegaPayGateway implements PaymentGateway {
     private final MegaPayConfig config;
     private final RestClient restClient = RestClient.create();
     private final ParkingMessageService ioTService;
-    private final VehicleSubscriptionService vehicleSubscriptionService;
-    private ObjectProvider<ParkingPaymentService> parkingPayments;
-
-    /** Wired by PaymentConfig after construction to avoid the legacy payment/IoT bean cycle. */
-    public void setParkingPayments(ObjectProvider<ParkingPaymentService> parkingPayments) {
-        this.parkingPayments = parkingPayments;
-    }
 
     // TẠO PAYMENT LINK — lưu PaymentEntity với trạng thái PENDING
     public CreatePaymentResponse createPaymentLink(CreatePaymentRequest req) {
-        return createPaymentLink(req, generateInvoiceNo(req));
-    }
-
-    @Override
-    public CreatePaymentResponse createPaymentLink(CreatePaymentRequest req, String invoiceNo) {
-        if (req.getAmount() == null || req.getAmount().signum() <= 0
-                || invoiceNo == null || invoiceNo.isBlank()) {
-            throw new PaymentLinkRejectedException("Thông tin yêu cầu thanh toán không hợp lệ", 400);
-        }
-        if (config.getMerId() == null || config.getMerId().isBlank()
-                || config.getEncodeKey() == null || config.getEncodeKey().isBlank()) {
-            throw new PaymentLinkRejectedException("Chưa cấu hình merchant MegaPay", 500);
-        }
         String timeStamp = String.valueOf(System.currentTimeMillis());
         String amountStr = String.valueOf(req.getAmount());
+        String invoiceNo = generateInvoiceNo(req);
 
         String linkExptime = generateExpireTime();
         String payType = req.getPayType() != null ? req.getPayType() : config.getPayType();
@@ -111,15 +85,11 @@ public class MegaPayGateway implements PaymentGateway {
 
         try {
             CreatePaymentResponse response = createPaymentLink(params);
-            if (response == null || response.getResultCd() == null) {
-                throw new ServiceException("MegaPay trả về kết quả tạo link không xác định", 502);
-            }
-            if (!"00_000".equals(response.getResultCd())) {
-                // There is no provider contract proving which non-success codes leave no invoice.
-                // In particular a pending/duplicate response must not authorize a new invoice.
-                throw new ServiceException("Gateway trả về kết quả tạo link chưa thành công", 400);
-            }
             response.setPaymentLink(decodePaymentLink(response.getPaymentLink()));
+
+            if (!"00_000".equals(response.getResultCd())) {
+                throw new ServiceException("Tạo link thanh toán thất bại: " + response.getResultMsg(), 400);
+            }
             return response;
 
         } catch (ServiceException e) {
@@ -155,18 +125,8 @@ public class MegaPayGateway implements PaymentGateway {
                         "IPN: không tìm thấy payment với invoiceNo={}" + response.getInvoiceNo(),
                         404));
 
-        if (PaymentCallbackType.SUBSCRIPTION.name().equals(payment.getCallbackType())) {
-            settleSubscription(payment, response);
-            return;
-        }
-        if (isParkingFeeIntent(payment)) {
-            settleParkingFee(payment, response);
-            return;
-        }
-
         // xac nhan thanh toan da hoan thanh
-        if ("00_000".equals(response.getResultCd())
-                && payment.getCallbackType().equals(PaymentCallbackType.SESSION.name())){
+        if (payment.getCallbackType().equals(PaymentCallbackType.SESSION.name())){
             // thong bao den hardware qua mqtt de ui chuyen man hinh thanh: Dang xu ly
             JSONObject context = payment.getCallbackContext();
             ioTService.publishPaymentConfirmed(context.getStr("barrierId"),
@@ -174,8 +134,7 @@ public class MegaPayGateway implements PaymentGateway {
                     new BigDecimal(response.getAmount()),
                     response.getInvoiceNo());
         }
-        else if (payment.getCallbackType().equals(PaymentCallbackType.TICKET.name())
-                || payment.getCallbackType().equals(PaymentCallbackType.SESSION.name())) {
+        else if (payment.getCallbackType().equals(PaymentCallbackType.TICKET.name())) {
             // todo: thong bao den ui qua ws,.. de ui chuyen man hinh thanh: Dang xu ly
         } else {
             throw new ServiceException("Chưa hỗ trợ callback type: "+payment.getCallbackType(),404);
@@ -205,9 +164,6 @@ public class MegaPayGateway implements PaymentGateway {
 
         paymentRepository.save(payment);
         log.info("IPN processed: invoiceNo={}, status={}", response.getInvoiceNo(), payment.getStatus());
-        // Failed/pending signed notifications are observations, never permission to open a barrier
-        // or activate a legacy ticket. Previously this branch ran for every provider result.
-        if (!PaymentType.PAID.name().equals(payment.getStatus())) return;
         // payment callback
         if (payment.getCallbackType().equals(PaymentCallbackType.SESSION.name())){
             JSONObject context = payment.getCallbackContext();
@@ -230,16 +186,6 @@ public class MegaPayGateway implements PaymentGateway {
 
     // TRA CỨU GIAO DỊCH
     public PaymentInquiryResponse inquiryByInvoiceNo(String invoiceNo) {
-        PaymentEntity intent = paymentRepository.findByInvoiceNo(invoiceNo).orElse(null);
-        if (intent != null && (PaymentCallbackType.SUBSCRIPTION.name().equals(intent.getCallbackType())
-                || isParkingFeeIntent(intent))) {
-            // A provider success requiring review must not appear as an activated subscription.
-            return PaymentInquiryResponse.builder().invoiceNo(intent.getInvoiceNo()).status(intent.getStatus())
-                    .amount(intent.getAmount()).callbackType(intent.getCallbackType())
-                    .subscriptionId(intent.getCallbackContext() == null ? null
-                            : intent.getCallbackContext().getLong("subscriptionId"))
-                    .resultCode(intent.getResultCode()).resultMessage(intent.getResultMessage()).build();
-        }
         String timeStamp = String.valueOf(System.currentTimeMillis());
         String token = MegaPaySignatureUtil.generateInquiryToken(
                 timeStamp, invoiceNo, config.getMerId(), config.getEncodeKey());
@@ -255,10 +201,6 @@ public class MegaPayGateway implements PaymentGateway {
             if (resp == null) return null;
 
             paymentRepository.findByInvoiceNo(invoiceNo).ifPresent(tx -> {
-                // Inquiry remains read-only for subscription intents. Only the verified
-                // settlement path may update the payment and subscription atomically.
-                if (PaymentCallbackType.SUBSCRIPTION.name().equals(tx.getCallbackType())
-                        || isParkingFeeIntent(tx)) return;
                 String rc = resp.getResultCd();
                 if ("00_000".equals(rc)) {
                     tx.setStatus(PaymentType.PAID.name());
@@ -287,80 +229,6 @@ public class MegaPayGateway implements PaymentGateway {
         }
     }
 
-    private boolean isParkingFeeIntent(PaymentEntity payment) {
-        JSONObject context = payment.getCallbackContext();
-        return PaymentCallbackType.SESSION.name().equals(payment.getCallbackType())
-                && context != null && (context.containsKey("calculationId")
-                || context.containsKey("parkingFeePaymentId"));
-    }
-
-    private void settleParkingFee(PaymentEntity payment, MegaPayResponse response) {
-        String outcome = "00_000".equals(response.getResultCd()) ? PaymentType.PAID.name()
-                : "99".equals(response.getResultCd()) ? PaymentType.PENDING.name() : PaymentType.FAILED.name();
-        boolean successful = PaymentType.PAID.name().equals(outcome);
-        if (!"MEGAPAY".equals(payment.getGateway())
-                || !"VND".equals(payment.getCurrency())
-                || !payment.getInvoiceNo().equals(response.getMerTrxId())
-                || !config.getMerId().equals(response.getMerId())
-                || (response.getCurrency() != null && !"VND".equals(response.getCurrency()))
-                || (successful && (!"VND".equals(response.getCurrency())
-                    || response.getTrxId() == null || response.getTrxId().isBlank()))) {
-            throw new ServiceException("IPN MegaPay không khớp yêu cầu thu phí phiên", 409);
-        }
-        Long amount = null;
-        if (successful) {
-            try {
-                amount = new BigDecimal(response.getAmount()).longValueExact();
-                if (amount <= 0) throw new ArithmeticException("Non-positive payment");
-            } catch (RuntimeException ex) {
-                throw new ServiceException("IPN MegaPay không có số tiền VND nguyên hợp lệ", 409);
-            }
-        }
-        ParkingPaymentService service = parkingPayments == null ? null : parkingPayments.getIfAvailable();
-        if (service == null) throw new ServiceException("Chưa cấu hình xử lý thu phí phiên", 503);
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("verification", PaymentType.PAID.name().equals(outcome)
-                ? "SIGNED_SUCCESS_CALLBACK" : "SIGNED_CALLBACK");
-        metadata.put("resultCode", response.getResultCd());
-        // Do not invent paidAt from receipt time or the unconfirmed transDt/trxDt contract.
-        service.confirmVerifiedPayment(new VerifiedParkingPayment(payment.getId(), "MEGAPAY",
-                response.getTrxId(), payment.getInvoiceNo(), amount, "VND", null,
-                Instant.now(), outcome, metadata));
-    }
-
-    private void settleSubscription(PaymentEntity payment, MegaPayResponse response) {
-        // A signed unsuccessful/pending notification cannot grant a subscription.
-        if (!"00_000".equals(response.getResultCd())) return;
-        // invoiceNo itself is not part of the legacy callback signature. Bind the signed
-        // merchant transaction identifier to our invoice before accepting this evidence.
-        if (!payment.getInvoiceNo().equals(response.getMerTrxId())
-                || !config.getMerId().equals(response.getMerId())
-                // Currency is not included in the callback signature. This module creates
-                // VND-only intents; never turn an unsigned currency claim into receipt data.
-                || !"VND".equals(response.getCurrency())
-                || response.getTrxId() == null || response.getTrxId().isBlank()) {
-            throw new ServiceException("IPN MegaPay không khớp giao dịch thuê bao", 409);
-        }
-        Long subscriptionId = payment.getCallbackContext() == null ? null
-                : payment.getCallbackContext().getLong("subscriptionId");
-        if (subscriptionId == null) throw new ServiceException("Payment thiếu subscriptionId", 409);
-        long amount;
-        try {
-            amount = new BigDecimal(response.getAmount()).longValueExact();
-            if (amount <= 0) throw new ArithmeticException("Non-positive payment");
-        } catch (RuntimeException ex) {
-            throw new ServiceException("IPN MegaPay không có số tiền VND nguyên hợp lệ", 409);
-        }
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("verification", "SIGNED_SUCCESS_CALLBACK");
-        metadata.put("resultCode", response.getResultCd());
-        // transDt/trxDt formats and timezone have not been confirmed by the provider's
-        // contract; they are not used as a payment timestamp or a replacement for it.
-        vehicleSubscriptionService.confirmVerifiedPayment(new VerifiedSubscriptionPayment(
-                subscriptionId, payment.getId(), "MEGAPAY", response.getTrxId(), payment.getInvoiceNo(),
-                amount, response.getCurrency(), null, null, metadata));
-    }
-
     // DECODE 3DES ECB
     public String decodePaymentLink(String hexEncoded) {
         try {
@@ -376,8 +244,7 @@ public class MegaPayGateway implements PaymentGateway {
     }
 
     private String generateInvoiceNo(CreatePaymentRequest req) {
-        return "viotech_" + new java.math.BigInteger(
-                java.util.UUID.randomUUID().toString().replace("-", ""), 16).toString();
+        return "viotech_" + System.currentTimeMillis();
     }
 
     private String generateExpireTime() {
@@ -389,7 +256,7 @@ public class MegaPayGateway implements PaymentGateway {
     }
 
     public MegaPayResponse inquiryByInvoiceNo(Map<String, String> params) {
-        log.debug("MegaPay inquiry: invoiceNo={}", params.get("invoiceNo"));
+        log.debug("MegaPay inquiry (invoiceNo) params: {}", params);
         MultiValueMap<String, String> form = toForm(params);
         return restClient.post()
                 .uri(config.getInquiryByInvoiceNoUrl())
@@ -401,13 +268,14 @@ public class MegaPayGateway implements PaymentGateway {
 
 
     public CreatePaymentResponse createPaymentLink(Map<String, Object> params) {
-        log.debug("MegaPay createLink: invoiceNo={}", params.get("invoiceNo"));
+        log.debug("MegaPay createLink params: {}", params);
         String respBody = restClient.post()
                 .uri(config.getCreateLinkUrl())
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(params)
                 .retrieve()
                 .body(String.class);
+        log.debug("MegaPay createLink response: {}",respBody);
         return JSONUtil.toBean(respBody,CreatePaymentResponse.class);
     }
 

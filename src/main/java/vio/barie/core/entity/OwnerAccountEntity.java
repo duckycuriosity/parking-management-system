@@ -8,7 +8,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
-import jakarta.persistence.Version;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -24,34 +23,6 @@ public class OwnerAccountEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false, updatable = false)
     private Long id;
-
-    /** Core AI identifier; never supplied by a profile save request. */
-    @Column(name = "ai_profile_id")
-    private Long aiProfileId;
-
-    @Column(name = "ai_identity_id", length = 100)
-    private String aiIdentityId;
-
-    /** Explicit same-person link, rather than matching names or phone numbers. */
-    @Column(name = "driver_customer_id")
-    private Long driverCustomerId;
-
-    @Column(name = "ai_sync_state", nullable = false, length = 40)
-    private String aiSyncState = "NOT_SYNCED";
-
-    @Column(name = "ai_sync_token", length = 36)
-    private String aiSyncToken;
-
-    @Column(name = "ai_sync_started_at")
-    private OffsetDateTime aiSyncStartedAt;
-
-    /** Known provider ID retained when an old response cannot safely be attached. */
-    @Column(name = "ai_sync_profile_id")
-    private Long aiSyncProfileId;
-
-    @Version
-    @Column(name = "row_version", nullable = false)
-    private long rowVersion;
 
     @Column(name = "full_name", nullable = false, length = 255)
     private String fullName;

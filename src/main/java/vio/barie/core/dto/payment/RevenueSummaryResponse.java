@@ -9,11 +9,6 @@ import java.math.BigDecimal;
 @Builder
 public class RevenueSummaryResponse {
     private BigDecimal totalRevenue;
-    /** Legacy PAID amounts plus APPLIED and REVIEW_REQUIRED subscription cash; VND only. */
-    private BigDecimal totalReceivedAmount;
-    private BigDecimal subscriptionAppliedAmount;
-    private BigDecimal subscriptionReviewRequiredAmount;
-    private long subscriptionReceivedTransactions;
     private long successfulTransactions;
     private long pendingTransactions;
     private long failedTransactions;

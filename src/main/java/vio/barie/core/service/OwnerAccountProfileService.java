@@ -1,445 +1,894 @@
 package vio.barie.core.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import vio.barie.core.config.exception.BusinessException;
-import vio.barie.core.dto.owneraccount.OwnerAccountDtos.*;
+import org.springframework.web.multipart.MultipartFile;
+import vio.barie.core.client.AiFaceApiClient;
+import vio.barie.core.config.exception.ServiceException;
+import vio.barie.core.dto.AiProfileResponse;
+import vio.barie.core.dto.owneraccount.OwnerAccountDtos.OwnerAccountVehicleParkingCustomerResponse;
+import vio.barie.core.dto.owneraccount.OwnerAccountDtos.ParkingCustomerResponse;
+import vio.barie.core.dto.owneraccount.OwnerAccountDtos.ParkingCustomerUpdateRequest;
 import vio.barie.core.dto.owneraccount.ProfileSaveRequest;
-import vio.barie.core.dto.subscription.RegisterSubscriptionRequest;
-import vio.barie.core.dto.subscription.SubscriptionResponse;
-import vio.barie.core.entity.*;
-import vio.barie.core.repository.*;
+import vio.barie.core.dto.owneraccount.OwnerAccountDtos.SubscriptionVehicleCreateRequest;
+import vio.barie.core.dto.owneraccount.OwnerAccountDtos.SubscriptionVehicleCreateResponse;
+import vio.barie.core.dto.owneraccount.OwnerAccountDtos.VehicleUserSaveRequest;
+import vio.barie.core.entity.OwnerAccountEntity;
+import vio.barie.core.entity.ParkingCustomerEntity;
+import vio.barie.core.entity.VehicleCustomerEntity;
+import vio.barie.core.entity.VehicleEntity;
+import vio.barie.core.entity.VehicleSubscriptionEntity;
+import vio.barie.core.repository.OwnerAccountRepository;
+import vio.barie.core.repository.ParkingCustomerRepository;
+import vio.barie.core.repository.VehicleCustomerRepository;
+import vio.barie.core.repository.VehicleRepository;
+import vio.barie.core.repository.VehicleSubscriptionRepository;
 import vio.barie.core.utils.PlateNumberUtils;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.time.LocalDateTime;
+import java.net.URI;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-/** DB-only orchestration. AI and QR operations are explicit actions after this command commits. */
 @Service
 @RequiredArgsConstructor
 public class OwnerAccountProfileService {
-    private static final ObjectMapper JSON = new ObjectMapper();
-    private final OwnerAccountRepository owners;
-    private final VehicleRepository vehicles;
-    private final ParkingCustomerRepository customers;
-    private final VehicleCustomerRepository relations;
-    private final OwnerProfileRegistrationRepository registrations;
-    private final VehicleSubscriptionService subscriptions;
-    private final OwnerAccountAiIdentityService identities;
-    private final EntityManager entityManager;
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    private final AiFaceApiClient aiFaceApiClient;
+    private final OwnerAccountRepository ownerAccountRepository;
+    private final VehicleRepository vehicleRepository;
+    private final ParkingCustomerRepository parkingCustomerRepository;
+    private final VehicleCustomerRepository vehicleCustomerRepository;
+    private final VehicleSubscriptionRepository vehicleSubscriptionRepository;
+
+    @Value("${ai.core.image-url:${ai.face.base-url:}}")
+    private String imageUrlAi;
 
     @Transactional
     public OwnerAccountVehicleParkingCustomerResponse createProfile(ProfileSaveRequest request) {
-        require(request != null && request.getOwner() != null, "owner is required");
-        String key = required(request.getRequestKey(), "requestKey", 100);
-        require(key.equals(request.getRequestKey()), "requestKey cannot contain leading/trailing whitespace");
-        String hash = digest(canonical(request));
-        OwnerProfileRegistrationEntity prior = registrations.findById(key).orElse(null);
-        if (prior != null) {
-            if (!hash.equals(prior.getRequestHash())) throw conflict("requestKey has different content", "PROFILE_REQUEST_CONFLICT");
-            require(prior.getOwnerId() != null && prior.getResultIds() != null, "Registration result is incomplete");
-            return result(key, owners.findById(prior.getOwnerId()).orElseThrow(() -> missing("Owner not found")),
-                    decode(prior.getResultIds()));
+        return createProfile(request, null);
+    }
+
+    @Transactional
+    public OwnerAccountVehicleParkingCustomerResponse createProfile(ProfileSaveRequest request, List<MultipartFile> customerImages) {
+        return createProfile(request, customerImages, null);
+    }
+
+    @Transactional
+    public OwnerAccountVehicleParkingCustomerResponse createProfile(
+            ProfileSaveRequest request,
+            List<MultipartFile> customerImages,
+            List<MultipartFile> ownerImages) {
+        validateProfileRequest(request);
+        syncOwnerImagesWithAi(request.getOwner(), ownerImages);
+
+        OwnerAccountEntity ownerEntity;
+        if (request.getOwner().getId() == null) {
+            ownerEntity = saveOwner(new OwnerAccountEntity(), request.getOwner());
+        } else {
+            ownerEntity = findOwner(request.getOwner().getId());
+            saveOwner(ownerEntity, request.getOwner());
+        }
+        Long ownerId = ownerEntity.getId();
+
+        List<OwnerAccountVehicleParkingCustomerResponse.VehicleResponse> vehicleResponses = new ArrayList<>();
+        List<OwnerAccountVehicleParkingCustomerResponse.CustomerResponse> customerResponses = new ArrayList<>();
+        List<OwnerAccountVehicleParkingCustomerResponse.VehicleCustomerResponse> relationResponses = new ArrayList<>();
+        Set<Long> submittedCustomerIds = new HashSet<>();
+        Set<Long> submittedRelationIds = new HashSet<>();
+        boolean mapImagesSequentially = shouldMapCustomerImagesSequentially(request, customerImages);
+        int imageCursor = 0;
+
+        for (ProfileSaveRequest.Vehicle vehicle : request.getVehicles()) {
+            VehicleEntity vehicleEntity = vehicle.getId() == null
+                    ? saveVehicle(new VehicleEntity(), ownerId, vehicle)
+                    : saveVehicle(findOwnerVehicle(ownerId, vehicle.getId()), ownerId, vehicle);
+            Long vehicleId = vehicleEntity.getId();
+
+            vehicleResponses.add(OwnerAccountVehicleParkingCustomerResponse.VehicleResponse.builder()
+                    .id(vehicleId)
+                    .plate(vehicleEntity.getPlateNumber())
+                    .vehicleType(vehicleEntity.getVehicleType())
+                    .status(vehicleEntity.getStatus())
+                    .build());
+
+            upsertVehicleSubscription(vehicleId, vehicle.getSubscription());
+
+            for (ProfileSaveRequest.Customer customer : vehicle.getCustomers()) {
+                syncCustomerImageWithAi(customer, customerImages, mapImagesSequentially ? imageCursor++ : null);
+
+                ParkingCustomerEntity customerEntity = customer.getId() == null
+                        ? saveCustomer(new ParkingCustomerEntity(), ownerId, customer)
+                        : saveCustomer(findOwnerCustomer(ownerId, customer.getId()), ownerId, customer);
+                Long customerId = customerEntity.getId();
+                submittedCustomerIds.add(customerId);
+
+                Long relationId = null;
+                if (isUsed(customer)) {
+                    relationId = upsertVehicleCustomer(vehicleId, customerId, customer);
+                    submittedRelationIds.add(relationId);
+                }
+
+                customerResponses.add(OwnerAccountVehicleParkingCustomerResponse.CustomerResponse.builder()
+                        .id(customerId)
+                        .name(customerEntity.getUsername())
+                        .phone(customerEntity.getPhoneNumber())
+                        .imageUrl(customerEntity.getImageUrl())
+                        .profileId(customerEntity.getAiProfileId() == null ? null : customerEntity.getAiProfileId().toString())
+                        .status(customerEntity.getStatus())
+                        .build());
+                if (relationId != null) {
+                    relationResponses.add(OwnerAccountVehicleParkingCustomerResponse.VehicleCustomerResponse.builder()
+                            .id(relationId)
+                            .vehicleId(vehicleId)
+                            .customerId(customerId)
+                            .relationType(trim(customer.getRelationType()))
+                            .status(trim(customer.getRelationStatus()))
+                            .build());
+                }
+            }
         }
 
-        // Claim before creating any person/vehicle. A race aborts this transaction; replay is a new request.
-        OwnerProfileRegistrationEntity command = new OwnerProfileRegistrationEntity();
-        command.setRequestKey(key);
-        command.setRequestHash(hash);
-        try {
-            registrations.saveAndFlush(command);
-        } catch (DataIntegrityViolationException ex) {
-            throw conflict("Registration is being committed; retry the same requestKey", "PROFILE_REQUEST_CONCURRENT");
-        }
-        OwnerAccountEntity owner = selectOwner(request.getOwner());
-        List<ProfileSaveRequest.Vehicle> inputs = list(request.getVehicles());
-        require(inputs.size() <= 100, "At most 100 vehicles per command");
-        Map<Long, VehicleEntity> locked = new HashMap<>();
-        // Acquire existing rows in one stable order before any subscription service re-locks them.
-        inputs.stream().map(ProfileSaveRequest.Vehicle::getId).filter(Objects::nonNull).distinct().sorted()
-                .forEach(id -> locked.put(id, ownedVehicle(owner.getId(), id)));
-        Set<Long> usedVehicles = new HashSet<>();
-        Set<String> vehicleDrafts = new HashSet<>();
-        Map<String, ParkingCustomerEntity> drafts = new HashMap<>();
-        Map<String, String> draftContracts = new HashMap<>();
-        Map<Long, SelectedCustomer> selectedCustomers = new LinkedHashMap<>();
-        List<SelectedVehicle> selectedVehicles = new ArrayList<>();
-        List<Long> selectedRelations = new ArrayList<>();
-        int ordinal = 0;
-        for (ProfileSaveRequest.Vehicle input : inputs) {
-            require(input != null, "vehicle is required");
-            VehicleEntity vehicle = selectVehicle(owner.getId(), input, locked);
-            require(usedVehicles.add(vehicle.getId()), "Duplicate vehicle in command");
-            if (input.getClientId() != null) require(vehicleDrafts.add(required(input.getClientId(), "vehicle.clientId", 100)), "Duplicate vehicle.clientId");
-            Set<Long> linkedPeople = new HashSet<>();
-            for (ProfileSaveRequest.Customer person : list(input.getCustomers())) {
-                require(person != null, "customer is required");
-                ParkingCustomerEntity customer = selectCustomer(owner, person, drafts, draftContracts);
-                require(linkedPeople.add(customer.getId()), "Duplicate person for one vehicle");
-                String relationType = relationType(person.getRelationType());
-                VehicleCustomerEntity relation = relations.findByVehicleIdAndCustomerId(vehicle.getId(), customer.getId())
-                        .orElseGet(() -> newRelation(vehicle.getId(), customer.getId()));
-                relation.setRelationType(relationType);
-                relation.setStatus("ACTIVE"); // This is an explicit grant action; omission does nothing.
-                relations.saveAndFlush(relation);
-                selectedRelations.add(relation.getId());
-                selectedCustomers.putIfAbsent(customer.getId(), new SelectedCustomer(customer.getId(), person.getClientId()));
-            }
-            SubscriptionResponse subscription = null;
-            if (input.getSubscription() != null) {
-                require(relations.hasActiveUser(vehicle.getId()), "A subscription requires at least one active vehicle user");
-                ProfileSaveRequest.Subscription selected = input.getSubscription();
-                require(selected.getStartsAt() != null && selected.getPaymentDeadlineAt() != null, "startsAt and paymentDeadlineAt are required");
-                RegisterSubscriptionRequest purchase = new RegisterSubscriptionRequest();
-                purchase.setVehicleId(vehicle.getId());
-                purchase.setParkingLotId(selected.getParkingLotId());
-                purchase.setPackageId(selected.getPackageId());
-                purchase.setStartsAt(selected.getStartsAt().toInstant());
-                purchase.setPaymentDeadlineAt(selected.getPaymentDeadlineAt().toInstant());
-                purchase.setRequestKey("profile:" + digest(encode(List.of(key, ordinal))));
-                subscription = subscriptions.register(purchase);
-            }
-            selectedVehicles.add(new SelectedVehicle(vehicle.getId(), input.getClientId(), subscription == null ? null : subscription.getId()));
-            ordinal++;
-        }
-        SavedIds saved = new SavedIds(selectedVehicles, new ArrayList<>(selectedCustomers.values()), selectedRelations);
-        command.setOwnerId(owner.getId());
-        command.setResultIds(encode(saved));
-        registrations.saveAndFlush(command);
-        return result(key, owner, saved);
+        inactiveMissingCustomers(ownerId, submittedCustomerIds);
+        inactiveMissingRelations(ownerId, submittedRelationIds);
+
+        return OwnerAccountVehicleParkingCustomerResponse.builder()
+                .id(ownerId)
+                .fullName(ownerEntity.getFullName())
+                .phone(ownerEntity.getPhone())
+                .identityNumber(ownerEntity.getIdentityNumber())
+                .address(ownerEntity.getAddress())
+                .imageUrl(ownerEntity.getImageUrl())
+                .zaloLink(ownerEntity.getZaloLink())
+                .note(ownerEntity.getNote())
+                .status(ownerEntity.getStatus())
+                .vehicleCount((long) vehicleResponses.size())
+                .createdAt(ownerEntity.getCreatedAt())
+                .updatedAt(ownerEntity.getUpdatedAt())
+                .vehicles(vehicleResponses)
+                .customers(customerResponses)
+                .vehicleCustomers(relationResponses)
+                .build();
     }
 
     @Transactional
     public SubscriptionVehicleCreateResponse addVehicle(Long ownerId, SubscriptionVehicleCreateRequest request) {
-        require(request != null, "request is required");
-        ProfileSaveRequest command = new ProfileSaveRequest();
-        command.setRequestKey(request.getRequestKey());
-        ProfileSaveRequest.Owner owner = new ProfileSaveRequest.Owner();
-        owner.setId(ownerId);
-        command.setOwner(owner);
-        ProfileSaveRequest.Vehicle vehicle = new ProfileSaveRequest.Vehicle();
-        vehicle.setPlate(request.getPlate());
-        vehicle.setVehicleType(request.getVehicleType());
-        vehicle.setCustomers(request.getCustomers());
-        vehicle.setSubscription(request.getSubscription());
-        command.setVehicles(List.of(vehicle));
-        OwnerAccountVehicleParkingCustomerResponse result = createProfile(command);
-        var saved = result.getVehicles().getFirst();
-        Map<Long, OwnerAccountVehicleParkingCustomerResponse.CustomerResponse> people = result.getCustomers().stream()
-                .collect(Collectors.toMap(OwnerAccountVehicleParkingCustomerResponse.CustomerResponse::getId, Function.identity()));
-        return SubscriptionVehicleCreateResponse.builder().vehicleId(saved.getId()).ownerId(result.getId())
-                .plate(saved.getPlate()).vehicleType(saved.getVehicleType()).status(saved.getStatus())
-                .createdAt(result.getCreatedAt()).subscription(saved.getSubscription())
-                .users(result.getVehicleCustomers().stream().map(r -> userResponse(people.get(r.getCustomerId()), r)).toList()).build();
+        return addVehicle(ownerId, request, null);
     }
 
     @Transactional
-    public SubscriptionVehicleCreateResponse.UserResponse saveVehicleUser(Long ownerId, Long vehicleId, VehicleUserSaveRequest request) {
-        require(request != null, "request is required");
-        ProfileSaveRequest command = new ProfileSaveRequest();
-        command.setRequestKey(request.getRequestKey());
-        ProfileSaveRequest.Owner owner = new ProfileSaveRequest.Owner();
-        owner.setId(ownerId);
-        command.setOwner(owner);
-        ProfileSaveRequest.Vehicle vehicle = new ProfileSaveRequest.Vehicle();
-        vehicle.setId(vehicleId);
-        ProfileSaveRequest.Customer person = new ProfileSaveRequest.Customer();
-        person.setId(request.getCustomerId());
-        person.setName(request.getName());
-        person.setPhone(request.getPhone());
-        person.setOwnerAsDriver(request.isOwnerAsDriver());
-        person.setRelationType(request.getRelationType());
-        vehicle.setCustomers(List.of(person));
-        command.setVehicles(List.of(vehicle));
-        var result = createProfile(command);
-        return userResponse(result.getCustomers().getFirst(), result.getVehicleCustomers().getFirst());
-    }
+    public SubscriptionVehicleCreateResponse addVehicle(Long ownerId, SubscriptionVehicleCreateRequest request, List<MultipartFile> userImages) {
+        ensureOwnerExists(ownerId);
+        validateVehicleUsers(request);
 
-    @Transactional
-    public ParkingCustomerResponse updateCustomer(Long ownerId, Long customerId, ParkingCustomerUpdateRequest request) {
-        lockOwner(ownerId);
-        ParkingCustomerEntity customer = ownedCustomer(ownerId, customerId);
-        if (request.getName() != null) customer.setUsername(required(request.getName(), "name", 255));
-        if (request.getPhone() != null) customer.setPhoneNumber(optional(request.getPhone(), 20));
-        if (request.getStatus() != null) {
-            require(Set.of("ACTIVE", "INACTIVE").contains(request.getStatus()), "Unsupported customer status");
-            customer.setStatus(request.getStatus());
+        OffsetDateTime now = OffsetDateTime.now();
+        String plate = normalizePlate(request.getPlate());
+        if (plateExists(plate)) {
+            throw new ServiceException("Plate already exists: " + plate, 400);
         }
-        customers.saveAndFlush(customer);
-        return customerResponse(customer);
-    }
 
-    @Transactional
-    public void revokeVehicleUser(Long ownerId, Long vehicleId, Long customerId) {
-        lockOwner(ownerId);
-        ownedVehicle(ownerId, vehicleId);
-        ownedCustomer(ownerId, customerId);
-        VehicleCustomerEntity relation = relations.findByVehicleIdAndCustomerId(vehicleId, customerId)
-                .orElseThrow(() -> missing("Vehicle user relation not found"));
-        relation.setStatus("REVOKED");
-        relations.save(relation);
-    }
-
-    @Transactional(readOnly = true)
-    public void requireOwnedSubscription(Long ownerId, Long subscriptionId) {
-        positive(ownerId, "ownerId");
-        SubscriptionResponse subscription = subscriptions.getById(subscriptionId);
-        if (vehicles.findByIdAndOwnerId(subscription.getVehicleId(), ownerId).isEmpty()) {
-            throw missing("Subscription not found in owner scope");
-        }
-    }
-
-    private OwnerAccountEntity selectOwner(ProfileSaveRequest.Owner input) {
-        if (input.getId() != null) {
-            require(input.getFullName() == null && input.getPhone() == null && input.getIdentityNumber() == null
-                    && input.getAddress() == null && input.getZaloLink() == null && input.getNote() == null,
-                    "Existing owner accepts id only; use the owner update action");
-            OwnerAccountEntity owner = lockOwner(input.getId());
-            require(!"INACTIVE".equals(owner.getStatus()), "Owner is inactive");
-            return owner;
-        }
-        OwnerAccountEntity owner = new OwnerAccountEntity();
-        owner.setFullName(required(input.getFullName(), "owner.fullName", 255));
-        owner.setPhone(required(input.getPhone(), "owner.phone", 30));
-        owner.setIdentityNumber(optional(input.getIdentityNumber(), 30));
-        if (owners.existsByPhone(owner.getPhone())) throw conflict("Owner phone already exists; select its ID explicitly", "OWNER_PHONE_CONFLICT");
-        if (owner.getIdentityNumber() != null && owners.existsByIdentityNumber(owner.getIdentityNumber())) throw conflict("Owner identityNumber already exists", "OWNER_IDENTITY_CONFLICT");
-        owner.setAddress(optional(input.getAddress(), 10000));
-        owner.setZaloLink(optional(input.getZaloLink(), 2000));
-        owner.setNote(optional(input.getNote(), 10000));
-        owner.setStatus("ACTIVE");
-        try {
-            return owners.saveAndFlush(owner);
-        } catch (DataIntegrityViolationException failure) {
-            throw OwnerProfileIntegrity.uniqueConflict(failure);
-        }
-    }
-
-    private VehicleEntity selectVehicle(Long ownerId, ProfileSaveRequest.Vehicle input, Map<Long, VehicleEntity> locked) {
-        if (input.getId() != null) {
-            require(input.getPlate() == null && input.getVehicleType() == null, "Existing vehicle accepts id only");
-            VehicleEntity vehicle = locked.get(input.getId());
-            require(vehicle != null, "Vehicle not in owner scope");
-            require(!"INACTIVE".equals(vehicle.getStatus()), "Vehicle is inactive");
-            return vehicle;
-        }
-        String plate = PlateNumberUtils.normalize(required(input.getPlate(), "plate", 50));
-        require(plate != null && !plate.isBlank(), "Invalid plate");
-        String type = required(input.getVehicleType(), "vehicleType", 20);
-        require(Set.of("CAR", "MOTORBIKE").contains(type), "vehicleType must be CAR or MOTORBIKE");
-        if (vehicles.existsByPlateNumber(plate)) throw conflict("Plate already exists; select its ID explicitly", "VEHICLE_PLATE_CONFLICT");
         VehicleEntity vehicle = new VehicleEntity();
         vehicle.setOwnerId(ownerId);
         vehicle.setPlateNumber(plate);
-        vehicle.setVehicleType(type);
-        vehicle.setStatus("ACTIVE");
-        try {
-            return vehicles.saveAndFlush(vehicle);
-        } catch (DataIntegrityViolationException failure) {
-            throw OwnerProfileIntegrity.uniqueConflict(failure);
+        vehicle.setVehicleType(trim(request.getVehicleType()));
+        vehicle.setStatus(trim(request.getStatus()));
+        vehicle = vehicleRepository.save(vehicle);
+        Long vehicleId = vehicle.getId();
+        upsertVehicleSubscription(vehicleId, request.getSubscription());
+
+        List<SubscriptionVehicleCreateResponse.UserResponse> users = new ArrayList<>();
+        if (request.getUsers() != null) {
+            for (SubscriptionVehicleCreateRequest.ExistingUser user : request.getUsers()) {
+                ensureCustomerBelongsToOwner(ownerId, user.getCustomerId());
+                insertVehicleCustomer(vehicleId, user.getCustomerId(), trim(user.getRelationType()), trim(user.getStatus()));
+                users.add(fetchCustomerRelation(vehicleId, user.getCustomerId()));
+            }
+        }
+        if (request.getNewUsers() != null) {
+            for (SubscriptionVehicleCreateRequest.NewUser user : request.getNewUsers()) {
+                syncNewUserImageWithAi(user, userImages);
+
+                ParkingCustomerEntity customer = new ParkingCustomerEntity();
+                customer.setOwnerId(ownerId);
+                customer.setUsername(trim(user.getName()));
+                customer.setPhoneNumber(trimToNull(user.getPhone()));
+                customer.setImageUrl(trimToNull(user.getImageUrl()));
+                customer.setAiIdentityId("");
+                customer.setAiProfileId(parseNullableInteger(user.getProfileId(), "profileId"));
+                customer.setZaloId("");
+                customer.setStatus(trim(user.getStatus()));
+                customer = parkingCustomerRepository.save(customer);
+                Long customerId = customer.getId();
+                insertVehicleCustomer(vehicleId, customerId, trim(user.getRelationType()), trim(user.getStatus()));
+                users.add(fetchCustomerRelation(vehicleId, customerId));
+            }
+        }
+
+        return SubscriptionVehicleCreateResponse.builder()
+                .vehicleId(vehicleId)
+                .ownerId(ownerId)
+                .plate(plate)
+                .vehicleType(trim(request.getVehicleType()))
+                .status(trim(request.getStatus()))
+                .createdAt(now)
+                .users(users)
+                .build();
+    }
+
+    @Transactional
+    public ParkingCustomerResponse updateCustomer(Long customerId, ParkingCustomerUpdateRequest request) {
+        ParkingCustomerEntity customer = findCustomer(customerId);
+        if (request.getName() != null) {
+            customer.setUsername(trimRequired(request.getName(), "name"));
+        }
+        if (request.getPhone() != null) {
+            customer.setPhoneNumber(trimToNull(request.getPhone()));
+        }
+        if (request.getImageUrl() != null) {
+            customer.setImageUrl(trimToNull(request.getImageUrl()));
+        }
+        if (request.getProfileId() != null) {
+            customer.setAiProfileId(parseNullableInteger(request.getProfileId(), "profileId"));
+        }
+        if (request.getStatus() != null) {
+            customer.setStatus(trimRequired(request.getStatus(), "status"));
+        }
+        return toParkingCustomerResponse(parkingCustomerRepository.save(customer));
+    }
+
+    @Transactional
+    public SubscriptionVehicleCreateResponse.UserResponse saveVehicleUser(Long vehicleId, VehicleUserSaveRequest request) {
+        Long ownerId = getVehicleOwnerId(vehicleId);
+        Long customerId = request.getCustomerId();
+
+        if (customerId == null) {
+            if (StringUtils.isBlank(request.getName())) {
+                throw new ServiceException("name is required when creating a new vehicle user", 400);
+            }
+            ParkingCustomerEntity customer = new ParkingCustomerEntity();
+            customer.setOwnerId(ownerId);
+            customer.setUsername(trim(request.getName()));
+            customer.setPhoneNumber(trimToNull(request.getPhone()));
+            customer.setImageUrl(trimToNull(request.getImageUrl()));
+            customer.setAiIdentityId("");
+            customer.setAiProfileId(parseNullableInteger(request.getProfileId(), "profileId"));
+            customer.setZaloId("");
+            customer.setStatus(trim(request.getStatus()));
+            customerId = parkingCustomerRepository.save(customer).getId();
+        } else {
+            ensureCustomerBelongsToOwner(ownerId, customerId);
+            updateCustomerFields(findCustomer(customerId), request);
+        }
+
+        upsertVehicleCustomer(vehicleId, customerId, trim(request.getRelationType()), trim(request.getStatus()));
+        return fetchCustomerRelation(vehicleId, customerId);
+    }
+
+    private void validateProfileRequest(ProfileSaveRequest request) {
+        Long ownerId = request.getOwner().getId();
+        String ownerPhone = trim(request.getOwner().getPhone());
+        String identityNumber = trim(request.getOwner().getIdentityNumber());
+        if (ownerPhoneExists(ownerPhone, ownerId)) {
+            throw new ServiceException("Duplicate owner phone: " + ownerPhone, 400);
+        }
+        if (identityNumberExists(identityNumber, ownerId)) {
+            throw new ServiceException("Duplicate owner identityNumber: " + identityNumber, 400);
+        }
+
+        Set<String> plates = new HashSet<>();
+        Map<String, String> customerPhoneOwners = new HashMap<>();
+        Set<String> relationKeys = new HashSet<>();
+        Set<Long> vehicleIds = new HashSet<>();
+        Set<Long> relationIds = new HashSet<>();
+
+        for (ProfileSaveRequest.Vehicle vehicle : request.getVehicles()) {
+            String plate = normalizePlate(vehicle.getPlate());
+            if (!plates.add(plate)) {
+                throw new ServiceException("Duplicate plate in request: " + plate, 400);
+            }
+            if (plateExists(plate, vehicle.getId())) {
+                throw new ServiceException("Duplicate plate: " + plate, 400);
+            }
+            if (vehicle.getId() != null && !vehicleIds.add(vehicle.getId())) {
+                throw new ServiceException("Duplicate vehicle id in request: " + vehicle.getId(), 400);
+            }
+            if (vehicle.getId() != null) {
+                if (ownerId == null) {
+                    throw new ServiceException("owner.id is required when updating vehicle: " + vehicle.getId(), 400);
+                }
+                ensureVehicleBelongsToOwner(ownerId, vehicle.getId());
+            }
+
+            for (ProfileSaveRequest.Customer customer : vehicle.getCustomers()) {
+                if (customer.getRelationId() != null && !isUsed(customer)) {
+                    throw new ServiceException("relationId is only valid when isUsed is true", 400);
+                }
+                if (customer.getRelationId() != null && !relationIds.add(customer.getRelationId())) {
+                    throw new ServiceException("Duplicate relation id in request: " + customer.getRelationId(), 400);
+                }
+                if (customer.getId() != null) {
+                    if (ownerId == null) {
+                        throw new ServiceException("owner.id is required when updating customer: " + customer.getId(), 400);
+                    }
+                    ensureCustomerBelongsToOwner(ownerId, customer.getId());
+                }
+                if (customer.getRelationId() != null) {
+                    if (vehicle.getId() == null || customer.getId() == null) {
+                        throw new ServiceException("vehicle.id and customer.id are required when updating relation: " + customer.getRelationId(), 400);
+                    }
+                    ensureRelationMatches(customer.getRelationId(), vehicle.getId(), customer.getId());
+                }
+                String customerPhone = trimToNull(customer.getPhone());
+                if (customerPhone != null) {
+                    String customerKeyForPhone = customer.getId() == null ? "NEW:" + trim(customer.getName()) : customer.getId().toString();
+                    String existingOwner = customerPhoneOwners.putIfAbsent(customerPhone, customerKeyForPhone);
+                    if (existingOwner != null && !existingOwner.equals(customerKeyForPhone)) {
+                        throw new ServiceException("Duplicate customer phone in request: " + customerPhone, 400);
+                    }
+                    if (customerPhoneExists(customerPhone, customer.getId())) {
+                        throw new ServiceException("Duplicate customer phone: " + customerPhone, 400);
+                    }
+                }
+                String customerKey = customer.getId() == null
+                        ? StringUtils.defaultIfBlank(customerPhone, trim(customer.getName()))
+                        : customer.getId().toString();
+                if (isUsed(customer)) {
+                    String relationKey = plate + "::" + customerKey;
+                    if (!relationKeys.add(relationKey)) {
+                        throw new ServiceException("Duplicate vehicle customer relation in request: " + relationKey, 400);
+                    }
+                }
+            }
         }
     }
 
-    private ParkingCustomerEntity selectCustomer(OwnerAccountEntity owner, ProfileSaveRequest.Customer input,
-            Map<String, ParkingCustomerEntity> drafts, Map<String, String> contracts) {
-        require(input.getClientId() == null || !input.getClientId().isBlank(), "customer.clientId cannot be blank");
-        if (input.isOwnerAsDriver()) {
-            require(input.getName() == null && input.getPhone() == null && input.getClientId() == null,
-                    "ownerAsDriver uses the owner's persisted person data");
-            ParkingCustomerEntity person;
-            if (input.getId() != null) person = ownedCustomer(owner.getId(), input.getId());
-            else if (owner.getDriverCustomerId() != null) person = ownedCustomer(owner.getId(), owner.getDriverCustomerId());
-            else person = newCustomer(owner.getId(), owner.getFullName(), optional(owner.getPhone(), 20));
-            identities.linkOwnerAsDriver(owner.getId(), person.getId());
-            // The identity service joins this transaction. Refresh must not discard its pending link.
-            entityManager.flush();
-            entityManager.refresh(owner);
-            entityManager.refresh(person);
-            require(!"INACTIVE".equals(person.getStatus()), "Driver is inactive");
-            return person;
-        }
-        if (input.getId() != null) {
-            require(input.getName() == null && input.getPhone() == null && input.getClientId() == null,
-                    "Existing customer accepts id and relationType only");
-            ParkingCustomerEntity person = ownedCustomer(owner.getId(), input.getId());
-            require(!"INACTIVE".equals(person.getStatus()), "Driver is inactive");
-            return person;
-        }
-        String name = required(input.getName(), "customer.name", 255);
-        String phone = optional(input.getPhone(), 20);
-        String clientId = optional(input.getClientId(), 100);
-        String contract = encode(Arrays.asList(name, phone));
-        if (clientId != null && drafts.containsKey(clientId)) {
-            require(contract.equals(contracts.get(clientId)), "One customer.clientId cannot describe different people");
-            return drafts.get(clientId);
-        }
-        ParkingCustomerEntity customer = newCustomer(owner.getId(), name, phone);
-        if (clientId != null) {
-            drafts.put(clientId, customer);
-            contracts.put(clientId, contract);
-        }
-        return customer;
+    private OwnerAccountEntity saveOwner(OwnerAccountEntity entity, ProfileSaveRequest.Owner owner) {
+        entity.setFullName(trim(owner.getFullName()));
+        entity.setPhone(trim(owner.getPhone()));
+        entity.setIdentityNumber(trim(owner.getIdentityNumber()));
+        entity.setAddress(trimToNull(owner.getAddress()));
+        entity.setImageUrl(trimToNull(owner.getImageUrl()));
+        entity.setZaloLink(trimToNull(owner.getZaloLink()));
+        entity.setNote(trimToNull(owner.getNote()));
+        entity.setStatus(trim(owner.getStatus()));
+        return ownerAccountRepository.save(entity);
     }
 
-    private ParkingCustomerEntity newCustomer(Long ownerId, String name, String phone) {
-        ParkingCustomerEntity person = new ParkingCustomerEntity();
-        person.setOwnerId(ownerId);
-        person.setUsername(name);
-        person.setPhoneNumber(phone);
-        person.setStatus("ACTIVE");
-        return customers.saveAndFlush(person);
+    private VehicleEntity saveVehicle(VehicleEntity entity, Long ownerId, ProfileSaveRequest.Vehicle vehicle) {
+        entity.setOwnerId(ownerId);
+        entity.setPlateNumber(normalizePlate(vehicle.getPlate()));
+        entity.setVehicleType(trim(vehicle.getVehicleType()));
+        entity.setStatus(trim(vehicle.getStatus()));
+        return vehicleRepository.save(entity);
     }
-    private OwnerAccountEntity lockOwner(Long id) {
-        positive(id, "ownerId");
-        OwnerAccountEntity owner = owners.findForUpdate(id).orElseThrow(() -> missing("Owner not found"));
-        entityManager.refresh(owner, LockModeType.PESSIMISTIC_WRITE);
-        return owner;
+
+    private ParkingCustomerEntity saveCustomer(ParkingCustomerEntity entity, Long ownerId, ProfileSaveRequest.Customer customer) {
+        entity.setOwnerId(ownerId);
+        entity.setUsername(trim(customer.getName()));
+        entity.setPhoneNumber(trimToNull(customer.getPhone()));
+        entity.setImageUrl(trimToNull(customer.getImageUrl()));
+        entity.setAiIdentityId(resolveAiIdentityId(customer.getAiIdentityId(), entity.getAiIdentityId()));
+        entity.setAiProfileId(parseNullableInteger(customer.getProfileId(), "profileId"));
+        entity.setZaloId(StringUtils.defaultString(entity.getZaloId()));
+        entity.setStatus(trim(customer.getStatus()));
+        return parkingCustomerRepository.save(entity);
     }
-    private VehicleEntity ownedVehicle(Long ownerId, Long id) {
-        positive(id, "vehicleId");
-        VehicleEntity vehicle = vehicles.findOwnedForUpdate(id, ownerId).orElseThrow(() -> missing("Vehicle not found in owner scope"));
-        entityManager.refresh(vehicle, LockModeType.PESSIMISTIC_WRITE);
-        return vehicle;
+
+    private void upsertVehicleSubscription(Long vehicleId, ProfileSaveRequest.Subscription subscription) {
+        if (subscription == null) {
+            return;
+        }
+
+        VehicleSubscriptionEntity entity = subscription.getId() == null
+                ? new VehicleSubscriptionEntity()
+                : vehicleSubscriptionRepository.findById(subscription.getId())
+                .orElseThrow(() -> new ServiceException("Vehicle subscription not found: " + subscription.getId(), 404));
+        entity.setVehicleId(vehicleId);
+        entity.setParkingLotId(subscription.getParkingLotId());
+        entity.setPackageId(subscription.getPackageId());
+        entity.setRegistrationType(trim(subscription.getRegistrationType()));
+        entity.setPreviousSubscriptionId(subscription.getPreviousSubscriptionId());
+        entity.setPriceVnd(subscription.getPriceVnd());
+        entity.setStartsAt(subscription.getStartsAt());
+        entity.setEndsAt(subscription.getEndsAt());
+        entity.setPaymentDeadlineAt(subscription.getPaymentDeadlineAt());
+        entity.setStatus(trim(subscription.getStatus()));
+        entity.setPaidAt(subscription.getPaidAt());
+        entity.setPaymentSource(trimToNull(subscription.getPaymentSource()));
+        entity.setPaymentReference(trimToNull(subscription.getPaymentReference()));
+        entity.setPaymentReceipt(trimToNull(subscription.getPaymentReceipt()));
+        vehicleSubscriptionRepository.save(entity);
     }
-    private ParkingCustomerEntity ownedCustomer(Long ownerId, Long id) {
-        positive(id, "customerId");
-        ParkingCustomerEntity person = customers.findOwnedForUpdate(id, ownerId).orElseThrow(() -> missing("Customer not found in owner scope"));
-        entityManager.refresh(person, LockModeType.PESSIMISTIC_WRITE);
-        return person;
+
+    private Long upsertVehicleCustomer(Long vehicleId, Long customerId, ProfileSaveRequest.Customer customer) {
+        VehicleCustomerEntity relation = customer.getRelationId() == null
+                ? vehicleCustomerRepository.findByVehicleIdAndCustomerId(vehicleId, customerId).orElse(null)
+                : findVehicleCustomer(customer.getRelationId(), vehicleId, customerId);
+        if (relation == null) {
+            relation = new VehicleCustomerEntity();
+            relation.setVehicleId(vehicleId);
+            relation.setCustomerId(customerId);
+        }
+        relation.setRelationType(trim(customer.getRelationType()));
+        relation.setStatus(trim(customer.getRelationStatus()));
+        return vehicleCustomerRepository.save(relation).getId();
     }
-    private VehicleCustomerEntity newRelation(Long vehicleId, Long customerId) {
+
+    private boolean isUsed(ProfileSaveRequest.Customer customer) {
+        return customer.getIsUsed() == null || Boolean.TRUE.equals(customer.getIsUsed());
+    }
+
+    private void inactiveMissingCustomers(Long ownerId, Set<Long> submittedCustomerIds) {
+        List<ParkingCustomerEntity> customers = parkingCustomerRepository.findAll().stream()
+                .filter(customer -> ownerId.equals(customer.getOwnerId()))
+                .filter(customer -> !submittedCustomerIds.contains(customer.getId()))
+                .toList();
+        for (ParkingCustomerEntity customer : customers) {
+            customer.setStatus("INACTIVE");
+        }
+        parkingCustomerRepository.saveAll(customers);
+    }
+
+    private void inactiveMissingRelations(Long ownerId, Set<Long> submittedRelationIds) {
+        List<VehicleCustomerEntity> relations = vehicleCustomerRepository.findByOwnerId(ownerId).stream()
+                .filter(relation -> !submittedRelationIds.contains(relation.getId()))
+                .toList();
+        for (VehicleCustomerEntity relation : relations) {
+            relation.setStatus("INACTIVE");
+        }
+        vehicleCustomerRepository.saveAll(relations);
+    }
+
+    private boolean ownerPhoneExists(String phone, Long excludedOwnerId) {
+        return excludedOwnerId == null
+                ? ownerAccountRepository.existsByPhone(phone)
+                : ownerAccountRepository.existsByPhoneAndIdNot(phone, excludedOwnerId);
+    }
+
+    private boolean identityNumberExists(String identityNumber, Long excludedOwnerId) {
+        return excludedOwnerId == null
+                ? ownerAccountRepository.existsByIdentityNumber(identityNumber)
+                : ownerAccountRepository.existsByIdentityNumberAndIdNot(identityNumber, excludedOwnerId);
+    }
+
+    private boolean customerPhoneExists(String phone, Long excludedCustomerId) {
+        return excludedCustomerId == null
+                ? parkingCustomerRepository.existsByPhoneNumber(phone)
+                : parkingCustomerRepository.existsByPhoneNumberAndIdNot(phone, excludedCustomerId);
+    }
+
+    private boolean plateExists(String plate, Long excludedVehicleId) {
+        return excludedVehicleId == null
+                ? vehicleRepository.existsByPlateNumber(plate)
+                : vehicleRepository.existsByPlateNumberAndIdNot(plate, excludedVehicleId);
+    }
+
+    private void ensureVehicleBelongsToOwner(Long ownerId, Long vehicleId) {
+        findOwnerVehicle(ownerId, vehicleId);
+    }
+
+    private void ensureRelationMatches(Long relationId, Long vehicleId, Long customerId) {
+        findVehicleCustomer(relationId, vehicleId, customerId);
+    }
+
+    private void insertVehicleCustomer(Long vehicleId, Long customerId, String relationType, String status) {
+        if (vehicleCustomerExists(vehicleId, customerId)) {
+            throw new ServiceException("Customer already assigned to vehicle", 400);
+        }
         VehicleCustomerEntity relation = new VehicleCustomerEntity();
         relation.setVehicleId(vehicleId);
         relation.setCustomerId(customerId);
-        return relation;
+        relation.setRelationType(relationType);
+        relation.setStatus(status);
+        vehicleCustomerRepository.save(relation);
     }
 
-    private OwnerAccountVehicleParkingCustomerResponse result(String key, OwnerAccountEntity owner, SavedIds saved) {
-        Map<Long, VehicleEntity> vehicleRows = vehicles.findAllById(saved.vehicles().stream().map(SelectedVehicle::id).toList()).stream()
-                .collect(Collectors.toMap(VehicleEntity::getId, Function.identity()));
-        Map<Long, ParkingCustomerEntity> people = customers.findAllById(saved.customers().stream().map(SelectedCustomer::id).toList()).stream()
-                .collect(Collectors.toMap(ParkingCustomerEntity::getId, Function.identity()));
-        Map<Long, VehicleCustomerEntity> links = relations.findAllById(saved.relations()).stream()
-                .collect(Collectors.toMap(VehicleCustomerEntity::getId, Function.identity()));
-        Map<Long, SubscriptionResponse> purchases = subscriptions.getByIds(saved.vehicles().stream()
-                .map(SelectedVehicle::subscriptionId).filter(Objects::nonNull).toList()).stream()
-                .collect(Collectors.toMap(SubscriptionResponse::getId, Function.identity()));
-        var vehicleResults = saved.vehicles().stream().map(row -> {
-            VehicleEntity v = vehicleRows.get(row.id());
-            if (v == null || !Objects.equals(owner.getId(), v.getOwnerId())) throw missing("Saved vehicle no longer belongs to owner");
-            return OwnerAccountVehicleParkingCustomerResponse.VehicleResponse.builder().id(v.getId()).clientId(row.clientId())
-                    .plate(v.getPlateNumber()).vehicleType(v.getVehicleType()).status(v.getStatus())
-                    .subscription(row.subscriptionId() == null ? null : purchases.get(row.subscriptionId())).build();
-        }).toList();
-        var customerResults = saved.customers().stream().map(row -> {
-            ParkingCustomerEntity person = people.get(row.id());
-            if (person == null || !Objects.equals(owner.getId(), person.getOwnerId())) throw missing("Saved customer no longer belongs to owner");
-            return OwnerAccountVehicleParkingCustomerResponse.CustomerResponse.builder().id(person.getId()).clientId(row.clientId())
-                    .name(person.getUsername()).phone(person.getPhoneNumber()).imageUrl(person.getImageUrl())
-                    .aiProfileId(aiId(person)).profileId(person.getAiProfileId() == null ? null : person.getAiProfileId().toString())
-                    .aiSyncState(person.getAiSyncState()).status(person.getStatus()).build();
-        }).toList();
-        var linkResults = saved.relations().stream().map(id -> {
-            VehicleCustomerEntity link = links.get(id);
-            if (link == null) throw missing("Saved vehicle user relation no longer exists");
-            if (!vehicleRows.containsKey(link.getVehicleId()) || !people.containsKey(link.getCustomerId())) {
-                throw missing("Saved relation no longer belongs to this registration");
-            }
-            return OwnerAccountVehicleParkingCustomerResponse.VehicleCustomerResponse.builder()
-                    .id(link.getId()).vehicleId(link.getVehicleId()).customerId(link.getCustomerId())
-                    .relationType(link.getRelationType()).status(link.getStatus()).build();
-        }).toList();
-        return OwnerAccountVehicleParkingCustomerResponse.builder().requestKey(key).id(owner.getId()).fullName(owner.getFullName())
-                .phone(owner.getPhone()).identityNumber(owner.getIdentityNumber()).address(owner.getAddress()).imageUrl(owner.getImageUrl())
-                .zaloLink(owner.getZaloLink()).note(owner.getNote()).status(owner.getStatus()).aiProfileId(owner.getAiProfileId())
-                .aiSyncState(owner.getAiSyncState()).driverCustomerId(owner.getDriverCustomerId())
-                .createdAt(owner.getCreatedAt()).updatedAt(owner.getUpdatedAt()).vehicleCount(vehicles.countByOwnerId(owner.getId()))
-                .vehicles(vehicleResults).customers(customerResults).vehicleCustomers(linkResults).build();
-    }
-    private SubscriptionVehicleCreateResponse.UserResponse userResponse(
-            OwnerAccountVehicleParkingCustomerResponse.CustomerResponse person,
-            OwnerAccountVehicleParkingCustomerResponse.VehicleCustomerResponse link) {
-        return SubscriptionVehicleCreateResponse.UserResponse.builder().customerId(person.getId()).name(person.getName()).phone(person.getPhone())
-                .imageUrl(person.getImageUrl()).aiProfileId(person.getAiProfileId()).profileId(person.getProfileId()).aiSyncState(person.getAiSyncState())
-                .relationType(link.getRelationType()).relationStatus(link.getStatus()).build();
-    }
-    private ParkingCustomerResponse customerResponse(ParkingCustomerEntity c) {
-        return ParkingCustomerResponse.builder().id(c.getId()).ownerId(c.getOwnerId()).name(c.getUsername()).phone(c.getPhoneNumber())
-                .imageUrl(c.getImageUrl()).aiProfileId(aiId(c)).profileId(c.getAiProfileId() == null ? null : c.getAiProfileId().toString())
-                .aiSyncState(c.getAiSyncState()).status(c.getStatus()).createdAt(utc(c.getCreatedAt())).build();
+    private void upsertVehicleCustomer(Long vehicleId, Long customerId, String relationType, String status) {
+        VehicleCustomerEntity relation = vehicleCustomerRepository.findByVehicleIdAndCustomerId(vehicleId, customerId)
+                .orElseGet(() -> {
+                    VehicleCustomerEntity newRelation = new VehicleCustomerEntity();
+                    newRelation.setVehicleId(vehicleId);
+                    newRelation.setCustomerId(customerId);
+                    return newRelation;
+                });
+        relation.setRelationType(relationType);
+        relation.setStatus(status);
+        vehicleCustomerRepository.save(relation);
     }
 
-    // Only primitive choices participate in hashing; no mutable entity, display value or gateway result.
-    private String canonical(ProfileSaveRequest request) {
-        var owner = request.getOwner();
-        List<Object> parts = new ArrayList<>();
-        parts.add(Arrays.asList(owner.getId(), owner.getFullName(), owner.getPhone(), owner.getIdentityNumber(),
-                owner.getAddress(), owner.getZaloLink(), owner.getNote()));
-        List<Object> vv = new ArrayList<>();
-        for (var vehicle : list(request.getVehicles())) {
-            require(vehicle != null, "vehicle is required");
-            List<Object> pp = new ArrayList<>();
-            for (var person : list(vehicle.getCustomers())) {
-                require(person != null, "customer is required");
-                pp.add(Arrays.asList(person.getId(), person.getClientId(), person.isOwnerAsDriver(),
-                        person.getName(), person.getPhone(), person.getRelationType()));
-            }
-            var sub = vehicle.getSubscription();
-            Object purchase = sub == null ? null : Arrays.asList(sub.getParkingLotId(), sub.getPackageId(),
-                    sub.getStartsAt() == null ? null : sub.getStartsAt().toInstant().toString(),
-                    sub.getPaymentDeadlineAt() == null ? null : sub.getPaymentDeadlineAt().toInstant().toString());
-            vv.add(Arrays.asList(vehicle.getId(), vehicle.getClientId(), vehicle.getPlate(), vehicle.getVehicleType(), pp, purchase));
+    private void validateVehicleUsers(SubscriptionVehicleCreateRequest request) {
+        int existingUserCount = request.getUsers() == null ? 0 : request.getUsers().size();
+        int newUserCount = request.getNewUsers() == null ? 0 : request.getNewUsers().size();
+        if (existingUserCount + newUserCount == 0) {
+            throw new ServiceException("At least one vehicle user is required", 400);
         }
-        parts.add(vv);
-        return encode(parts);
-    }
-    private static String encode(Object value) {
-        try { return JSON.writeValueAsString(value); }
-        catch (Exception e) { throw new IllegalStateException("Cannot encode registration", e); }
-    }
-    private static SavedIds decode(String value) {
-        try { return JSON.readValue(value, SavedIds.class); }
-        catch (Exception e) { throw new IllegalStateException("Cannot read registration result", e); }
-    }
-    private static String digest(String value) {
-        try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); }
-        catch (Exception e) { throw new IllegalStateException(e); }
-    }
-    private static String required(String value, String field, int max) {
-        require(value != null && !value.isBlank() && value.trim().length() <= max, field + " is required or too long");
-        return value.trim();
-    }
-    private static String optional(String value, int max) {
-        if (value == null || value.isBlank()) return null;
-        require(value.trim().length() <= max, "Field exceeds maximum length");
-        return value.trim();
-    }
-    private static String relationType(String value) {
-        require(Set.of("OWNER", "AUTHORIZED_USER").contains(value == null ? "" : value), "relationType must be OWNER or AUTHORIZED_USER");
-        return value;
-    }
-    private static void positive(Long value, String field) { require(value != null && value > 0, field + " must be positive"); }
-    private static void require(boolean condition, String message) {
-        if (!condition) throw new BusinessException(message, "PROFILE_INVALID", 400);
-    }
-    private static BusinessException missing(String message) { return new BusinessException(message, "PROFILE_NOT_FOUND", 404); }
-    private static BusinessException conflict(String message, String code) { return new BusinessException(message, code, 409); }
-    private static <T> List<T> list(List<T> values) { return values == null ? List.of() : values; }
-    private static Long aiId(ParkingCustomerEntity c) { return c.getAiProfileId() == null ? null : c.getAiProfileId().longValue(); }
-    private static OffsetDateTime utc(LocalDateTime value) { return value == null ? null : value.atOffset(ZoneOffset.UTC); }
 
-    public record SavedIds(List<SelectedVehicle> vehicles, List<SelectedCustomer> customers, List<Long> relations) {}
-    public record SelectedVehicle(Long id, String clientId, Long subscriptionId) {}
-    public record SelectedCustomer(Long id, String clientId) {}
+        Set<Long> customerIds = new HashSet<>();
+        if (request.getUsers() != null) {
+            for (SubscriptionVehicleCreateRequest.ExistingUser user : request.getUsers()) {
+                if (!customerIds.add(user.getCustomerId())) {
+                    throw new ServiceException("Duplicate customerId in request: " + user.getCustomerId(), 400);
+                }
+            }
+        }
+    }
+
+    private void ensureOwnerExists(Long ownerId) {
+        if (!ownerAccountRepository.existsById(ownerId)) {
+            throw new ServiceException("Owner account not found", 404);
+        }
+    }
+
+    private void ensureCustomerBelongsToOwner(Long ownerId, Long customerId) {
+        findOwnerCustomer(ownerId, customerId);
+    }
+
+    private Long getVehicleOwnerId(Long vehicleId) {
+        return findVehicle(vehicleId).getOwnerId();
+    }
+
+    private boolean plateExists(String plate) {
+        return vehicleRepository.existsByPlateNumber(plate);
+    }
+
+    private boolean vehicleCustomerExists(Long vehicleId, Long customerId) {
+        return vehicleCustomerRepository.existsByVehicleIdAndCustomerId(vehicleId, customerId);
+    }
+
+    private SubscriptionVehicleCreateResponse.UserResponse fetchCustomerRelation(Long vehicleId, Long customerId) {
+        VehicleCustomerEntity relation = vehicleCustomerRepository.findByVehicleIdAndCustomerId(vehicleId, customerId)
+                .orElseThrow(() -> new ServiceException("Vehicle customer relation not found", 404));
+        ParkingCustomerEntity customer = findCustomer(relation.getCustomerId());
+        return SubscriptionVehicleCreateResponse.UserResponse.builder()
+                .customerId(customer.getId())
+                .name(customer.getUsername())
+                .phone(customer.getPhoneNumber())
+                .imageUrl(customer.getImageUrl())
+                .profileId(customer.getAiProfileId() == null ? null : customer.getAiProfileId().toString())
+                .relationType(relation.getRelationType())
+                .relationStatus(relation.getStatus())
+                .build();
+    }
+
+    private ParkingCustomerResponse getCustomer(Long customerId) {
+        return toParkingCustomerResponse(findCustomer(customerId));
+    }
+
+    private void updateCustomerFields(ParkingCustomerEntity customer, VehicleUserSaveRequest request) {
+        if (request.getName() != null) {
+            customer.setUsername(trimRequired(request.getName(), "name"));
+        }
+        if (request.getPhone() != null) {
+            customer.setPhoneNumber(trimToNull(request.getPhone()));
+        }
+        if (request.getImageUrl() != null) {
+            customer.setImageUrl(trimToNull(request.getImageUrl()));
+        }
+        if (request.getProfileId() != null) {
+            customer.setAiProfileId(parseNullableInteger(request.getProfileId(), "profileId"));
+        }
+        customer.setStatus(trim(request.getStatus()));
+        parkingCustomerRepository.save(customer);
+    }
+
+    private OwnerAccountEntity findOwner(Long ownerId) {
+        return ownerAccountRepository.findById(ownerId)
+                .orElseThrow(() -> new ServiceException("Owner account not found", 404));
+    }
+
+    private VehicleEntity findVehicle(Long vehicleId) {
+        return vehicleRepository.findById(vehicleId)
+                .orElseThrow(() -> new ServiceException("Vehicle not found", 404));
+    }
+
+    private VehicleEntity findOwnerVehicle(Long ownerId, Long vehicleId) {
+        return vehicleRepository.findByIdAndOwnerId(vehicleId, ownerId)
+                .orElseThrow(() -> new ServiceException("Vehicle not found in owner account: " + vehicleId, 404));
+    }
+
+    private ParkingCustomerEntity findCustomer(Long customerId) {
+        return parkingCustomerRepository.findById(customerId)
+                .orElseThrow(() -> new ServiceException("Customer not found", 404));
+    }
+
+    private ParkingCustomerEntity findOwnerCustomer(Long ownerId, Long customerId) {
+        return parkingCustomerRepository.findByIdAndOwnerId(customerId, ownerId)
+                .orElseThrow(() -> new ServiceException("Customer not found in owner account: " + customerId, 404));
+    }
+
+    private VehicleCustomerEntity findVehicleCustomer(Long relationId, Long vehicleId, Long customerId) {
+        return vehicleCustomerRepository.findByIdAndVehicleIdAndCustomerId(relationId, vehicleId, customerId)
+                .orElseThrow(() -> new ServiceException("Vehicle customer relation does not match vehicle/customer: " + relationId, 400));
+    }
+
+    private ParkingCustomerResponse toParkingCustomerResponse(ParkingCustomerEntity customer) {
+        return ParkingCustomerResponse.builder()
+                .id(customer.getId())
+                .ownerId(customer.getOwnerId())
+                .name(customer.getUsername())
+                .phone(customer.getPhoneNumber())
+                .imageUrl(customer.getImageUrl())
+                .profileId(customer.getAiProfileId() == null ? null : customer.getAiProfileId().toString())
+                .status(customer.getStatus())
+                .createdAt(toOffsetDateTime(customer.getCreatedAt()))
+                .updatedAt(null)
+                .build();
+    }
+
+    private void syncCustomerImageWithAi(ProfileSaveRequest.Customer customer, List<MultipartFile> customerImages, Integer sequentialImageIndex) {
+        List<MultipartFile> images = resolveCustomerImages(customer, customerImages, sequentialImageIndex);
+        if (images.isEmpty()) {
+            return;
+        }
+
+        AiProfileResponse aiProfile = StringUtils.isBlank(customer.getProfileId())
+                ? aiFaceApiClient.createProfile(trim(customer.getName()), images)
+                : aiFaceApiClient.updateProfile(parseProfileId(customer.getProfileId()), trim(customer.getName()), images);
+        if (aiProfile == null || (aiProfile.getId() == null && aiProfile.getAiProfileId() == null)) {
+            throw new ServiceException("Create AI profile failed for customer: " + trim(customer.getName()), 502);
+        }
+
+        Integer profileId = aiProfile.getId() != null ? aiProfile.getId() : aiProfile.getAiProfileId();
+        customer.setProfileId(profileId.toString());
+        customer.setAiIdentityId(aiProfile.getUuid());
+        customer.setImageUrl(resolveAiImageUrls(aiProfile, profileId));
+    }
+
+    private void syncNewUserImageWithAi(SubscriptionVehicleCreateRequest.NewUser user, List<MultipartFile> userImages) {
+        List<MultipartFile> images = resolveNewUserImages(user, userImages);
+        if (images.isEmpty()) {
+            return;
+        }
+
+        AiProfileResponse aiProfile = StringUtils.isBlank(user.getProfileId())
+                ? aiFaceApiClient.createProfile(trim(user.getName()), images)
+                : aiFaceApiClient.updateProfile(parseProfileId(user.getProfileId()), trim(user.getName()), images);
+        if (aiProfile == null || (aiProfile.getId() == null && aiProfile.getAiProfileId() == null)) {
+            throw new ServiceException("Create AI profile failed for user: " + trim(user.getName()), 502);
+        }
+
+        Integer profileId = aiProfile.getId() != null ? aiProfile.getId() : aiProfile.getAiProfileId();
+        user.setProfileId(profileId.toString());
+        user.setImageUrl(resolveAiImageUrls(aiProfile, profileId));
+    }
+
+    private void syncOwnerImagesWithAi(ProfileSaveRequest.Owner owner, List<MultipartFile> ownerImages) {
+        if (ownerImages == null || ownerImages.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < ownerImages.size(); i++) {
+            MultipartFile ownerImage = ownerImages.get(i);
+            if (ownerImage == null || ownerImage.isEmpty()) {
+                throw new ServiceException("ownerImage is empty at index: " + i, 400);
+            }
+        }
+
+        AiProfileResponse aiProfile = aiFaceApiClient.createProfile(trim(owner.getFullName()), ownerImages);
+        if (aiProfile == null || (aiProfile.getId() == null && aiProfile.getAiProfileId() == null)) {
+            throw new ServiceException("Create AI profile failed for owner: " + trim(owner.getFullName()), 502);
+        }
+
+        Integer profileId = aiProfile.getId() != null ? aiProfile.getId() : aiProfile.getAiProfileId();
+        owner.setImageUrl(resolveAiImageUrls(aiProfile, profileId));
+    }
+
+    private List<MultipartFile> resolveCustomerImages(ProfileSaveRequest.Customer customer, List<MultipartFile> customerImages, Integer sequentialImageIndex) {
+        if (customerImages == null || customerImages.isEmpty()) {
+            return List.of();
+        }
+
+        if (customer.getIndexs() != null && !customer.getIndexs().isEmpty()) {
+            List<MultipartFile> images = new ArrayList<>();
+            Set<Integer> indexes = new HashSet<>();
+            for (Integer imageIndex : customer.getIndexs()) {
+                if (imageIndex == null) {
+                    continue;
+                }
+                if (!indexes.add(imageIndex)) {
+                    throw new ServiceException("Duplicate customer image index: " + imageIndex, 400);
+                }
+                images.add(resolveCustomerImage(customerImages, imageIndex));
+            }
+            return images;
+        }
+
+        if (sequentialImageIndex == null) {
+            return List.of();
+        }
+        return List.of(resolveCustomerImage(customerImages, sequentialImageIndex));
+    }
+
+    private List<MultipartFile> resolveNewUserImages(SubscriptionVehicleCreateRequest.NewUser user, List<MultipartFile> userImages) {
+        if (userImages == null || userImages.isEmpty() || user.getIndexs() == null || user.getIndexs().isEmpty()) {
+            return List.of();
+        }
+
+        List<MultipartFile> images = new ArrayList<>();
+        Set<Integer> indexes = new HashSet<>();
+        for (Integer imageIndex : user.getIndexs()) {
+            if (imageIndex == null) {
+                continue;
+            }
+            if (!indexes.add(imageIndex)) {
+                throw new ServiceException("Duplicate user image index: " + imageIndex, 400);
+            }
+            images.add(resolveCustomerImage(userImages, imageIndex));
+        }
+        return images;
+    }
+
+    private MultipartFile resolveCustomerImage(List<MultipartFile> customerImages, Integer imageIndex) {
+        if (imageIndex < 0 || imageIndex >= customerImages.size()) {
+            throw new ServiceException("Invalid customer image index: " + imageIndex, 400);
+        }
+        MultipartFile image = customerImages.get(imageIndex);
+        if (image == null || image.isEmpty()) {
+            throw new ServiceException("Customer image is empty at index: " + imageIndex, 400);
+        }
+        return image;
+    }
+
+    private boolean shouldMapCustomerImagesSequentially(ProfileSaveRequest request, List<MultipartFile> customerImages) {
+        if (customerImages == null || customerImages.isEmpty() || hasExplicitImageIndex(request)) {
+            return false;
+        }
+        int imageCount = countNonEmptyImages(customerImages);
+        int customerCount = countCustomers(request);
+        if (imageCount != customerCount) {
+            throw new ServiceException("customerImages count must equal customer count, or set customer.indexs for each customer", 400);
+        }
+        return true;
+    }
+
+    private boolean hasExplicitImageIndex(ProfileSaveRequest request) {
+        for (ProfileSaveRequest.Vehicle vehicle : request.getVehicles()) {
+            for (ProfileSaveRequest.Customer customer : vehicle.getCustomers()) {
+                if (customer.getIndexs() != null && !customer.getIndexs().isEmpty()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private int countCustomers(ProfileSaveRequest request) {
+        int count = 0;
+        for (ProfileSaveRequest.Vehicle vehicle : request.getVehicles()) {
+            count += vehicle.getCustomers().size();
+        }
+        return count;
+    }
+
+    private int countNonEmptyImages(List<MultipartFile> customerImages) {
+        int count = 0;
+        for (MultipartFile image : customerImages) {
+            if (image != null && !image.isEmpty()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private String resolveAiImageUrls(AiProfileResponse aiProfile, Integer profileId) {
+        List<String> imageUrls = resolveAiImageUrlList(aiProfile, profileId);
+        try {
+            return OBJECT_MAPPER.writeValueAsString(imageUrls);
+        } catch (Exception e) {
+            throw new ServiceException("Cannot serialize image urls for profileId: " + profileId, 500);
+        }
+    }
+
+    private List<String> resolveAiImageUrlList(AiProfileResponse aiProfile, Integer profileId) {
+        if (aiProfile.getImages() == null || aiProfile.getImages().isEmpty()) {
+            throw new ServiceException("AI did not return image url for profileId: " + profileId, 502);
+        }
+
+        List<String> imageUrls = aiProfile.getImages().stream()
+                .map(image -> image.get("accessUrl"))
+                .filter(StringUtils::isNotBlank)
+                .map(this::normalizeAiImageUrl)
+                .toList();
+        if (imageUrls.isEmpty()) {
+            throw new ServiceException("AI did not return accessUrl for profileId: " + profileId, 502);
+        }
+        return imageUrls;
+    }
+
+    private String normalizeAiImageUrl(String rawAccessUrl) {
+        if (StringUtils.isBlank(imageUrlAi)) {
+            return rawAccessUrl;
+        }
+
+        try {
+            URI uri = new URI(rawAccessUrl);
+            String pathAndQuery = uri.getRawPath() + (uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery());
+            return imageUrlAi + pathAndQuery;
+        } catch (Exception ignored) {
+            return rawAccessUrl;
+        }
+    }
+
+    private Integer parseProfileId(String profileId) {
+        try {
+            return Integer.valueOf(profileId.trim());
+        } catch (NumberFormatException e) {
+            throw new ServiceException("Invalid profileId: " + profileId, 400);
+        }
+    }
+
+    private Integer parseNullableInteger(String value, String fieldName) {
+        String trimmedValue = trimToNull(value);
+        if (trimmedValue == null) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(trimmedValue);
+        } catch (NumberFormatException e) {
+            throw new ServiceException("Invalid " + fieldName + ": " + value, 400);
+        }
+    }
+
+    private String resolveAiIdentityId(String requestedAiIdentityId, String currentAiIdentityId) {
+        String aiIdentityId = trimToNull(requestedAiIdentityId);
+        if (aiIdentityId != null) {
+            return aiIdentityId;
+        }
+        return StringUtils.defaultString(currentAiIdentityId);
+    }
+
+    private String trim(String value) {
+        return value.trim();
+    }
+
+    private String trimToNull(String value) {
+        return StringUtils.isBlank(value) ? null : value.trim();
+    }
+
+    private String normalizePlate(String plate) {
+        return PlateNumberUtils.normalize(plate);
+    }
+
+    private String trimRequired(String value, String fieldName) {
+        if (StringUtils.isBlank(value)) {
+            throw new ServiceException(fieldName + " must not be blank", 400);
+        }
+        return value.trim();
+    }
+
+    private OffsetDateTime toOffsetDateTime(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof OffsetDateTime offsetDateTime) {
+            return offsetDateTime;
+        }
+        if (value instanceof java.sql.Timestamp timestamp) {
+            return timestamp.toInstant().atZone(java.time.ZoneId.systemDefault()).toOffsetDateTime();
+        }
+        if (value instanceof java.time.LocalDateTime localDateTime) {
+            return localDateTime.atZone(java.time.ZoneId.systemDefault()).toOffsetDateTime();
+        }
+        throw new ServiceException("Unsupported datetime type: " + value.getClass().getName(), 500);
+    }
+
+    private Integer toIntegerId(Long value, String fieldName) {
+        if (value == null) {
+            return null;
+        }
+        if (value > Integer.MAX_VALUE || value < Integer.MIN_VALUE) {
+            throw new ServiceException(fieldName + " exceeds integer range: " + value, 500);
+        }
+        return value.intValue();
+    }
 }
+

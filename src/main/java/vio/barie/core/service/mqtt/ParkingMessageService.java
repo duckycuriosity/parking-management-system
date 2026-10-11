@@ -246,19 +246,6 @@ public class ParkingMessageService {
             return null;
         }
 
-        JSONObject storedContext = payment.getCallbackContext();
-        if (!PaymentCallbackType.SESSION.name().equals(payment.getCallbackType()) || storedContext == null
-                || storedContext.containsKey("calculationId") || storedContext.containsKey("parkingFeePaymentId")
-                || storedContext.containsKey("subscriptionId")) {
-            // This MQTT acknowledgement has neither an authenticated cash-device principal
-            // nor a verified physical transaction reference. It must never settle a scoped
-            // fee/subscription intent, including PAID replays, using client amount/barrier/plate.
-            // Verified scoped settlement belongs to the corresponding payment domain service.
-            log.warn("Cash acknowledgement cannot settle scoped or non-session intent id={} session={}",
-                    payment.getId(), sessionId);
-            return null;
-        }
-
         // Idempotency: payment đã PAID rồi → không cập nhật DB nữa,
         // nhưng vẫn publish payment_success phòng khi thiết bị bị mất gói lần trước
         if ("PAID".equalsIgnoreCase(payment.getStatus())) {

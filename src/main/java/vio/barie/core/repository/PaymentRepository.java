@@ -1,8 +1,6 @@
 package vio.barie.core.repository;
 
 import jakarta.persistence.Tuple;
-import jakarta.persistence.LockModeType;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -19,31 +17,7 @@ import java.util.Optional;
 public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
     Optional<PaymentEntity> findById(Long id);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select p from PaymentEntity p where p.id = :id")
-    Optional<PaymentEntity> lockById(@Param("id") Long id);
-
-    @Query(value = """
-            SELECT * FROM payment
-            WHERE callback_type = 'SUBSCRIPTION' AND status = 'PENDING'
-              AND callback_context->>'subscriptionId' = :subscriptionId
-            ORDER BY created_at DESC, id DESC LIMIT 1
-            """, nativeQuery = true)
-    Optional<PaymentEntity> findLatestPendingBySubscriptionId(@Param("subscriptionId") String subscriptionId);
-
     Optional<PaymentEntity> findByInvoiceNo(String invoiceNo);
-
-    /** JSONB routing data is inspected through JPA without loading payment history or joining entities. */
-    @Query(value = """
-            SELECT EXISTS (
-                SELECT 1 FROM payment
-                WHERE callback_type = 'SESSION'
-                  AND callback_context->>'sessionId' = :sessionId
-                  AND NOT jsonb_exists(callback_context, 'calculationId')
-                  AND NOT jsonb_exists(callback_context, 'parkingFeePaymentId')
-            )
-            """, nativeQuery = true)
-    boolean existsLegacySessionPaymentHistory(@Param("sessionId") String sessionId);
 
     boolean existsById(Long id);
 
@@ -51,8 +25,7 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
 
     @Query(value = """
             SELECT
-                COALESCE(SUM(CASE WHEN p.status = 'PAID' AND p.callback_type IS DISTINCT FROM 'SUBSCRIPTION'
-                                  THEN p.amount ELSE 0 END), 0) AS revenue,
+                COALESCE(SUM(CASE WHEN p.status = 'PAID' THEN p.amount ELSE 0 END), 0) AS revenue,
                 COUNT(CASE WHEN p.status = 'PAID' THEN 1 END)                          AS successful_count,
                 COUNT(CASE WHEN p.status = 'PENDING' THEN 1 END)                       AS pending_count,
                 COUNT(CASE WHEN p.status NOT IN ('PAID', 'PENDING') THEN 1 END)         AS failed_count
@@ -60,10 +33,7 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
             LEFT JOIN parking_session ps
                 ON p.callback_type = 'SESSION'
                AND (p.callback_context->>'sessionId')::bigint = ps.id
-            LEFT JOIN vehicle_subscription vs
-                ON p.callback_type = 'SUBSCRIPTION'
-               AND (p.callback_context->>'subscriptionId')::bigint = vs.id
-            LEFT JOIN parking_lot pl ON COALESCE(ps.parking_lot_id, vs.parking_lot_id) = pl.id
+            LEFT JOIN parking_lot pl ON ps.parking_lot_id = pl.id
             WHERE (
                     CAST(:from AS timestamp) IS NULL
                     OR COALESCE(p.paid_at, p.created_at) >= CAST(:from AS timestamp)
@@ -143,11 +113,10 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
 
     @Query(value = """
             SELECT
-                COALESCE(v_s.plate_number, v_t.plate_number, v_sub.plate_number) AS plate_number,
+                COALESCE(v_s.plate_number, v_t.plate_number) AS plate_number,
                 CASE p.callback_type
                     WHEN 'SESSION' THEN 'Trả vé ngày'
                     WHEN 'TICKET'  THEN 'Đóng vé tháng'
-                    WHEN 'SUBSCRIPTION' THEN 'Đóng thuê bao'
                     ELSE p.callback_type
                 END AS type,
                 p.amount,
@@ -160,12 +129,8 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
             LEFT JOIN parking_session ps
                 ON p.callback_type = 'SESSION'
                AND (p.callback_context->>'sessionId')::bigint = ps.id
-            LEFT JOIN vehicle_subscription vs
-                ON p.callback_type = 'SUBSCRIPTION'
-               AND (p.callback_context->>'subscriptionId')::bigint = vs.id
-            LEFT JOIN parking_lot pl ON COALESCE(ps.parking_lot_id, vs.parking_lot_id) = pl.id
+            LEFT JOIN parking_lot pl ON ps.parking_lot_id = pl.id
             LEFT JOIN vehicle v_s ON ps.vehicle_id = v_s.id
-            LEFT JOIN vehicle v_sub ON vs.vehicle_id = v_sub.id
             LEFT JOIN ticket t
                 ON p.callback_type = 'TICKET'
                AND (p.callback_context->>'ticketId')::bigint = t.id
@@ -199,10 +164,7 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
                     LEFT JOIN parking_session ps
                         ON p.callback_type = 'SESSION'
                        AND (p.callback_context->>'sessionId')::bigint = ps.id
-                    LEFT JOIN vehicle_subscription vs
-                        ON p.callback_type = 'SUBSCRIPTION'
-                       AND (p.callback_context->>'subscriptionId')::bigint = vs.id
-                    LEFT JOIN parking_lot pl ON COALESCE(ps.parking_lot_id, vs.parking_lot_id) = pl.id
+                    LEFT JOIN parking_lot pl ON ps.parking_lot_id = pl.id
                     WHERE (
                         :statusFilter = 'ALL'
                         OR (:statusFilter = 'OTHER' AND p.status NOT IN ('PAID', 'PENDING'))
@@ -246,7 +208,6 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
             LEFT JOIN parking_lot pl ON ps.parking_lot_id = pl.id
             WHERE DATE(p.paid_at) NOT IN (:excludeDates)
               AND p.status = 'PAID'
-              AND p.callback_type IS DISTINCT FROM 'SUBSCRIPTION'
               AND (
                     CAST(:startDate AS timestamp) IS NULL
                     OR p.paid_at >= CAST(:startDate AS timestamp)

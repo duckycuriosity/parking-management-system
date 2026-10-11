@@ -7,7 +7,7 @@ import jakarta.annotation.Nullable;
 import jakarta.persistence.Tuple;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.hibernate.type.descriptor.java.ObjectJavaType;
 import org.springframework.data.domain.*;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
@@ -72,15 +72,6 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final PaymentGateway paymentGateway; // inject adapter vào đây
     private final StringRedisTemplate stringRedisTemplate;
-    private final SubscriptionPaymentReportService subscriptionPaymentReportService;
-    private ParkingFeeWorkflowGuard feeWorkflowGuard;
-
-    @Autowired
-    public void setFeeWorkflowGuard(ParkingFeeWorkflowGuard guard) {
-        this.feeWorkflowGuard = guard;
-    }
-    // Older cache entries include subscription payment quotes; never reuse them for cash reports.
-    private static final String LEGACY_REVENUE_CACHE_PREFIX = "payment:legacy-revenue:v2:";
 
     @Transactional
     public PaymentEntity createSessionPayment(
@@ -95,7 +86,6 @@ public class PaymentService {
             Long laneId,
             LocalDateTime exitTime
     ) {
-        if (feeWorkflowGuard != null) feeWorkflowGuard.lockAndAssertLegacyWorkflowAllowed(sessionId);
         // Mark any previous PENDING payment for this session as FAILED (superseded)
         failPendingPaymentsForSession(sessionId);
 
@@ -155,14 +145,8 @@ public class PaymentService {
 
     public CreatePaymentResponse createPaymentLink(CreatePaymentRequest req) {
         CreatePaymentResponse response = paymentGateway.createPaymentLink(req);
-        log.debug("Payment link result: invoiceNo={}, resultCd={}",
-                response == null ? null : response.getInvoiceNo(), response == null ? null : response.getResultCd());
+        log.debug("CreatePaymentResponse : {}", response);
         return response;
-    }
-
-    /** Subscription intents commit their routing data before this network operation. */
-    public CreatePaymentResponse createPaymentLink(CreatePaymentRequest req, String invoiceNo) {
-        return paymentGateway.createPaymentLink(req, invoiceNo);
     }
 
     ;
@@ -202,15 +186,9 @@ public class PaymentService {
         Number successfulCount = (Number) result.get("successful_count");
         Number pendingCount = (Number) result.get("pending_count");
         Number failedCount = (Number) result.get("failed_count");
-        BigDecimal legacyRevenue = revenue != null ? revenue : BigDecimal.ZERO;
-        var subscriptionCash = subscriptionPaymentReportService.summarize(from, to, parkingLotId, buildingId);
 
         return RevenueSummaryResponse.builder()
-                .totalRevenue(legacyRevenue.add(subscriptionCash.appliedAmount()))
-                .totalReceivedAmount(legacyRevenue.add(subscriptionCash.receivedAmount()))
-                .subscriptionAppliedAmount(subscriptionCash.appliedAmount())
-                .subscriptionReviewRequiredAmount(subscriptionCash.reviewAmount())
-                .subscriptionReceivedTransactions(subscriptionCash.receivedCount())
+                .totalRevenue(revenue != null ? revenue : BigDecimal.ZERO)
                 .successfulTransactions(successfulCount != null ? successfulCount.longValue() : 0L)
                 .pendingTransactions(pendingCount != null ? pendingCount.longValue() : 0L)
                 .failedTransactions(failedCount != null ? failedCount.longValue() : 0L)
@@ -309,23 +287,17 @@ public class PaymentService {
         List<RevenueReportResponse.DailyDetail> details = new ArrayList<>();
 
         for (LocalDate dateKey : allDates) {
-            String cacheKey = LEGACY_REVENUE_CACHE_PREFIX + dateKey;
-            // Today's cash can still change. Receipts are always read live, including old paidAt.
-            if (dateKey.isBefore(LocalDate.now()) && Boolean.TRUE.equals(stringRedisTemplate.hasKey(cacheKey))) {
+            if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(dateKey.toString()))) {
                 log.debug("FOUND REDIS DATE KEY : {} !", dateKey);
                 // StringRedisTemplate stores all values as String — must parse explicitly
-                String countStr = (String) stringRedisTemplate.opsForHash().get(cacheKey, "transactionCount");
-                String revenueStr = (String) stringRedisTemplate.opsForHash().get(cacheKey, "revenue");
+                String countStr = (String) stringRedisTemplate.opsForHash().get(dateKey.toString(), "transactionCount");
+                String revenueStr = (String) stringRedisTemplate.opsForHash().get(dateKey.toString(), "revenue");
                 if (countStr != null && revenueStr != null) {
                     excludeDates.add(dateKey);
                     details.add(RevenueReportResponse.DailyDetail.builder()
                             .date(dateKey.format(displayFmt))
                             .transactionCount(Long.parseLong(countStr))
                             .revenue(new BigDecimal(revenueStr))
-                            .receivedTransactionCount(Long.parseLong(countStr))
-                            .receivedAmount(new BigDecimal(revenueStr))
-                            .subscriptionAppliedAmount(BigDecimal.ZERO)
-                            .subscriptionReviewRequiredAmount(BigDecimal.ZERO)
                             .build());
                 }
             }
@@ -341,39 +313,15 @@ public class PaymentService {
                     .date(displayDate)
                     .transactionCount(count)
                     .revenue(revenue)
-                    .receivedTransactionCount(count)
-                    .receivedAmount(revenue)
-                    .subscriptionAppliedAmount(BigDecimal.ZERO)
-                    .subscriptionReviewRequiredAmount(BigDecimal.ZERO)
                     .build());
 
             // Cache with ISO key so exclude list matches Postgres DATE::text on next call
             if (cacheable) {
                 String dateKey = LocalDate.parse(displayDate, displayFmt).format(redisKeyFmt);
-                if (LocalDate.parse(dateKey).isBefore(LocalDate.now())) {
-                    String cacheKey = LEGACY_REVENUE_CACHE_PREFIX + dateKey;
-                    stringRedisTemplate.opsForHash().put(cacheKey, "transactionCount", String.valueOf(count));
-                    stringRedisTemplate.opsForHash().put(cacheKey, "revenue", revenue.toPlainString());
-                }
+                stringRedisTemplate.opsForHash().put(dateKey, "transactionCount", String.valueOf(count));
+                stringRedisTemplate.opsForHash().put(dateKey, "revenue", revenue.toPlainString());
             }
         }
-
-        // Aggregate the separate receipt source by day. Never join receipts to payment SUM(amount).
-        Map<LocalDate, RevenueReportResponse.DailyDetail> byDay = new HashMap<>();
-        for (var detail : details) byDay.put(LocalDate.parse(detail.getDate(), displayFmt), detail);
-        for (var cash : subscriptionPaymentReportService.daily(from, to, parkingLotId, buildingId)) {
-            var detail = byDay.computeIfAbsent(cash.day(), day -> RevenueReportResponse.DailyDetail.builder()
-                    .date(day.format(displayFmt)).revenue(BigDecimal.ZERO).receivedAmount(BigDecimal.ZERO)
-                    .subscriptionAppliedAmount(BigDecimal.ZERO).subscriptionReviewRequiredAmount(BigDecimal.ZERO)
-                    .build());
-            detail.setRevenue(detail.getRevenue().add(cash.totals().appliedAmount()));
-            detail.setReceivedAmount(detail.getReceivedAmount().add(cash.totals().receivedAmount()));
-            detail.setSubscriptionAppliedAmount(cash.totals().appliedAmount());
-            detail.setSubscriptionReviewRequiredAmount(cash.totals().reviewAmount());
-            detail.setTransactionCount(detail.getTransactionCount() + cash.totals().appliedCount());
-            detail.setReceivedTransactionCount(detail.getReceivedTransactionCount() + cash.totals().receivedCount());
-        }
-        details = new ArrayList<>(byDay.values());
 
         // Sort descending (newest first) — same order as the DB query
         details.sort((a, b) -> LocalDate.parse(b.getDate(), displayFmt)
@@ -401,16 +349,6 @@ public class PaymentService {
 
         return RevenueReportResponse.builder()
                 .totalRevenue(totalRevenue)
-                .totalReceivedAmount(details.stream().map(RevenueReportResponse.DailyDetail::getReceivedAmount)
-                        .reduce(BigDecimal.ZERO, BigDecimal::add))
-                .subscriptionAppliedAmount(details.stream()
-                        .map(RevenueReportResponse.DailyDetail::getSubscriptionAppliedAmount)
-                        .reduce(BigDecimal.ZERO, BigDecimal::add))
-                .subscriptionReviewRequiredAmount(details.stream()
-                        .map(RevenueReportResponse.DailyDetail::getSubscriptionReviewRequiredAmount)
-                        .reduce(BigDecimal.ZERO, BigDecimal::add))
-                .totalReceivedTransactions(details.stream()
-                        .mapToLong(RevenueReportResponse.DailyDetail::getReceivedTransactionCount).sum())
                 .avgDailyRevenue(avgDailyRevenue)
                 .totalTransactions(totalTransactions)
                 .dailyDetails(pagedDetails)
@@ -593,48 +531,32 @@ public class PaymentService {
             // --- Row 0: title ---
             Row r0 = sheet.createRow(0);
             setCell(r0, 0, "BÁO CÁO DOANH THU", titleStyle);
-            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 6));
+            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 2));
 
             // --- Row 1: date range ---
             Row r1 = sheet.createRow(1);
             String rangeLabel = "Từ ngày: " + formatDateRangeStart(dateRange, displayFmt)
                     + "   Đến ngày: " + formatDateRangeEnd(dateRange, displayFmt);
             setCell(r1, 0, rangeLabel, null);
-            sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 6));
-
-            Row r2 = sheet.createRow(2);
-            setCell(r2, 0, "VND. Thuê bao theo ngày UTC: doanh thu gồm APPLIED; thực nhận gồm cả REVIEW_REQUIRED.", null);
-            sheet.addMergedRegion(new CellRangeAddress(2, 2, 0, 6));
+            sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 2));
 
             // --- Row 3: summary header ---
             Row r3 = sheet.createRow(3);
             setCell(r3, 0, "Tổng doanh thu (VND)", boldCenter);
             setCell(r3, 1, "Trung bình / ngày (VND)", boldCenter);
             setCell(r3, 2, "Tổng giao dịch", boldCenter);
-            setCell(r3, 3, "Tiền thực nhận (VND)", boldCenter);
-            setCell(r3, 4, "Thuê bao đã áp dụng (VND)", boldCenter);
-            setCell(r3, 5, "Thuê bao cần đối soát (VND)", boldCenter);
-            setCell(r3, 6, "Giao dịch thực nhận", boldCenter);
 
             // --- Row 4: summary values ---
             Row r4 = sheet.createRow(4);
             setNumCell(r4, 0, report.getTotalRevenue().doubleValue(), boldCurrencyCenter);
             setNumCell(r4, 1, report.getAvgDailyRevenue().doubleValue(), boldCurrencyCenter);
             setNumCell(r4, 2, (double) report.getTotalTransactions(), boldCenter);
-            setNumCell(r4, 3, report.getTotalReceivedAmount().doubleValue(), boldCurrencyCenter);
-            setNumCell(r4, 4, report.getSubscriptionAppliedAmount().doubleValue(), boldCurrencyCenter);
-            setNumCell(r4, 5, report.getSubscriptionReviewRequiredAmount().doubleValue(), boldCurrencyCenter);
-            setNumCell(r4, 6, (double) report.getTotalReceivedTransactions(), boldCenter);
 
             // --- Row 6: table header ---
             Row r6 = sheet.createRow(6);
             setCell(r6, 0, "Ngày", boldCenter);
             setCell(r6, 1, "Số giao dịch", boldCenter);
             setCell(r6, 2, "Doanh thu (VND)", boldCenter);
-            setCell(r6, 3, "Tiền thực nhận (VND)", boldCenter);
-            setCell(r6, 4, "Thuê bao đã áp dụng (VND)", boldCenter);
-            setCell(r6, 5, "Thuê bao cần đối soát (VND)", boldCenter);
-            setCell(r6, 6, "Giao dịch thực nhận", boldCenter);
 
             // --- Data rows ---
             int rowIdx = 7;
@@ -643,10 +565,6 @@ public class PaymentService {
                 setCell(dr, 0, d.getDate(), cell);
                 setNumCell(dr, 1, (double) d.getTransactionCount(), cell);
                 setNumCell(dr, 2, d.getRevenue().doubleValue(), cellCurrency);
-                setNumCell(dr, 3, d.getReceivedAmount().doubleValue(), cellCurrency);
-                setNumCell(dr, 4, d.getSubscriptionAppliedAmount().doubleValue(), cellCurrency);
-                setNumCell(dr, 5, d.getSubscriptionReviewRequiredAmount().doubleValue(), cellCurrency);
-                setNumCell(dr, 6, (double) d.getReceivedTransactionCount(), cell);
             }
 
             // --- Footer row ---
@@ -654,19 +572,11 @@ public class PaymentService {
             setCell(footer, 0, "Tổng cộng", footerStyle);
             setNumCell(footer, 1, (double) report.getTotalTransactions(), footerStyle);
             setNumCell(footer, 2, report.getTotalRevenue().doubleValue(), footerCurrencyStyle);
-            setNumCell(footer, 3, report.getTotalReceivedAmount().doubleValue(), footerCurrencyStyle);
-            setNumCell(footer, 4, report.getSubscriptionAppliedAmount().doubleValue(), footerCurrencyStyle);
-            setNumCell(footer, 5, report.getSubscriptionReviewRequiredAmount().doubleValue(), footerCurrencyStyle);
-            setNumCell(footer, 6, (double) report.getTotalReceivedTransactions(), footerStyle);
 
             // --- Column widths ---
             sheet.setColumnWidth(0, 16 * 256);
             sheet.setColumnWidth(1, 20 * 256);
             sheet.setColumnWidth(2, 24 * 256);
-            sheet.setColumnWidth(3, 25 * 256);
-            sheet.setColumnWidth(4, 30 * 256);
-            sheet.setColumnWidth(5, 32 * 256);
-            sheet.setColumnWidth(6, 25 * 256);
 
             wb.write(out);
             return out.toByteArray();

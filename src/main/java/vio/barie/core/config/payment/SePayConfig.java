@@ -14,9 +14,6 @@ public class SePayConfig {
     /** Bearer token để backend chủ động gọi SePay API (inquiry, reconciliation, stats). */
     private String apiToken;
 
-    /** Optional full endpoint for subscription inquiries; does not change legacy inquiry routing. */
-    private String subscriptionTransactionsUrl;
-
     /** API key SePay đính kèm trong header "Authorization: Apikey <KEY>" khi gọi webhook. */
     private String webhookApiKey;
 
@@ -39,8 +36,4 @@ public class SePayConfig {
     private long reconciliationIntervalMs = 5L * 60L * 1000L;
 
     public String getTransactionsListUrl()   { return apiBaseUrl + "/transactions"; }
-    public String getSubscriptionTransactionsListUrl() {
-        return subscriptionTransactionsUrl == null || subscriptionTransactionsUrl.isBlank()
-                ? getTransactionsListUrl() : subscriptionTransactionsUrl;
-    }
 }

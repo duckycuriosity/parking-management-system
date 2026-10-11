@@ -4,8 +4,6 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import vio.barie.core.entity.base.BaseEntity;
-import vio.barie.core.entity.converter.AiProfileIdConverter;
-import java.time.OffsetDateTime;
 
 @Data
 @EqualsAndHashCode(callSuper = false)
@@ -13,28 +11,11 @@ import java.time.OffsetDateTime;
 @Table(name = "parking_customer")
 public class ParkingCustomerEntity extends BaseEntity {
 
-    @Column(name = "ai_identity_id", length = 100)
+    @Column(name = "ai_identity_id", nullable = false, length = 100)
     private String aiIdentityId;
 
-    @Convert(converter = AiProfileIdConverter.class)
-    @Column(name = "ai_profile_id", columnDefinition = "bigint")
+    @Column(name = "ai_profile_id", nullable = false, length = 100)
     private Integer aiProfileId;
-
-    @Column(name = "ai_sync_state", nullable = false, length = 40)
-    private String aiSyncState = "NOT_SYNCED";
-
-    @Column(name = "ai_sync_token", length = 36)
-    private String aiSyncToken;
-
-    @Column(name = "ai_sync_started_at")
-    private OffsetDateTime aiSyncStartedAt;
-
-    @Column(name = "ai_sync_profile_id")
-    private Long aiSyncProfileId;
-
-    @Version
-    @Column(name = "row_version", nullable = false)
-    private long rowVersion;
 
     @Column(name = "zalo_id", length = 100)
     private String zaloId;

@@ -7,8 +7,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.InsufficientAuthenticationException;
@@ -38,13 +36,6 @@ public class SecurityConfig {
 
     private final UserContextFilter userContextFilter;
     private final JwtAuthConverter jwtAuthConverter;
-    private final FeePolicySecuritySettings feePolicySecuritySettings;
-
-    @Bean("vehicleSubscriptionSecurity")
-    public VehicleSubscriptionSecuritySettings vehicleSubscriptionSecuritySettings(
-            @Value("${app.vehicle-subscription.auth-enabled:true}") boolean authEnabled) {
-        return new VehicleSubscriptionSecuritySettings(authEnabled);
-    }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
@@ -60,59 +51,6 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
-    }
-
-    @Bean
-    @Order(1)
-    public SecurityFilterChain feePolicySecurityFilterChain(HttpSecurity http) throws Exception {
-        // Both HTTP and method security use the same module-scoped startup setting.
-        http.securityMatcher("/api/fee-policies", "/api/fee-policies/**",
-                        "/api/parking-fees", "/api/parking-fees/**")
-                .cors(cors -> { })
-                .csrf(csrf -> csrf.disable())
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint(customAuthEntryPoint())
-                        .accessDeniedHandler(customAccessDeniedHandler()));
-
-        if (feePolicySecuritySettings.isAuthEnabled()) {
-            http.authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
-                    .oauth2ResourceServer(oauth2 -> oauth2
-                            .authenticationEntryPoint(customAuthEntryPoint())
-                            .accessDeniedHandler(customAccessDeniedHandler())
-                            .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthConverter)));
-            http.addFilterAfter(userContextFilter, BearerTokenAuthenticationFilter.class);
-        } else {
-            // No JWT filter is installed: frontend development needs no token or issuer.
-            http.authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
-        }
-        return http.build();
-    }
-
-    @Bean
-    @Order(2)
-    public SecurityFilterChain vehicleSubscriptionSecurityFilterChain(
-            HttpSecurity http, VehicleSubscriptionSecuritySettings settings) throws Exception {
-        http.securityMatcher("/api/vehicle-subscriptions", "/api/vehicle-subscriptions/**",
-                        "/api/subscription-packages", "/api/subscription-packages/**",
-                        "/api/dangpnOwnerAccount", "/api/dangpnOwnerAccount/**",
-                        "/api/owner-accounts", "/api/owner-accounts/**")
-                .cors(cors -> { })
-                .csrf(csrf -> csrf.disable())
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint(customAuthEntryPoint())
-                        .accessDeniedHandler(customAccessDeniedHandler()));
-
-        if (settings.isAuthEnabled()) {
-            http.authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
-                    .oauth2ResourceServer(oauth2 -> oauth2
-                            .authenticationEntryPoint(customAuthEntryPoint())
-                            .accessDeniedHandler(customAccessDeniedHandler())
-                            .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthConverter)));
-            http.addFilterAfter(userContextFilter, BearerTokenAuthenticationFilter.class);
-        } else {
-            http.authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
-        }
-        return http.build();
     }
 
     @Bean

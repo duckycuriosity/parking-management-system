@@ -3,8 +3,6 @@ package vio.barie.core.repository;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.jpa.repository.Lock;
-import jakarta.persistence.LockModeType;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -12,22 +10,8 @@ import vio.barie.core.entity.OwnerAccountEntity;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.util.Optional;
-import java.util.List;
 
 public interface OwnerAccountRepository extends JpaRepository<OwnerAccountEntity, Long>, JpaSpecificationExecutor<OwnerAccountEntity> {
-
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select o from OwnerAccountEntity o where o.id = :id")
-    Optional<OwnerAccountEntity> findForUpdate(@Param("id") Long id);
-
-    @Query("select v.ownerId as ownerId, count(v) as vehicleCount from VehicleEntity v where v.ownerId in :ownerIds group by v.ownerId")
-    List<OwnerVehicleCount> vehicleCounts(@Param("ownerIds") List<Long> ownerIds);
-
-    interface OwnerVehicleCount {
-        Long getOwnerId();
-        long getVehicleCount();
-    }
 
     boolean existsByPhone(String phone);
 
