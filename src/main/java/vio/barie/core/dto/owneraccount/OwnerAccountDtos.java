@@ -1,5 +1,6 @@
 package vio.barie.core.dto.owneraccount;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -14,6 +15,13 @@ import java.util.List;
 
 public final class OwnerAccountDtos {
     private OwnerAccountDtos() {
+    }
+
+    public abstract static class Input {
+        @JsonAnySetter
+        public void rejectUnknown(String field, Object value) {
+            throw new IllegalArgumentException("Unsupported request field: " + field);
+        }
     }
 
     @Data
@@ -34,7 +42,7 @@ public final class OwnerAccountDtos {
     }
 
     @Data
-    public static class OwnerAccountRequest {
+    public static class OwnerAccountRequest extends Input {
         @NotBlank(message = "fullName is required")
         @Size(max = 255, message = "fullName must not exceed 255 characters")
         private String fullName;
@@ -51,7 +59,6 @@ public final class OwnerAccountDtos {
         private String zaloLink;
         private String note;
 
-        @NotBlank(message = "status is required")
         @Size(max = 20, message = "status must not exceed 20 characters")
         private String status;
     }
@@ -75,6 +82,8 @@ public final class OwnerAccountDtos {
 
     @Data
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class OwnerAccountVehicleParkingCustomerResponse {
         private Long id;
         private String fullName;
@@ -94,28 +103,36 @@ public final class OwnerAccountDtos {
 
         @Data
         @Builder
+        @NoArgsConstructor
+        @AllArgsConstructor
         public static class VehicleResponse {
             private Long id;
             private String clientId;
             private String plate;
             private String vehicleType;
             private String status;
+            private OffsetDateTime createdAt;
+            private SubscriptionResponse subscription;
         }
 
         @Data
         @Builder
+        @NoArgsConstructor
+        @AllArgsConstructor
         public static class CustomerResponse {
             private Long id;
             private String clientId;
             private String name;
             private String phone;
             private String imageUrl;
-            private String profileId;
+            private Integer aiProfileId;
             private String status;
         }
 
         @Data
         @Builder
+        @NoArgsConstructor
+        @AllArgsConstructor
         public static class VehicleCustomerResponse {
             private Long id;
             private Long vehicleId;
@@ -133,27 +150,17 @@ public final class OwnerAccountDtos {
         private String name;
         private String phone;
         private String imageUrl;
-        private String profileId;
+        private Integer aiProfileId;
         private String status;
         private OffsetDateTime createdAt;
         private OffsetDateTime updatedAt;
     }
 
     @Data
-    public static class ParkingCustomerUpdateRequest {
-        @Size(max = 255, message = "name must not exceed 255 characters")
-        private String name;
-
-        @Size(max = 30, message = "phone must not exceed 30 characters")
-        private String phone;
-
-        private String imageUrl;
-
-        @Size(max = 255, message = "profileId must not exceed 255 characters")
-        private String profileId;
-
-        @Size(max = 20, message = "status must not exceed 20 characters")
-        private String status;
+    public static class ParkingCustomerUpdateRequest extends Input {
+        @Size(max = 255) private String name;
+        @Size(max = 20) private String phone;
+        @Size(max = 20) private String status;
     }
 
     @Data
@@ -210,65 +217,27 @@ public final class OwnerAccountDtos {
     }
 
     @Data
-    public static class SubscriptionVehicleCreateRequest {
-        @NotBlank(message = "plate is required")
-        @Size(max = 30, message = "plate must not exceed 30 characters")
-        private String plate;
-
-        @NotBlank(message = "vehicleType is required")
-        @Size(max = 20, message = "vehicleType must not exceed 20 characters")
-        private String vehicleType;
-
-        @NotBlank(message = "vehicle status is required")
-        @Size(max = 20, message = "vehicle status must not exceed 20 characters")
-        private String status;
-
-        @Valid
-        private ProfileSaveRequest.Subscription subscription;
-
-        @Valid
-        private List<ExistingUser> users;
-
-        @Valid
-        private List<NewUser> newUsers;
+    public static class SubscriptionVehicleCreateRequest extends Input {
+        @NotBlank @Size(max = 100) private String requestKey;
+        @NotBlank @Size(max = 30) private String plate;
+        @NotBlank @Size(max = 20) private String vehicleType;
+        @Valid private ProfileSaveRequest.Subscription subscription;
+        @Valid private List<ExistingUser> users;
+        @Valid private List<NewUser> newUsers;
 
         @Data
-        public static class ExistingUser {
-            @NotNull(message = "customerId is required")
-            private Long customerId;
-
-            @NotBlank(message = "relationType is required")
-            @Size(max = 30, message = "relationType must not exceed 30 characters")
-            private String relationType;
-
-            @NotBlank(message = "user relation status is required")
-            @Size(max = 20, message = "user relation status must not exceed 20 characters")
-            private String status;
+        public static class ExistingUser extends Input {
+            @NotNull private Long customerId;
+            @Size(max = 30) private String relationType;
         }
 
         @Data
-        public static class NewUser {
-            @NotBlank(message = "name is required")
-            @Size(max = 255, message = "name must not exceed 255 characters")
-            private String name;
-
-            @Size(max = 30, message = "phone must not exceed 30 characters")
-            private String phone;
-
-            private String imageUrl;
-
-            @Size(max = 255, message = "profileId must not exceed 255 characters")
-            private String profileId;
-
-            private List<Integer> indexs;
-
-            @NotBlank(message = "relationType is required")
-            @Size(max = 30, message = "relationType must not exceed 30 characters")
-            private String relationType;
-
-            @NotBlank(message = "user status is required")
-            @Size(max = 20, message = "user status must not exceed 20 characters")
-            private String status;
+        public static class NewUser extends Input {
+            @NotBlank @Size(max = 255) private String name;
+            @Size(max = 20) private String phone;
+            @com.fasterxml.jackson.annotation.JsonAlias("indexs")
+            private List<Integer> imageIndexes;
+            @Size(max = 30) private String relationType;
         }
     }
 
@@ -282,6 +251,7 @@ public final class OwnerAccountDtos {
         private String status;
         private OffsetDateTime createdAt;
         private List<UserResponse> users;
+        private SubscriptionResponse subscription;
 
         @Data
         @Builder
@@ -290,33 +260,30 @@ public final class OwnerAccountDtos {
             private String name;
             private String phone;
             private String imageUrl;
-            private String profileId;
+            private Integer aiProfileId;
             private String relationType;
             private String relationStatus;
         }
     }
 
     @Data
-    public static class VehicleUserSaveRequest {
-        private Long customerId;
+    public static class VehicleUserSaveRequest extends Input {
+        @NotNull private Long customerId;
+        @Size(max = 30) private String relationType;
+    }
 
-        @Size(max = 255, message = "name must not exceed 255 characters")
-        private String name;
-
-        @Size(max = 30, message = "phone must not exceed 30 characters")
-        private String phone;
-
-        private String imageUrl;
-
-        @Size(max = 255, message = "profileId must not exceed 255 characters")
-        private String profileId;
-
-        @NotBlank(message = "relationType is required")
-        @Size(max = 30, message = "relationType must not exceed 30 characters")
-        private String relationType;
-
-        @NotBlank(message = "status is required")
-        @Size(max = 20, message = "status must not exceed 20 characters")
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SubscriptionResponse {
+        private Long id;
+        private Long packageId;
+        private Long priceVnd;
+        private String registrationType;
         private String status;
+        private OffsetDateTime startsAt;
+        private OffsetDateTime endsAt;
+        private OffsetDateTime paymentDeadlineAt;
     }
 }

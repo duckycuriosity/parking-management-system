@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -22,6 +23,7 @@ import vio.barie.core.entity.TicketEntity;
 import vio.barie.core.repository.PaymentRepository;
 import vio.barie.core.repository.TicketRepository;
 import vio.barie.core.service.CalculatorService;
+import vio.barie.core.service.VehicleSubscriptionPaymentService;
 import vio.barie.core.service.mqtt.ParkingMessageService;
 import vio.barie.core.service.payment.common.PaymentGateway;
 
@@ -29,6 +31,8 @@ import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 import java.util.regex.Matcher;
@@ -44,6 +48,7 @@ public class SePayGateway implements PaymentGateway {
     private final RestClient restClient = RestClient.create();
     private final ParkingMessageService ioTService;
     private final CalculatorService calculatorService;
+    private final ObjectProvider<VehicleSubscriptionPaymentService> subscriptionPayments;
 
     private static final DateTimeFormatter SEPAY_DATE_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -57,7 +62,7 @@ public class SePayGateway implements PaymentGateway {
             throw new ServiceException("Chưa cấu hình sepay.bank-account", 500);
         }
 
-        String invoiceNo = generateInvoiceNo();
+        String invoiceNo = req.getInvoiceNo() != null ? req.getInvoiceNo() : generateInvoiceNo();
         String qrUrl = buildVietQrUrl(
                 sepayConfig.getBankAccount(),
                 sepayConfig.getBankBrand(),
@@ -118,6 +123,7 @@ public class SePayGateway implements PaymentGateway {
 
         // (3) Parse invoiceNo
         String invoiceNo = extractInvoiceNo(payload.getCode());
+        if (invoiceNo == null) invoiceNo = extractInvoiceNo(payload.getContent());
         if (invoiceNo == null) {
             log.warn("SePay webhook: không tìm thấy invoiceNo trong content='{}', payload={}",
                     payload.getContent(), payload);
@@ -125,9 +131,27 @@ public class SePayGateway implements PaymentGateway {
         }
 
         // (4) Tìm payment + so khớp số tiền
+        final String resolvedInvoiceNo = invoiceNo;
         PaymentEntity payment = paymentRepository.findByInvoiceNo(invoiceNo)
                 .orElseThrow(() -> new ServiceException(
-                        "SePay webhook: không tìm thấy payment invoiceNo=" + invoiceNo, 404));
+                        "SePay webhook: không tìm thấy payment invoiceNo=" + resolvedInvoiceNo, 404));
+
+        if (PaymentCallbackType.SUBSCRIPTION.name().equals(payment.getCallbackType())) {
+            if (!sepayConfig.getBankAccount().equals(payload.getAccountNumber())) {
+                throw new ServiceException("SePay receiving account does not match configured account", 400);
+            }
+            OffsetDateTime paidAt = null;
+            try {
+                if (payload.getTransactionDate() != null) paidAt = LocalDateTime
+                        .parse(payload.getTransactionDate(), SEPAY_DATE_FMT)
+                        .atZone(ZoneId.of("Asia/Ho_Chi_Minh")).toOffsetDateTime();
+            } catch (RuntimeException ignored) {
+                // Missing or malformed gateway time is stored for review, never replaced by server time.
+            }
+            subscriptionPayments.getObject().applyVerifiedPayment(invoiceNo, "SEPAY", payload.getId(),
+                    payload.getTransferAmount(), "VND", paidAt, "OK", payload.getDescription());
+            return;
+        }
 
 //        if (payment.getAmount() != null && payload.getTransferAmount() != null
 //                && payment.getAmount().compareTo(payload.getTransferAmount()) != 0) {
@@ -263,9 +287,12 @@ public class SePayGateway implements PaymentGateway {
         }
     }
 
-    private String generateInvoiceNo() {
-        return sepayConfig.getInvoicePrefix() + System.currentTimeMillis();
+    public String generateInvoiceNo(Long paymentId) {
+        return sepayConfig.getInvoicePrefix() + (paymentId == null ? String.valueOf(System.currentTimeMillis()) : "0" + paymentId);
     }
+
+    public String gatewayName() { return "SEPAY"; }
+    public boolean createsLinkRemotely() { return false; }
 
     private String sanitize(String input) {
         if (input == null) return "";
