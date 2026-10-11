@@ -2,7 +2,6 @@ package vio.barie.core.dto.owneraccount;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -15,8 +14,6 @@ import java.util.List;
 /** A confirmation command: existing objects use only their IDs; new objects use their input fields. */
 @Data
 public class ProfileSaveRequest extends OwnerAccountDtos.Input {
-    @NotBlank @Size(max = 100)
-    private String requestKey;
     @Valid @NotNull
     private Owner owner;
     @Valid @NotEmpty @Size(max = 50)

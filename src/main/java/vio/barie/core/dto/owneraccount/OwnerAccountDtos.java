@@ -218,7 +218,6 @@ public final class OwnerAccountDtos {
 
     @Data
     public static class SubscriptionVehicleCreateRequest extends Input {
-        @NotBlank @Size(max = 100) private String requestKey;
         @NotBlank @Size(max = 30) private String plate;
         @NotBlank @Size(max = 20) private String vehicleType;
         @Valid private ProfileSaveRequest.Subscription subscription;

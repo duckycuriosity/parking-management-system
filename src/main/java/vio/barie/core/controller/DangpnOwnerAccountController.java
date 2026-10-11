@@ -33,11 +33,6 @@ public class DangpnOwnerAccountController {
         return Result.success(ownerAccountService.list(request == null ? OwnerAccountPaginationRequest.builder().build() : request));
     }
 
-    @PostMapping("/subscription-registrants/list")
-    public ResponseEntity<?> listSubscriptionRegistrants(@Valid @RequestBody(required = false) SubscriptionRegistrantPageRequest request) {
-        return Result.success(ownerAccountService.listSubscriptionRegistrants(request == null ? SubscriptionRegistrantPageRequest.builder().build() : request));
-    }
-
     @PostMapping(value = "/profiles", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> createProfile(@Valid @RequestBody ProfileSaveRequest request) {
         return created(ownerAccountProfileService.createProfile(request));
@@ -64,7 +59,7 @@ public class DangpnOwnerAccountController {
 
     @PatchMapping("/subscription-registrants/{ownerId}/customers/{customerId}")
     public ResponseEntity<?> updateCustomer(@PathVariable Long ownerId, @PathVariable Long customerId,
-            @Valid @RequestBody ParkingCustomerUpdateRequest request) {
+                                            @Valid @RequestBody ParkingCustomerUpdateRequest request) {
         return Result.success(ownerAccountProfileService.updateCustomer(ownerId, customerId, request));
     }
 
@@ -82,12 +77,6 @@ public class DangpnOwnerAccountController {
     @PutMapping("/{id}")
     public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody OwnerAccountRequest request) {
         return Result.success(ownerAccountService.update(id, request));
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(@PathVariable Long id) {
-        ownerAccountService.delete(id);
-        return Result.success(id);
     }
 
     private List<MultipartFile> files(MultipartFile[] files) { return files == null ? null : Arrays.asList(files); }

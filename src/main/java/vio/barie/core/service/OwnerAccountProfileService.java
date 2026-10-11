@@ -39,7 +39,6 @@ public class OwnerAccountProfileService {
     private final VehicleCustomerRepository vehicleCustomerRepository;
     private final VehicleSubscriptionService vehicleSubscriptionService;
     private final PlatformTransactionManager transactionManager;
-    private final ProfileRegistrationGuard registrationGuard;
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public OwnerAccountVehicleParkingCustomerResponse createProfile(ProfileSaveRequest request) {
@@ -60,10 +59,8 @@ public class OwnerAccountProfileService {
             throw new ServiceException("Registration must run outside an existing database transaction", 409);
         Map<ProfileSaveRequest.Customer, String> keys = new IdentityHashMap<>();
         Map<String, Person> people = new LinkedHashMap<>();
-        return registrationGuard.execute(request.getRequestKey(), request, images, ownerImages,
-                OwnerAccountVehicleParkingCustomerResponse.class,
-                () -> people.putAll(validateAndPrepare(request, images, ownerImages, keys)),
-                () -> createProfileOnce(request, keys, people));
+        people.putAll(validateAndPrepare(request, images, ownerImages, keys));
+        return createProfileOnce(request, keys, people);
     }
 
     private OwnerAccountVehicleParkingCustomerResponse createProfileOnce(ProfileSaveRequest request,
@@ -91,7 +88,6 @@ public class OwnerAccountProfileService {
         if (request == null || request.getOwner() == null || request.getVehicles() == null || request.getVehicles().isEmpty()) {
             throw new ServiceException("owner and vehicles are required", 400);
         }
-        required(request.getRequestKey(), "requestKey");
         ProfileSaveRequest.Owner owner = request.getOwner();
         OwnerAccountEntity selected = owner.getId() == null ? null : findOwner(owner.getId());
         if (selected == null) {
@@ -264,7 +260,6 @@ public class OwnerAccountProfileService {
     public SubscriptionVehicleCreateResponse addVehicle(Long ownerId, SubscriptionVehicleCreateRequest request,
             List<MultipartFile> images) {
         ProfileSaveRequest registration = new ProfileSaveRequest();
-        registration.setRequestKey(request.getRequestKey());
         ProfileSaveRequest.Owner owner = new ProfileSaveRequest.Owner();
         owner.setId(ownerId);
         registration.setOwner(owner);

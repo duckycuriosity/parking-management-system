@@ -1,6 +1,5 @@
 package vio.barie.core.service;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
@@ -21,7 +20,6 @@ import vio.barie.core.repository.*;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -36,19 +34,9 @@ class OwnerAccountProfileServiceTest {
     @Mock VehicleCustomerRepository relations;
     @Mock VehicleSubscriptionService subscriptions;
     @Mock PlatformTransactionManager transactions;
-    @Mock ProfileRegistrationGuard guard;
     @InjectMocks OwnerAccountProfileService service;
 
     private final MockMultipartFile image = new MockMultipartFile("image", "face.jpg", "image/jpeg", new byte[]{1, 2});
-
-    @BeforeEach
-    void passthroughGuard() {
-        lenient().when(guard.execute(anyString(), any(), any(), any(), any(), any(), any()))
-                .thenAnswer(call -> {
-                    ((Runnable) call.getArgument(5)).run();
-                    return ((Supplier<?>) call.getArgument(6)).get();
-                });
-    }
 
     @Test
     void newPersonUsesBackendAiIdAndRegistersOrderAfterDriverAndRelationSave() {
@@ -294,7 +282,6 @@ class OwnerAccountProfileServiceTest {
 
     private ProfileSaveRequest newRegistration() {
         ProfileSaveRequest request = new ProfileSaveRequest();
-        request.setRequestKey("registration-1");
         ProfileSaveRequest.Owner owner = new ProfileSaveRequest.Owner();
         owner.setFullName("Owner");
         owner.setPhone("0900000001");

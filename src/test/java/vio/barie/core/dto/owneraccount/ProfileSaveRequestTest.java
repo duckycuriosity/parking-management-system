@@ -15,9 +15,8 @@ class ProfileSaveRequestTest {
     private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
     @Test
-    void existingObjectsRequireOnlyIdsAndRegistrationKey() {
+    void existingObjectsRequireOnlyIds() {
         ProfileSaveRequest request = new ProfileSaveRequest();
-        request.setRequestKey("confirm-1");
         ProfileSaveRequest.Owner owner = new ProfileSaveRequest.Owner();
         owner.setId(1L);
         request.setOwner(owner);
@@ -29,6 +28,18 @@ class ProfileSaveRequestTest {
         request.setVehicles(List.of(vehicle));
 
         assertThat(validator.validate(request)).isEmpty();
+    }
+
+    @Test
+    void requestKeyIsNoLongerAcceptedOnProfileRegistration() {
+        assertThatThrownBy(() -> json.readValue("{\"requestKey\":\"confirm-1\"}", ProfileSaveRequest.class))
+                .isInstanceOf(JsonMappingException.class);
+    }
+
+    @Test
+    void requestKeyIsNoLongerAcceptedOnVehicleRegistration() {
+        assertThatThrownBy(() -> json.readValue("{\"requestKey\":\"confirm-1\"}", OwnerAccountDtos.SubscriptionVehicleCreateRequest.class))
+                .isInstanceOf(JsonMappingException.class);
     }
 
     @Test

@@ -158,15 +158,6 @@ public class OwnerAccountService {
         return toResponse(ownerAccountRepository.save(entity));
     }
 
-    @Transactional
-    public void delete(Long id) {
-        OwnerAccountEntity entity = findEntity(id);
-        if (vehicleRepository.existsByOwnerId(id) || parkingCustomerRepository.existsByOwnerId(id)) {
-            throw new ServiceException("Remove owned vehicles and drivers before deleting the owner", 409);
-        }
-        ownerAccountRepository.delete(entity);
-    }
-
     private OwnerAccountEntity findEntity(Long id) {
         return ownerAccountRepository.findById(id)
                 .orElseThrow(() -> new ServiceException("Owner account not found", 404));
