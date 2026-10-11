@@ -18,6 +18,12 @@ import java.util.List;
 @Builder
 public class ParkingSessionPaymentDetailResponse {
     private Long sessionId;
+
+    private Long beneficiaryAccountId;
+    private String bankName;
+    private String accountNumber;
+    private String accountHolderName;
+    
     private String plateNumber;
     private String userName;
     private String entryLaneName;
@@ -43,6 +49,7 @@ public class ParkingSessionPaymentDetailResponse {
     private String currency;
     private String paymentMethod;
     private LocalDateTime paidAt;
+    private LocalDateTime updatedAt;
     private String paymentStatus;
     private String resultCode;
     private String resultMessage;
