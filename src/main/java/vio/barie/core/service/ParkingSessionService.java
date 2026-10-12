@@ -153,13 +153,14 @@ public class ParkingSessionService {
     private Map<Long, PaymentEntity> fetchPaidPaymentMap(List<ParkingSessionEntity> sessions) {
         List<Long> sessionIds = sessions.stream()
                 .map(ParkingSessionEntity::getId)
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
         if (sessionIds.isEmpty()) return Collections.emptyMap();
 
         return paymentRepository.findLatestBySessionIds(sessionIds).stream()
-                .filter(p -> p.getCallbackContext() != null && p.getCallbackContext().getLong("sessionId") != null)
+                .filter(p -> p.getSessionId() != null)
                 .collect(Collectors.toMap(
-                        p -> p.getCallbackContext().getLong("sessionId"),
+                        PaymentEntity::getSessionId,
                         p -> p,
                         (a, b) -> a
                 ));
@@ -168,13 +169,14 @@ public class ParkingSessionService {
     private Map<Long, PaymentEntity> fetchAnyStatusPaymentMap(List<ParkingSessionEntity> sessions) {
         List<Long> sessionIds = sessions.stream()
                 .map(ParkingSessionEntity::getId)
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
         if (sessionIds.isEmpty()) return Collections.emptyMap();
 
         return paymentRepository.findLatestAnyStatusBySessionIds(sessionIds).stream()
-                .filter(p -> p.getCallbackContext() != null && p.getCallbackContext().getLong("sessionId") != null)
+                .filter(p -> p.getSessionId() != null)
                 .collect(Collectors.toMap(
-                        p -> p.getCallbackContext().getLong("sessionId"),
+                        PaymentEntity::getSessionId,
                         p -> p,
                         (a, b) -> a
                 ));
@@ -281,6 +283,7 @@ public class ParkingSessionService {
                 .location(location)
                 .entryImageInfo(entity.getEntryImageInfo())
                 .exitImageInfo(entity.getExitImageInfo())
+                // các trường payment
                 .paymentId(payment != null ? payment.getId() : null)
                 .invoiceNo(payment != null ? payment.getInvoiceNo() : null)
                 .paymentAmount(payment != null ? payment.getAmount() : null)
@@ -288,6 +291,7 @@ public class ParkingSessionService {
                 .currency(payment != null ? payment.getCurrency() : null)
                 .paymentMethod(payment != null ? payment.getPaymentMethod() : null)
                 .paidAt(payment != null ? payment.getPaidAt() : null)
+                .updatedAt(payment != null ? payment.getUpdatedAt() : null)
                 .paymentStatus(payment != null ? payment.getStatus() : null)
                 .resultCode(payment != null ? payment.getResultCode() : null)
                 .resultMessage(payment != null ? payment.getResultMessage() : null)
@@ -296,6 +300,13 @@ public class ParkingSessionService {
                 .gateway(payment != null ? payment.getGateway() : null)
                 .referenceCode(payment != null ? payment.getReferenceCode() : null)
                 .sepayTxId(payment != null ? payment.getSepayTxId() : null)
+
+                // các trường thông tin tài khoản ngân hàng
+                .beneficiaryAccountId(payment != null ? payment.getBeneficiaryAccountId() : null)
+                .bankName(payment != null ? payment.getBankName() : null)
+                .accountNumber(payment != null ? payment.getAccountNumber() : null)
+                .accountHolderName(payment != null ? payment.getAccountHolderName() : null)
+
                 .build();
     }
 
