@@ -25,7 +25,7 @@ public class BuildingCreateRequest {
     @Size(max = 10, message = "Phone number must not exceed 10 characters")
     private String phone_number;
 
-    @Size(max = 200, message = "Management unit must not exceed 10 characters")
+    @Size(max = 2000, message = "Management unit must not exceed 2000 characters")
     private String management_unit;
 
 }
