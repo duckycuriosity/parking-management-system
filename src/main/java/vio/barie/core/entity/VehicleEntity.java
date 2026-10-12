@@ -13,17 +13,20 @@ import vio.barie.core.entity.base.BaseEntity;
 @EqualsAndHashCode(callSuper = true)
 public class VehicleEntity extends BaseEntity {
 
-    @Column(name = "id", unique = true, nullable = false)
-    private Long id;
-
     @Column(name = "plate_number", unique = true, nullable = false)
     private String plateNumber;
+
+    @Column(name = "status")
+    private String status;
 
     @Column(name = "ai_identity_plate_id")
     private String aiIdentityPlateId;
 
     @Column(name = "vehicle_type", nullable = false)
     private String vehicleType;
+
+    @Column(name = "owner_id")
+    private Long ownerId;
     
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "info", columnDefinition = "jsonb")
