@@ -31,28 +31,19 @@ public class FeePolicyController {
 
     private final FeePolicyService feePolicyService;
 
-    @PostMapping("/apply")
-    @Operation(summary = "Áp dụng cấu hình thành phiên bản biểu phí mới")
-    public Result<FeePolicyResponse> apply(@Valid @RequestBody FeePolicyApplyRequest request) {
-        return Result.ok("Áp dụng biểu phí thành công", feePolicyService.apply(request));
-    }
-
-    @GetMapping("/current")
-    @Operation(summary = "Lấy biểu phí có hiệu lực tại thời điểm hiện tại")
-    public Result<FeePolicyResponse> findCurrent(
-            @RequestParam @Positive Long parkingLotId,
-            @RequestParam VehicleType vehicleType) {
-        return Result.ok("Lấy biểu phí hiện tại thành công",
-                feePolicyService.findCurrent(parkingLotId, vehicleType));
+    @PostMapping("/create")
+    @Operation(summary = "Tạo phiên bản biểu phí mới")
+    public Result<FeePolicyResponse> create(@Valid @RequestBody FeePolicyApplyRequest request) {
+        return Result.ok("Tạo biểu phí thành công", feePolicyService.create(request));
     }
 
     @GetMapping("/at")
-    @Operation(summary = "Lấy biểu phí có hiệu lực tại thời điểm chỉ định")
+    @Operation(summary = "Lấy biểu phí có hiệu lực tại thời điểm hiện tại hoặc thời điểm chỉ định")
     public Result<FeePolicyResponse> findAt(
             @RequestParam @Positive Long parkingLotId,
             @RequestParam VehicleType vehicleType,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant at) {
-        return Result.ok("Lấy biểu phí theo thời điểm thành công",
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant at) {
+        return Result.ok("Lấy biểu phí hiệu lực thành công",
                 feePolicyService.findAt(parkingLotId, vehicleType, at));
     }
 

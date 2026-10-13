@@ -42,7 +42,7 @@ public class FeePolicyService {
 
     /** Append a version, closing only the predecessor's effective interval. */
     @Transactional
-    public FeePolicyResponse apply(FeePolicyApplyRequest request) {
+    public FeePolicyResponse create(FeePolicyApplyRequest request) {
         if (request == null) {
             throw invalid("Cấu hình biểu phí là bắt buộc");
         }
@@ -125,10 +125,8 @@ public class FeePolicyService {
 
     public FeePolicyResponse findAt(Long parkingLotId, VehicleType vehicleType, Instant at) {
         validateScope(parkingLotId, vehicleType);
-        if (at == null) {
-            throw invalid("Thời điểm tra cứu là bắt buộc");
-        }
-        List<FeePolicyEntity> matches = repository.findEffectiveAt(parkingLotId, vehicleType, micros(at));
+        Instant lookupAt = at == null ? clock.instant() : at;
+        List<FeePolicyEntity> matches = repository.findEffectiveAt(parkingLotId, vehicleType, micros(lookupAt));
         if (matches.isEmpty()) {
             throw error("FEE_POLICY_NOT_FOUND", "Không có biểu phí hợp lệ tại thời điểm yêu cầu", 404);
         }
