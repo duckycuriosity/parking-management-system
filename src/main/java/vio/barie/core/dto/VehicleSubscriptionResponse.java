@@ -1,13 +1,22 @@
 package vio.barie.core.dto;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.time.LocalDateTime;
 
-public interface VehicleSubscriptionResponse {
-    Long getSubscriptionId();
-    String getPlateNumber();
-    String getSubscriberName();
-    String getParkingLotName();
-    LocalDateTime getExpirationDate();
-    String getTicketType();
-    String getStatus();
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class VehicleSubscriptionResponse {
+    private Long subscriptionId;
+    private String plateNumber;
+    private String subscriberName;
+    private String parkingLotName;
+    private LocalDateTime expirationDate;
+    private String ticketType;
+    private String status;
 }

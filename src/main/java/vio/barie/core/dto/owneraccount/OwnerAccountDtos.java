@@ -10,6 +10,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -278,7 +279,7 @@ public final class OwnerAccountDtos {
     public static class SubscriptionResponse {
         private Long id;
         private Long packageId;
-        private Long priceVnd;
+        private BigDecimal priceVnd;
         private String registrationType;
         private String status;
         private OffsetDateTime startsAt;

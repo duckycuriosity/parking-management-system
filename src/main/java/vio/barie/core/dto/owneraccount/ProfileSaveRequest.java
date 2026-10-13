@@ -44,6 +44,7 @@ public class ProfileSaveRequest extends OwnerAccountDtos.Input {
         @NotNull @Positive private Long parkingLotId;
         @NotNull @Positive private Long packageId;
         @NotNull private OffsetDateTime startsAt;
+        @NotNull private OffsetDateTime endsAt;
         @NotNull private OffsetDateTime paymentDeadlineAt;
         @Positive private Long previousSubscriptionId;
     }

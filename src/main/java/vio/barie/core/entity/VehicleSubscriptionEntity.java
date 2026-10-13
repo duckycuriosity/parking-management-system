@@ -13,6 +13,7 @@ import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 @Getter
@@ -40,8 +41,8 @@ public class VehicleSubscriptionEntity {
     @Column(name = "previous_subscription_id")
     private Long previousSubscriptionId;
 
-    @Column(name = "price_vnd", nullable = false)
-    private Long priceVnd;
+    @Column(name = "price_vnd", nullable = false, precision = 18, scale = 2)
+    private BigDecimal priceVnd;
 
     @Column(name = "starts_at", nullable = false)
     private OffsetDateTime startsAt;

@@ -14,6 +14,7 @@ import vio.barie.core.dto.owneraccount.ProfileSaveRequest;
 import vio.barie.core.entity.*;
 import vio.barie.core.repository.VehicleSubscriptionRepository;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -65,9 +66,15 @@ public class VehicleSubscriptionService {
             VehicleLabel vehicle = vehicles.get(order.getVehicleId());
             String subscriber = vehicle == null ? null : owners.get(vehicle.ownerId());
             if (subscriber == null) subscriber = String.join(", ", drivers.getOrDefault(order.getVehicleId(), new LinkedHashSet<>()));
-            return new ListItem(order.getId(), vehicle == null ? null : vehicle.plate(), subscriber,
-                    lots.get(order.getParkingLotId()), order.getEndsAt().atZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(),
-                    packages.get(order.getPackageId()), order.getStatus());
+            return VehicleSubscriptionResponse.builder()
+                    .subscriptionId(order.getId())
+                    .plateNumber(vehicle == null ? null : vehicle.plate())
+                    .subscriberName(subscriber)
+                    .parkingLotName(lots.get(order.getParkingLotId()))
+                    .expirationDate(order.getEndsAt().atZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime())
+                    .ticketType(packages.get(order.getPackageId()))
+                    .status(order.getStatus())
+                    .build();
         });
     }
 
@@ -83,25 +90,12 @@ public class VehicleSubscriptionService {
     }
 
     private record VehicleLabel(String plate, Long ownerId) {}
-    private record ListItem(Long subscriptionId, String plateNumber, String subscriberName, String parkingLotName,
-            LocalDateTime expirationDate, String ticketType, String status) implements VehicleSubscriptionResponse {
-        public Long getSubscriptionId() { return subscriptionId; }
-        public String getPlateNumber() { return plateNumber; }
-        public String getSubscriberName() { return subscriberName; }
-        public String getParkingLotName() { return parkingLotName; }
-        public LocalDateTime getExpirationDate() { return expirationDate; }
-        public String getTicketType() { return ticketType; }
-        public String getStatus() { return status; }
-    }
 
     @Transactional
     public VehicleSubscriptionEntity register(Long vehicleId, ProfileSaveRequest.Subscription request) {
         VehicleEntity vehicle = entityManager.find(VehicleEntity.class, vehicleId);
         if (vehicle == null) throw new ServiceException("Vehicle not found", 404);
         SubscriptionPackageEntity pack = validatePackage(request, vehicle.getVehicleType());
-        OffsetDateTime endsAt;
-        try { endsAt = request.getStartsAt().plusSeconds(Math.multiplyExact(pack.getDurationDays().longValue(), 86400L)); }
-        catch (RuntimeException ex) { throw new ServiceException("Subscription duration is outside supported range", 400); }
 
         VehicleSubscriptionEntity order = new VehicleSubscriptionEntity();
         order.setVehicleId(vehicleId);
@@ -111,7 +105,7 @@ public class VehicleSubscriptionService {
         order.setRegistrationType(request.getPreviousSubscriptionId() == null ? "NEW" : "RENEW");
         order.setPriceVnd(pack.getPriceVnd());
         order.setStartsAt(request.getStartsAt());
-        order.setEndsAt(endsAt);
+        order.setEndsAt(request.getEndsAt());
         order.setPaymentDeadlineAt(request.getPaymentDeadlineAt());
         order.setStatus("PENDING_PAYMENT");
         return vehicleSubscriptionRepository.save(order);
@@ -120,8 +114,10 @@ public class VehicleSubscriptionService {
     private SubscriptionPackageEntity validatePackage(ProfileSaveRequest.Subscription request, String vehicleType) {
         if (request == null || request.getParkingLotId() == null || request.getParkingLotId() <= 0
                 || request.getPackageId() == null || request.getPackageId() <= 0
-                || request.getStartsAt() == null || request.getPaymentDeadlineAt() == null)
-            throw new ServiceException("Package, parking lot, startsAt and paymentDeadlineAt are required", 400);
+                || request.getStartsAt() == null || request.getEndsAt() == null || request.getPaymentDeadlineAt() == null)
+            throw new ServiceException("Package, parking lot, startsAt, endsAt and paymentDeadlineAt are required", 400);
+        if (!request.getEndsAt().isAfter(request.getStartsAt()))
+            throw new ServiceException("endsAt must be after startsAt", 400);
         OffsetDateTime now = OffsetDateTime.now();
         if (!request.getPaymentDeadlineAt().isAfter(now))
             throw new ServiceException("Payment deadline must be in the future", 400);
@@ -130,8 +126,7 @@ public class VehicleSubscriptionService {
         if (!Objects.equals(pack.getParkingLotId(), request.getParkingLotId())
                 || !Objects.equals(pack.getVehicleType(), vehicleType))
             throw new ServiceException("Package does not match the parking lot or vehicle type", 400);
-        if (pack.getPriceVnd() == null || pack.getPriceVnd() < 0
-                || pack.getDurationDays() == null || pack.getDurationDays() <= 0)
+        if (pack.getPriceVnd() == null || pack.getPriceVnd().compareTo(BigDecimal.ZERO) < 0)
             throw new ServiceException("Package terms are invalid", 409);
         return pack;
     }
