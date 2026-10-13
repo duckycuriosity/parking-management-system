@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vio.barie.core.common.BarrierActionType;
 import vio.barie.core.dto.BarrierDetailResponse;
+import vio.barie.core.dto.BarrierManualOpenRequest;
 import vio.barie.core.dto.BarrierUpdateRequest;
 import vio.barie.core.dto.Result;
 import vio.barie.core.service.BarrierService;
@@ -21,8 +22,10 @@ public class BarrierController {
     private final ParkingMessageService parkingMessageService;
 
     @PostMapping("/{barrierId}/manual-open")
-    public Result<Void> manualOpenBarrier(@PathVariable String barrierId) {
-        parkingMessageService.publishManualOpenCommand(barrierId);
+    public Result<Void> manualOpenBarrier(@PathVariable String barrierId, @Valid @RequestBody BarrierManualOpenRequest request) {
+        barrierService.manualOpenBarrier(barrierId,
+                request.getReasonOpenCmd()
+        );
         return Result.ok("Đã gửi lệnh mở barrier thủ công thành công.", null);
     }
 

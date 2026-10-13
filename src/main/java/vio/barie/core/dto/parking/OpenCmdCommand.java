@@ -29,4 +29,6 @@ public class OpenCmdCommand {
 
     @JsonProperty("auto_close_seconds")
     private int autoCloseSeconds;
+
+    private String openCmd;
 }

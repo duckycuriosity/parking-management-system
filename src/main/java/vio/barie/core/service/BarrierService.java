@@ -8,6 +8,7 @@ import vio.barie.core.dto.BarrierDetailResponse;
 import vio.barie.core.dto.BarrierUpdateRequest;
 import vio.barie.core.entity.*;
 import vio.barie.core.repository.*;
+import vio.barie.core.service.mqtt.ParkingMessageService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +25,7 @@ public class BarrierService {
 
     private final ParkingDeviceRepository parkingDeviceRepository;
     private final LaneRepository laneRepository;
+    private final ParkingMessageService parkingMessageService;
 
     @Transactional
     public List<BarrierDetailResponse> getAllBarrierDetails() {
@@ -155,6 +157,7 @@ public class BarrierService {
 
         barrier.setDirection(request.getDirection());
         barrier.setDescription(request.getDescription());
+        barrier.setIpBarrier(request.getIpBarrier());
         // cập nhật thông tin thiết bị điều khiển và làn nếu cần thiết
         if (request.getLaneId() != null) {
             LaneEntity lane = laneRepository.findById(request.getLaneId())
@@ -284,6 +287,7 @@ public class BarrierService {
 
 
         barrier.setDescription(null);
+        barrier.setIpBarrier(null);
         barrierRepository.save(barrier);
 
 
@@ -292,8 +296,17 @@ public class BarrierService {
 //            device.setLane(null);
 //            parkingDeviceRepository.save(device);
 //        }
-
-
+    }
+    @Transactional
+    public void manualOpenBarrier(String barrierId, String reasonOpenCmd) {
+        BarrierEntity barrier = barrierRepository
+                .findByBarrierId(barrierId)
+                .orElseThrow(() ->
+                        new RuntimeException("Không tìm thấy barrier: " + barrierId)
+                );
+        barrier.setReasonOpenCmd(reasonOpenCmd.trim());
+        barrierRepository.save(barrier);
+        parkingMessageService.publishManualOpenCommand(barrierId);
     }
 
 }
