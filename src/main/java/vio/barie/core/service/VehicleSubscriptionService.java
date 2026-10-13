@@ -130,10 +130,6 @@ public class VehicleSubscriptionService {
         if (!Objects.equals(pack.getParkingLotId(), request.getParkingLotId())
                 || !Objects.equals(pack.getVehicleType(), vehicleType))
             throw new ServiceException("Package does not match the parking lot or vehicle type", 400);
-        if (!"PUBLISHED".equals(pack.getStatus()) || !pack.isSaleEnabled()
-                || pack.getEffectiveFrom() == null || now.isBefore(pack.getEffectiveFrom())
-                || (pack.getEffectiveTo() != null && !now.isBefore(pack.getEffectiveTo())))
-            throw new ServiceException("Package is not available for sale", 409);
         if (pack.getPriceVnd() == null || pack.getPriceVnd() < 0
                 || pack.getDurationDays() == null || pack.getDurationDays() <= 0)
             throw new ServiceException("Package terms are invalid", 409);

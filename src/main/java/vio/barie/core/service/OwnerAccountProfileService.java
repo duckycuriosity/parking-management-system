@@ -85,8 +85,7 @@ public class OwnerAccountProfileService {
         OwnerAccountEntity selected = owner.getId() == null ? null : findOwner(owner.getId());
         if (selected == null) {
             required(owner.getFullName(), "fullName");
-            String phone = required(owner.getPhone(), "phone");
-            if (ownerAccountRepository.existsByPhone(phone)) throw new ServiceException("Owner phone already exists", 409);
+            required(owner.getPhone(), "phone");
         }
         Map<String, Person> people = new LinkedHashMap<>();
         Set<String> plates = new HashSet<>();
@@ -100,17 +99,11 @@ public class OwnerAccountProfileService {
                     throw new ServiceException("Vehicle plate already exists: " + plate, 409);
                 }
                 required(vehicle.getVehicleType(), "vehicleType");
-            } else {
-                if (owner.getId() == null) throw new ServiceException("Existing vehicle requires its owner", 400);
-                findOwnerVehicle(owner.getId(), vehicle.getId());
             }
             for (ProfileSaveRequest.Customer customer : vehicle.getCustomers() == null ? List.<ProfileSaveRequest.Customer>of() : vehicle.getCustomers()) {
                 if (customer == null) throw new ServiceException("Driver cannot be null", 400);
                 String key;
                 if (customer.getId() != null) {
-                    if (owner.getId() == null) throw new ServiceException("Existing driver requires its owner", 400);
-                    findOwnerCustomer(owner.getId(), customer.getId());
-                    relationType(customer.getRelationType());
                     key = "id:" + customer.getId();
                 } else {
                     relationType(customer.getRelationType());
