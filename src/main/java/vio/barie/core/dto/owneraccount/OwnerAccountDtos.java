@@ -237,6 +237,7 @@ public final class OwnerAccountDtos {
             @Size(max = 20) private String phone;
             @com.fasterxml.jackson.annotation.JsonAlias("indexs")
             private List<Integer> imageIndexes;
+            @Size(max = 5) private List<String> images;
             @Size(max = 30) private String relationType;
         }
     }

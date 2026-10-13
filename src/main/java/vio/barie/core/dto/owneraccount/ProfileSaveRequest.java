@@ -28,6 +28,7 @@ public class ProfileSaveRequest extends OwnerAccountDtos.Input {
         private String address;
         private String zaloLink;
         private String note;
+        @Size(max = 5) private List<String> images;
     }
 
     @Data
@@ -57,6 +58,7 @@ public class ProfileSaveRequest extends OwnerAccountDtos.Input {
         @Size(max = 255) private String name;
         @Size(max = 20) private String phone;
         @JsonAlias("indexs") private List<Integer> imageIndexes;
+        @Size(max = 5) private List<String> images;
         /** OWNER creates the owner-person only with a new owner; every new person requires an explicit role. */
         @Size(max = 30) private String relationType;
     }

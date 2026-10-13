@@ -2,6 +2,7 @@ package vio.barie.core.service;
 
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,8 +18,14 @@ import vio.barie.core.repository.VehicleCustomerRepository;
 import vio.barie.core.repository.VehicleRepository;
 import vio.barie.core.utils.PlateNumberUtils;
 
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -88,6 +95,13 @@ public class OwnerAccountProfileService {
             required(owner.getPhone(), "phone");
         }
         Map<String, Person> people = new LinkedHashMap<>();
+        List<MultipartFile> ownerBase64Images = base64Images(owner.getImages(), "owner.images");
+        List<MultipartFile> ownerFiles = ownerBase64Images == null ? ownerImages : ownerBase64Images;
+        if (ownerFiles != null && !ownerFiles.isEmpty()) {
+            String ownerName = selected == null ? owner.getFullName() : selected.getFullName();
+            String ownerPhone = selected == null ? owner.getPhone() : selected.getPhone();
+            people.put("owner", new Person(required(ownerName, "owner name"), clean(ownerPhone), checkedImages(ownerFiles)));
+        }
         Set<String> plates = new HashSet<>();
         int newPerson = 0;
         for (ProfileSaveRequest.Vehicle vehicle : request.getVehicles()) {
@@ -112,10 +126,11 @@ public class OwnerAccountProfileService {
                     if (phone != null && phone.length() > 20) throw new ServiceException("Driver phone exceeds 20 characters", 400);
                     key = clean(customer.getClientId()) == null
                             ? "new:" + newPerson++ : "client:" + customer.getClientId().trim();
-                    List<MultipartFile> files = selectedImages(images, customer.getImageIndexes());
+                    List<MultipartFile> files = base64Images(customer.getImages(), "customer.images");
+                    if (files == null) files = selectedImages(images, customer.getImageIndexes());
                     Person person = new Person(name, phone, files);
                     Person previous = people.putIfAbsent(key, person);
-                    if (previous != null && !previous.equals(person)) {
+                    if (previous != null && !samePerson(previous, person)) {
                         throw new ServiceException("Conflicting information for driver reference: " + key, 409);
                     }
                 }
@@ -220,6 +235,7 @@ public class OwnerAccountProfileService {
             customer.setName(user.getName());
             customer.setPhone(user.getPhone());
             customer.setImageIndexes(user.getImageIndexes());
+            customer.setImages(user.getImages());
             customer.setRelationType(user.getRelationType());
             drivers.add(customer);
         });
@@ -312,6 +328,49 @@ public class OwnerAccountProfileService {
         return checkedImages(selected);
     }
 
+    private List<MultipartFile> base64Images(List<String> images, String fieldName) {
+        if (images == null || images.isEmpty()) return null;
+        if (images.size() > 5) throw new ServiceException(fieldName + " must contain at most 5 images", 400);
+        List<MultipartFile> files = new ArrayList<>();
+        for (int i = 0; i < images.size(); i++) {
+            String value = images.get(i);
+            if (StringUtils.isBlank(value)) throw new ServiceException(fieldName + "[" + i + "] is empty", 400);
+            DecodedImage image = decodeBase64Image(value.trim(), fieldName, i);
+            files.add(image);
+        }
+        return checkedImages(files);
+    }
+
+    private DecodedImage decodeBase64Image(String value, String fieldName, int index) {
+        String contentType = MediaType.IMAGE_JPEG_VALUE;
+        String payload = value;
+        if (value.regionMatches(true, 0, "data:", 0, 5)) {
+            int comma = value.indexOf(',');
+            int semicolon = value.indexOf(';');
+            if (comma < 0 || semicolon < 0 || semicolon > comma) {
+                throw new ServiceException("Invalid base64 image format at " + fieldName + "[" + index + "]", 400);
+            }
+            contentType = value.substring(5, semicolon);
+            payload = value.substring(comma + 1);
+        }
+        try {
+            byte[] bytes = Base64.getMimeDecoder().decode(payload);
+            return new DecodedImage(fieldName, imageFilename(fieldName, index, contentType), contentType, bytes);
+        } catch (IllegalArgumentException ex) {
+            throw new ServiceException("Invalid base64 image at " + fieldName + "[" + index + "]", 400);
+        }
+    }
+
+    private String imageFilename(String fieldName, int index, String contentType) {
+        String extension = switch (contentType == null ? "" : contentType.toLowerCase()) {
+            case "image/png" -> "png";
+            case "image/gif" -> "gif";
+            case "image/webp" -> "webp";
+            default -> "jpg";
+        };
+        return fieldName.replace('.', '-') + "-" + index + "." + extension;
+    }
+
     private List<MultipartFile> checkedImages(List<MultipartFile> images) {
         if (images == null || images.isEmpty() || images.size() > 5) throw new ServiceException("A new driver requires 1 to 5 face images", 400);
         for (MultipartFile image : images) {
@@ -326,6 +385,10 @@ public class OwnerAccountProfileService {
     private String imageUrl(AiProfileResponse face) {
         if (face.getImages() == null) return null;
         return face.getImages().stream().map(image -> image.get("accessUrl")).filter(StringUtils::isNotBlank).findFirst().orElse(null);
+    }
+
+    private boolean samePerson(Person first, Person second) {
+        return StringUtils.equals(first.name(), second.name()) && StringUtils.equals(first.phone(), second.phone());
     }
 
     private OwnerAccountVehicleParkingCustomerResponse.CustomerResponse customerResponse(String key, ParkingCustomerEntity customer) {
@@ -359,4 +422,49 @@ public class OwnerAccountProfileService {
         return value.trim();
     }
     private record Person(String name, String phone, List<MultipartFile> images) {}
+
+    private record DecodedImage(String name, String originalFilename, String contentType, byte[] content)
+            implements MultipartFile {
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public String getOriginalFilename() {
+            return originalFilename;
+        }
+
+        @Override
+        public String getContentType() {
+            return contentType;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return content == null || content.length == 0;
+        }
+
+        @Override
+        public long getSize() {
+            return content == null ? 0 : content.length;
+        }
+
+        @Override
+        public byte[] getBytes() {
+            return content == null ? new byte[0] : content.clone();
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return new ByteArrayInputStream(getBytes());
+        }
+
+        @Override
+        public void transferTo(File dest) throws IOException, IllegalStateException {
+            try (FileOutputStream outputStream = new FileOutputStream(dest)) {
+                outputStream.write(getBytes());
+            }
+        }
+    }
 }

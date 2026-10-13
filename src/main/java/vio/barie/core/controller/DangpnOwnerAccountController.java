@@ -6,15 +6,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 import vio.barie.core.dto.Result;
 import vio.barie.core.dto.owneraccount.OwnerAccountDtos.*;
 import vio.barie.core.dto.owneraccount.ProfileSaveRequest;
 import vio.barie.core.service.OwnerAccountProfileService;
 import vio.barie.core.service.OwnerAccountService;
-
-import java.util.Arrays;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/dangpnOwnerAccount")
@@ -39,18 +35,15 @@ public class DangpnOwnerAccountController {
 //        return created(ownerAccountProfileService.createProfile(request));
 //    }
 
-    @PostMapping(value = "/profiles/with-images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> createProfileWithImages(@Valid @RequestPart("request") ProfileSaveRequest request,
-            @RequestPart(value = "customerImages", required = false) MultipartFile[] customerImages,
-            @RequestPart(value = "ownerImage", required = false) MultipartFile[] ownerImages) {
-        return created(ownerAccountProfileService.createProfile(request, files(customerImages), files(ownerImages)));
+    @PostMapping(value = "/profiles/with-images", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> createProfileWithImages(@Valid @RequestBody ProfileSaveRequest request) {
+        return created(ownerAccountProfileService.createProfile(request));
     }
 
-    @PostMapping(value = "/subscription-registrants/{ownerId}/vehicles", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/subscription-registrants/{ownerId}/vehicles", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> addVehicle(@PathVariable Long ownerId,
-            @Valid @RequestPart("request") SubscriptionVehicleCreateRequest request,
-            @RequestPart(value = "userImages", required = false) MultipartFile[] images) {
-        return created(ownerAccountProfileService.addVehicle(ownerId, request, files(images)));
+            @Valid @RequestBody SubscriptionVehicleCreateRequest request) {
+        return created(ownerAccountProfileService.addVehicle(ownerId, request));
     }
 
     @GetMapping("/subscription-registrants/{ownerId}/vehicles")
@@ -80,7 +73,6 @@ public class DangpnOwnerAccountController {
 //        return Result.success(ownerAccountService.update(id, request));
 //    }
 
-    private List<MultipartFile> files(MultipartFile[] files) { return files == null ? null : Arrays.asList(files); }
     private ResponseEntity<?> created(Object result) {
         return ResponseEntity.status(HttpStatus.CREATED).body(new Result<>(201, "success", result));
     }
