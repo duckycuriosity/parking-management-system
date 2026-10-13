@@ -3,10 +3,7 @@ package vio.barie.core.service;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 import vio.barie.core.client.AiFaceApiClient;
 import vio.barie.core.config.exception.ServiceException;
@@ -38,25 +35,21 @@ public class OwnerAccountProfileService {
     private final ParkingCustomerRepository parkingCustomerRepository;
     private final VehicleCustomerRepository vehicleCustomerRepository;
     private final VehicleSubscriptionService vehicleSubscriptionService;
-    private final PlatformTransactionManager transactionManager;
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Transactional
     public OwnerAccountVehicleParkingCustomerResponse createProfile(ProfileSaveRequest request) {
         return createProfile(request, null, null);
     }
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Transactional
     public OwnerAccountVehicleParkingCustomerResponse createProfile(ProfileSaveRequest request, List<MultipartFile> images) {
         return createProfile(request, images, null);
     }
 
-    /** AI is invoked once for each explicitly new person, before the transaction saving the local graph. */
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Transactional
     public OwnerAccountVehicleParkingCustomerResponse createProfile(ProfileSaveRequest request,
             List<MultipartFile> images, List<MultipartFile> ownerImages) {
         if (request == null) throw new ServiceException("request is required", 400);
-        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive())
-            throw new ServiceException("Registration must run outside an existing database transaction", 409);
         Map<ProfileSaveRequest.Customer, String> keys = new IdentityHashMap<>();
         Map<String, Person> people = new LinkedHashMap<>();
         people.putAll(validateAndPrepare(request, images, ownerImages, keys));
@@ -80,7 +73,7 @@ public class OwnerAccountProfileService {
             }
             faces.put(key, face);
         });
-        return new TransactionTemplate(transactionManager).execute(status -> persistProfile(request, keys, people, faces));
+        return persistProfile(request, keys, people, faces);
     }
 
     private Map<String, Person> validateAndPrepare(ProfileSaveRequest request, List<MultipartFile> images,
@@ -94,92 +87,47 @@ public class OwnerAccountProfileService {
             required(owner.getFullName(), "fullName");
             String phone = required(owner.getPhone(), "phone");
             if (ownerAccountRepository.existsByPhone(phone)) throw new ServiceException("Owner phone already exists", 409);
-            String identity = clean(owner.getIdentityNumber());
-            if (identity != null && ownerAccountRepository.existsByIdentityNumber(identity)) {
-                throw new ServiceException("Owner identity number already exists", 409);
-            }
-        } else if (owner.getFullName() != null || owner.getPhone() != null || owner.getIdentityNumber() != null
-                || owner.getAddress() != null || owner.getZaloLink() != null || owner.getNote() != null) {
-            throw new ServiceException("Select an existing owner by id; update their information separately", 400);
         }
         Map<String, Person> people = new LinkedHashMap<>();
         Set<String> plates = new HashSet<>();
-        Set<Long> vehicleIds = new HashSet<>();
-        Set<Integer> usedImages = new HashSet<>();
-        boolean ownerImagesUsed = false;
         int newPerson = 0;
         for (ProfileSaveRequest.Vehicle vehicle : request.getVehicles()) {
-            if (vehicle == null || (vehicle.getId() == null && (vehicle.getCustomers() == null || vehicle.getCustomers().isEmpty()))) {
-                throw new ServiceException("Each new vehicle requires at least one driver", 400);
-            }
-            String type;
+            if (vehicle == null || vehicle.getCustomers() == null || vehicle.getCustomers().isEmpty())
+                throw new ServiceException("Each vehicle requires at least one user", 400);
             if (vehicle.getId() == null) {
                 String plate = normalizedPlate(vehicle.getPlate());
                 if (!plates.add(plate) || vehicleRepository.existsByPlateNumber(plate)) {
                     throw new ServiceException("Vehicle plate already exists: " + plate, 409);
                 }
-                type = required(vehicle.getVehicleType(), "vehicleType");
-                if (!Set.of("CAR", "MOTORBIKE", "OTHER").contains(type)) {
-                    throw new ServiceException("Invalid vehicleType", 400);
-                }
+                required(vehicle.getVehicleType(), "vehicleType");
             } else {
-                if (owner.getId() == null || !vehicleIds.add(vehicle.getId())) {
-                    throw new ServiceException("Existing vehicle requires its owner and a unique vehicle id", 400);
-                }
-                if (vehicle.getPlate() != null || vehicle.getVehicleType() != null) {
-                    throw new ServiceException("Select an existing vehicle by id", 400);
-                }
-                type = findOwnerVehicle(owner.getId(), vehicle.getId()).getVehicleType();
+                if (owner.getId() == null) throw new ServiceException("Existing vehicle requires its owner", 400);
+                findOwnerVehicle(owner.getId(), vehicle.getId());
             }
-            if (vehicle.getSubscription() != null) {
-                vehicleSubscriptionService.validateRegistration(vehicle.getSubscription(), type);
-            }
-            Set<String> relations = new HashSet<>();
             for (ProfileSaveRequest.Customer customer : vehicle.getCustomers() == null ? List.<ProfileSaveRequest.Customer>of() : vehicle.getCustomers()) {
                 if (customer == null) throw new ServiceException("Driver cannot be null", 400);
                 String key;
                 if (customer.getId() != null) {
                     if (owner.getId() == null) throw new ServiceException("Existing driver requires its owner", 400);
                     findOwnerCustomer(owner.getId(), customer.getId());
-                    if (customer.isOwnerDriver() || customer.getName() != null || customer.getPhone() != null
-                            || customer.getClientId() != null || customer.getImageIndexes() != null) {
-                        throw new ServiceException("Select an existing driver by id", 400);
-                    }
+                    relationType(customer.getRelationType());
                     key = "id:" + customer.getId();
                 } else {
-                    String name = customer.isOwnerDriver()
-                            ? (selected == null ? required(owner.getFullName(), "fullName") : selected.getFullName())
-                            : required(customer.getName(), "driver name");
-                    String phone = customer.isOwnerDriver()
-                            ? (selected == null ? clean(owner.getPhone()) : selected.getPhone()) : clean(customer.getPhone());
+                    relationType(customer.getRelationType());
+                    String name = required(customer.getName(), "driver name");
+                    String phone = clean(customer.getPhone());
                     if (phone != null && phone.length() > 20) throw new ServiceException("Driver phone exceeds 20 characters", 400);
-                    if (customer.isOwnerDriver() && (customer.getName() != null || customer.getPhone() != null
-                            || customer.getClientId() != null || customer.getImageIndexes() != null)) {
-                        throw new ServiceException("ownerDriver uses owner details and ownerImage", 400);
-                    }
-                    key = customer.isOwnerDriver() ? "owner" : clean(customer.getClientId()) == null
+                    key = clean(customer.getClientId()) == null
                             ? "new:" + newPerson++ : "client:" + customer.getClientId().trim();
-                    List<MultipartFile> files = customer.isOwnerDriver() ? checkedImages(ownerImages)
-                            : selectedImages(images, customer.getImageIndexes());
+                    List<MultipartFile> files = selectedImages(images, customer.getImageIndexes());
                     Person person = new Person(name, phone, files);
                     Person previous = people.putIfAbsent(key, person);
                     if (previous != null && !previous.equals(person)) {
                         throw new ServiceException("Conflicting information for driver reference: " + key, 409);
                     }
-                    if (previous == null && !customer.isOwnerDriver()) {
-                        for (Integer index : customer.getImageIndexes()) {
-                            if (!usedImages.add(index)) throw new ServiceException("An image belongs to more than one new driver", 400);
-                        }
-                    }
-                    ownerImagesUsed |= customer.isOwnerDriver();
                 }
-                if (!relations.add(key)) throw new ServiceException("Driver is repeated for the same vehicle", 400);
                 keys.put(customer, key);
             }
-        }
-        if (images != null && usedImages.size() != images.size()) throw new ServiceException("Some driver images are not assigned", 400);
-        if (ownerImages != null && !ownerImages.isEmpty() && !ownerImagesUsed) {
-            throw new ServiceException("ownerImage requires ownerDriver=true", 400);
         }
         return people;
     }
@@ -231,7 +179,7 @@ public class OwnerAccountProfileService {
                 String key = keys.get(inputCustomer);
                 ParkingCustomerEntity customer = customers.computeIfAbsent(key,
                         ignored -> findOwnerCustomer(ownerId, inputCustomer.getId()));
-                VehicleCustomerEntity relation = saveRelation(vehicle.getId(), customer.getId(), relationType(inputCustomer.getRelationType()));
+                VehicleCustomerEntity relation = saveRelation(vehicle.getId(), customer.getId(), inputCustomer.getRelationType());
                 relations.add(OwnerAccountVehicleParkingCustomerResponse.VehicleCustomerResponse.builder()
                         .id(relation.getId()).vehicleId(vehicle.getId()).customerId(customer.getId())
                         .relationType(relation.getRelationType()).status(relation.getStatus()).build());
@@ -251,12 +199,12 @@ public class OwnerAccountProfileService {
                 .customers(customers.entrySet().stream().map(entry -> customerResponse(entry.getKey(), entry.getValue())).toList()).build();
     }
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Transactional
     public SubscriptionVehicleCreateResponse addVehicle(Long ownerId, SubscriptionVehicleCreateRequest request) {
         return addVehicle(ownerId, request, null);
     }
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Transactional
     public SubscriptionVehicleCreateResponse addVehicle(Long ownerId, SubscriptionVehicleCreateRequest request,
             List<MultipartFile> images) {
         ProfileSaveRequest registration = new ProfileSaveRequest();
@@ -320,7 +268,7 @@ public class OwnerAccountProfileService {
     public SubscriptionVehicleCreateResponse.UserResponse saveVehicleUser(Long vehicleId, VehicleUserSaveRequest request) {
         VehicleEntity vehicle = vehicleRepository.findById(vehicleId).orElseThrow(() -> new ServiceException("Vehicle not found", 404));
         ParkingCustomerEntity customer = findOwnerCustomer(vehicle.getOwnerId(), request.getCustomerId());
-        VehicleCustomerEntity relation = saveRelation(vehicleId, customer.getId(), relationType(request.getRelationType()));
+        VehicleCustomerEntity relation = saveRelation(vehicleId, customer.getId(), request.getRelationType());
         return SubscriptionVehicleCreateResponse.UserResponse.builder().customerId(customer.getId())
                 .name(customer.getUsername()).phone(customer.getPhoneNumber()).imageUrl(customer.getImageUrl())
                 .aiProfileId(customer.getAiProfileId()).relationType(relation.getRelationType()).relationStatus(relation.getStatus()).build();
@@ -336,11 +284,12 @@ public class OwnerAccountProfileService {
         vehicleCustomerRepository.save(relation);
     }
 
-    private VehicleCustomerEntity saveRelation(Long vehicleId, Long customerId, String type) {
-        VehicleCustomerEntity relation = vehicleCustomerRepository.findByVehicleIdAndCustomerId(vehicleId, customerId).orElseGet(VehicleCustomerEntity::new);
+    private VehicleCustomerEntity saveRelation(Long vehicleId, Long customerId, String requestedType) {
+        VehicleCustomerEntity relation = vehicleCustomerRepository.findByVehicleIdAndCustomerId(vehicleId, customerId)
+                .orElseGet(VehicleCustomerEntity::new);
         relation.setVehicleId(vehicleId);
         relation.setCustomerId(customerId);
-        relation.setRelationType(type);
+        relation.setRelationType(relationType(requestedType));
         relation.setStatus("ACTIVE");
         return vehicleCustomerRepository.save(relation);
     }
@@ -405,7 +354,12 @@ public class OwnerAccountProfileService {
         return plate;
     }
 
-    private String relationType(String value) { return clean(value) == null ? "DRIVER" : value.trim(); }
+    private String relationType(String value) {
+        String type = clean(value);
+        if (type != null && !Set.of("OWNER", "DRIVER").contains(type))
+            throw new ServiceException("relationType must be OWNER or DRIVER", 400);
+        return type == null ? "DRIVER" : type;
+    }
     private String clean(String value) { return StringUtils.isBlank(value) ? null : value.trim(); }
     private String required(String value, String field) {
         if (StringUtils.isBlank(value)) throw new ServiceException(field + " is required", 400);

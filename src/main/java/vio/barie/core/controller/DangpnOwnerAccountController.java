@@ -63,18 +63,18 @@ public class DangpnOwnerAccountController {
 //                                            @Valid @RequestBody ParkingCustomerUpdateRequest request) {
 //        return Result.success(ownerAccountProfileService.updateCustomer(ownerId, customerId, request));
 //    }
-//
-//    @PostMapping("/vehicles/{vehicleId}/users")
-//    public ResponseEntity<?> saveVehicleUser(@PathVariable Long vehicleId, @Valid @RequestBody VehicleUserSaveRequest request) {
-//        return Result.success(ownerAccountProfileService.saveVehicleUser(vehicleId, request));
-//    }
-//
+
+    @PostMapping("/vehicles/{vehicleId}/users")
+    public ResponseEntity<?> saveVehicleUser(@PathVariable Long vehicleId, @Valid @RequestBody VehicleUserSaveRequest request) {
+        return Result.success(ownerAccountProfileService.saveVehicleUser(vehicleId, request));
+    }
+
 //    @DeleteMapping("/vehicles/{vehicleId}/users/{customerId}")
 //    public ResponseEntity<?> removeVehicleUser(@PathVariable Long vehicleId, @PathVariable Long customerId) {
 //        ownerAccountProfileService.removeVehicleUser(vehicleId, customerId);
 //        return Result.success(customerId);
 //    }
-//
+
 //    @PutMapping("/{id}")
 //    public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody OwnerAccountRequest request) {
 //        return Result.success(ownerAccountService.update(id, request));

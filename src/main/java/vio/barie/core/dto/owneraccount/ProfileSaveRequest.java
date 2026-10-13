@@ -53,10 +53,10 @@ public class ProfileSaveRequest extends OwnerAccountDtos.Input {
         @Positive private Long id;
         /** An explicit reference shared by new-person entries in this request; never stored in DB. */
         @Size(max = 100) private String clientId;
-        private boolean ownerDriver;
         @Size(max = 255) private String name;
         @Size(max = 20) private String phone;
         @JsonAlias("indexs") private List<Integer> imageIndexes;
+        /** OWNER creates the owner-person only with a new owner; every new person requires an explicit role. */
         @Size(max = 30) private String relationType;
     }
 }

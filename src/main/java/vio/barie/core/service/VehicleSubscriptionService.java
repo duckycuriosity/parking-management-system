@@ -1,7 +1,6 @@
 package vio.barie.core.service;
 
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -95,47 +94,14 @@ public class VehicleSubscriptionService {
         public String getStatus() { return status; }
     }
 
-    /** Preflight before external IO; register checks again inside the write transaction. */
-    @Transactional(readOnly = true)
-    public void validateRegistration(ProfileSaveRequest.Subscription request, String vehicleType) {
-        validatePackage(request, vehicleType, null);
-    }
-
     @Transactional
     public VehicleSubscriptionEntity register(Long vehicleId, ProfileSaveRequest.Subscription request) {
-        VehicleEntity vehicle = entityManager.find(VehicleEntity.class, vehicleId, LockModeType.PESSIMISTIC_WRITE);
+        VehicleEntity vehicle = entityManager.find(VehicleEntity.class, vehicleId);
         if (vehicle == null) throw new ServiceException("Vehicle not found", 404);
-        if ("INACTIVE".equals(vehicle.getStatus())) throw new ServiceException("Vehicle is inactive", 409);
-        SubscriptionPackageEntity pack = validatePackage(request, vehicle.getVehicleType(), LockModeType.PESSIMISTIC_READ);
-        Long drivers = entityManager.createQuery("""
-                select count(r.id) from VehicleCustomerEntity r, ParkingCustomerEntity c
-                where r.vehicleId = :vehicle and r.customerId = c.id
-                  and r.status = 'ACTIVE' and (c.status is null or c.status <> 'INACTIVE')
-                  and c.ownerId = :owner
-                """, Long.class).setParameter("vehicle", vehicleId).setParameter("owner", vehicle.getOwnerId())
-                .getSingleResult();
-        if (drivers == 0) throw new ServiceException("An active driver belonging to the owner is required", 400);
-
-        if (request.getPreviousSubscriptionId() != null) {
-            VehicleSubscriptionEntity previous = entityManager.find(VehicleSubscriptionEntity.class,
-                    request.getPreviousSubscriptionId(), LockModeType.PESSIMISTIC_WRITE);
-            if (previous == null || !Objects.equals(previous.getVehicleId(), vehicleId)
-                    || !Objects.equals(previous.getParkingLotId(), request.getParkingLotId())
-                    || !"PAID".equals(previous.getStatus())
-                    || !previous.getEndsAt().toInstant().equals(request.getStartsAt().toInstant()))
-                throw new ServiceException("Renewal must start at the end of the selected paid period", 409);
-        }
+        SubscriptionPackageEntity pack = validatePackage(request, vehicle.getVehicleType());
         OffsetDateTime endsAt;
         try { endsAt = request.getStartsAt().plusSeconds(Math.multiplyExact(pack.getDurationDays().longValue(), 86400L)); }
         catch (RuntimeException ex) { throw new ServiceException("Subscription duration is outside supported range", 400); }
-        if (!endsAt.isAfter(OffsetDateTime.now())) throw new ServiceException("Subscription period has already expired", 400);
-        long overlaps = entityManager.createQuery("""
-                select count(s.id) from VehicleSubscriptionEntity s
-                where s.vehicleId = :vehicle and s.parkingLotId = :lot and s.status = 'PAID'
-                  and s.startsAt < :ends and s.endsAt > :starts
-                """, Long.class).setParameter("vehicle", vehicleId).setParameter("lot", request.getParkingLotId())
-                .setParameter("starts", request.getStartsAt()).setParameter("ends", endsAt).getSingleResult();
-        if (overlaps > 0) throw new ServiceException("The requested period overlaps a paid period", 409);
 
         VehicleSubscriptionEntity order = new VehicleSubscriptionEntity();
         order.setVehicleId(vehicleId);
@@ -151,8 +117,7 @@ public class VehicleSubscriptionService {
         return vehicleSubscriptionRepository.save(order);
     }
 
-    private SubscriptionPackageEntity validatePackage(ProfileSaveRequest.Subscription request,
-            String vehicleType, LockModeType lock) {
+    private SubscriptionPackageEntity validatePackage(ProfileSaveRequest.Subscription request, String vehicleType) {
         if (request == null || request.getParkingLotId() == null || request.getParkingLotId() <= 0
                 || request.getPackageId() == null || request.getPackageId() <= 0
                 || request.getStartsAt() == null || request.getPaymentDeadlineAt() == null)
@@ -160,11 +125,7 @@ public class VehicleSubscriptionService {
         OffsetDateTime now = OffsetDateTime.now();
         if (!request.getPaymentDeadlineAt().isAfter(now))
             throw new ServiceException("Payment deadline must be in the future", 400);
-        if (request.getStartsAt().getNano() % 1000 != 0 || request.getPaymentDeadlineAt().getNano() % 1000 != 0)
-            throw new ServiceException("Timestamps must use at most microsecond precision", 400);
-        SubscriptionPackageEntity pack = lock == null
-                ? entityManager.find(SubscriptionPackageEntity.class, request.getPackageId())
-                : entityManager.find(SubscriptionPackageEntity.class, request.getPackageId(), lock);
+        SubscriptionPackageEntity pack = entityManager.find(SubscriptionPackageEntity.class, request.getPackageId());
         if (pack == null) throw new ServiceException("Subscription package not found", 404);
         if (!Objects.equals(pack.getParkingLotId(), request.getParkingLotId())
                 || !Objects.equals(pack.getVehicleType(), vehicleType))
@@ -176,8 +137,6 @@ public class VehicleSubscriptionService {
         if (pack.getPriceVnd() == null || pack.getPriceVnd() < 0
                 || pack.getDurationDays() == null || pack.getDurationDays() <= 0)
             throw new ServiceException("Package terms are invalid", 409);
-        if (entityManager.find(ParkingLotEntity.class, request.getParkingLotId()) == null)
-            throw new ServiceException("Parking lot not found", 404);
         return pack;
     }
 }

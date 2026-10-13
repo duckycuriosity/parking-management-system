@@ -8,7 +8,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import vio.barie.core.entity.OwnerAccountEntity;
 
-import java.time.Instant;
 import java.time.OffsetDateTime;
 
 public interface OwnerAccountRepository extends JpaRepository<OwnerAccountEntity, Long>, JpaSpecificationExecutor<OwnerAccountEntity> {
@@ -24,46 +23,45 @@ public interface OwnerAccountRepository extends JpaRepository<OwnerAccountEntity
     @Query(
             value = """
                     SELECT
-                        oa.id AS "ownerId",
-                        oa.full_name AS "fullName",
-                        oa.identity_number AS "customerCode",
-                        oa.address AS "address",
-                        oa.image_url AS "imageUrl",
-                        oa.phone AS "phone",
-                        oa.zalo_link AS "zaloLink",
-                        oa.note AS "note",
-                        oa.status AS "status",
-                        oa.created_at AS "createdAt",
-                        oa.updated_at AS "updatedAt",
+                        oa.id AS ownerId,
+                        oa.fullName AS fullName,
+                        oa.identityNumber AS customerCode,
+                        oa.address AS address,
+                        oa.imageUrl AS imageUrl,
+                        oa.phone AS phone,
+                        oa.zaloLink AS zaloLink,
+                        oa.note AS note,
+                        oa.status AS status,
+                        oa.createdAt AS createdAt,
+                        oa.updatedAt AS updatedAt,
                         (
-                            SELECT COUNT(*)
-                            FROM vehicle v
-                            WHERE v.owner_id = oa.id
-                        ) AS "registeredVehicleCount"
-                    FROM owner_account oa
+                            SELECT COUNT(v.id)
+                            FROM VehicleEntity v
+                            WHERE v.ownerId = oa.id
+                        ) AS registeredVehicleCount
+                    FROM OwnerAccountEntity oa
                     WHERE (:searchTerm IS NULL
-                        OR LOWER(oa.full_name) LIKE LOWER(CONCAT('%', :searchTerm, '%'))
+                        OR LOWER(oa.fullName) LIKE LOWER(CONCAT('%', :searchTerm, '%'))
                         OR LOWER(oa.phone) LIKE LOWER(CONCAT('%', :searchTerm, '%'))
-                        OR LOWER(COALESCE(oa.identity_number, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%'))
+                        OR LOWER(COALESCE(oa.identityNumber, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%'))
                         OR LOWER(COALESCE(oa.address, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%')))
                       AND (:status IS NULL OR oa.status = :status)
-                      AND (CAST(:fromDate AS timestamptz) IS NULL OR oa.created_at >= :fromDate)
-                      AND (CAST(:toDate AS timestamptz) IS NULL OR oa.created_at <= :toDate)
-                    ORDER BY oa.created_at DESC, oa.id DESC
+                      AND (:fromDate IS NULL OR oa.createdAt >= :fromDate)
+                      AND (:toDate IS NULL OR oa.createdAt <= :toDate)
+                    ORDER BY oa.createdAt DESC, oa.id DESC
                     """,
             countQuery = """
                     SELECT COUNT(oa.id)
-                    FROM owner_account oa
+                    FROM OwnerAccountEntity oa
                     WHERE (:searchTerm IS NULL
-                        OR LOWER(oa.full_name) LIKE LOWER(CONCAT('%', :searchTerm, '%'))
+                        OR LOWER(oa.fullName) LIKE LOWER(CONCAT('%', :searchTerm, '%'))
                         OR LOWER(oa.phone) LIKE LOWER(CONCAT('%', :searchTerm, '%'))
-                        OR LOWER(COALESCE(oa.identity_number, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%'))
+                        OR LOWER(COALESCE(oa.identityNumber, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%'))
                         OR LOWER(COALESCE(oa.address, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%')))
                       AND (:status IS NULL OR oa.status = :status)
-                      AND (CAST(:fromDate AS timestamptz) IS NULL OR oa.created_at >= :fromDate)
-                      AND (CAST(:toDate AS timestamptz) IS NULL OR oa.created_at <= :toDate)
-                    """,
-            nativeQuery = true
+                      AND (:fromDate IS NULL OR oa.createdAt >= :fromDate)
+                      AND (:toDate IS NULL OR oa.createdAt <= :toDate)
+                    """
     )
     Page<SubscriptionRegistrantProjection> findSubscriptionRegistrants(
             @Param("searchTerm") String searchTerm,
@@ -92,9 +90,9 @@ public interface OwnerAccountRepository extends JpaRepository<OwnerAccountEntity
 
         String getStatus();
 
-        Instant getCreatedAt();
+        OffsetDateTime getCreatedAt();
 
-        Instant getUpdatedAt();
+        OffsetDateTime getUpdatedAt();
 
         long getRegisteredVehicleCount();
     }

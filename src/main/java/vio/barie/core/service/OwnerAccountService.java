@@ -24,7 +24,6 @@ import vio.barie.core.repository.VehicleRepository;
 import vio.barie.core.repository.VehicleSubscriptionRepository;
 
 
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
@@ -240,8 +239,8 @@ public class OwnerAccountService {
                 .note(projection.getNote())
                 .status(projection.getStatus())
                 .registeredVehicleCount(projection.getRegisteredVehicleCount())
-                .createdAt(toOffsetDateTime(projection.getCreatedAt()))
-                .updatedAt(toOffsetDateTime(projection.getUpdatedAt()))
+                .createdAt(projection.getCreatedAt())
+                .updatedAt(projection.getUpdatedAt())
                 .build();
     }
 
@@ -263,9 +262,5 @@ public class OwnerAccountService {
                 .validTo(subscription == null ? null : subscription.getValidTo())
                 .expired(subscription != null && subscription.getExpired())
                 .build();
-    }
-
-    private OffsetDateTime toOffsetDateTime(Instant value) {
-        return value == null ? null : value.atZone(ZoneId.systemDefault()).toOffsetDateTime();
     }
 }
