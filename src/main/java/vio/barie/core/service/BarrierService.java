@@ -54,7 +54,8 @@ public class BarrierService {
         return barriers.stream().map(barrier -> {
             BarrierDetailResponse.BarrierDetailResponseBuilder builder = BarrierDetailResponse.builder()
                     .barrierId(barrier.getBarrierId())
-                    .description(barrier.getDescription());
+                    .description(barrier.getDescription())
+                    .ipBarrier(barrier.getIpBarrier());
             if (barrier.getDirection() != null) {
                 builder.direction(barrier.getDirection());
             }
@@ -99,8 +100,8 @@ public class BarrierService {
         // khởi tạo builder cho response
         BarrierDetailResponse.BarrierDetailResponseBuilder builder = BarrierDetailResponse.builder()
                 .barrierId(barrier.getBarrierId())
-                .description(barrier.getDescription());
-
+                .description(barrier.getDescription())
+                .ipBarrier(barrier.getIpBarrier());
         if (barrier.getDirection() != null) {
             builder.direction(barrier.getDirection());
         }

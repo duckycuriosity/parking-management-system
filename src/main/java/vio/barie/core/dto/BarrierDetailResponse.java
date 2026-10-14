@@ -31,4 +31,5 @@ public class BarrierDetailResponse {
     private String deviceName; // Lấy từ parking_devices.device_id (ví dụ: Pk_abc1234a)
     private Long laneId;
     private String laneName;
+    private String ipBarrier;
 }
