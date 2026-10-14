@@ -93,21 +93,18 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
     Optional<PaymentEntity> findLatestByTikcetId(@Param("ticketId") String ticketId);
 
     @Query(value = """
-            SELECT DISTINCT ON ((callback_context->>'sessionId')::bigint) *
-            FROM payment
-            WHERE callback_type = 'SESSION'
-            AND status = 'PAID'
-            AND (callback_context->>'sessionId')::bigint IN (:sessionIds)
-            ORDER BY (callback_context->>'sessionId')::bigint, created_at DESC
+            SELECT DISTINCT ON (p.session_id) p.*
+            FROM payment p
+            WHERE p.session_id IN (:sessionIds)
+            AND p.status = 'PAID'
+            ORDER BY p.session_id, p.updated_at DESC NULLS LAST, p.id DESC
             """, nativeQuery = true)
     List<PaymentEntity> findLatestBySessionIds(@Param("sessionIds") List<Long> sessionIds);
-
     @Query(value = """
-            SELECT DISTINCT ON ((callback_context->>'sessionId')::bigint) *
-            FROM payment
-            WHERE callback_type = 'SESSION'
-            AND (callback_context->>'sessionId')::bigint IN (:sessionIds)
-            ORDER BY (callback_context->>'sessionId')::bigint, created_at DESC
+            SELECT DISTINCT ON (p.session_id) p.*
+            FROM payment p
+            WHERE p.session_id IN (:sessionIds)
+            ORDER BY p.session_id, p.updated_at DESC NULLS LAST, p.id DESC
             """, nativeQuery = true)
     List<PaymentEntity> findLatestAnyStatusBySessionIds(@Param("sessionIds") List<Long> sessionIds);
 
@@ -233,4 +230,17 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, Long> {
             @Param("excludeDates") List<LocalDate> excludeDates,
             @Param("buildingId") Long buildingId,
             @Param("parkingLotId") Long parkingLotId);
+    @Query(value = """
+           SELECT p.callback_type,
+                count(p.id),
+                COALESCE(SUM(p.amount), 0)
+                FROM payment p
+                WHERE p.status = 'PAID'
+                    AND p.callback_type IN ('SESSION', 'TICKET')
+                    AND p.paid_at >= :startDate
+                    AND p.paid_at < :endDate 
+                    GROUP BY p.callback_type """, nativeQuery = true)
+    List<Object[]> countAndSumRevenueByTicketType(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
 }

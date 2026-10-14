@@ -122,4 +122,13 @@ public class PaymentController {
             @RequestParam(required = false) String endDate) {
         return Result.ok(paymentService.getDailyRevenueSummary(parkingLotId, buildingId, startDate, endDate));
     }
+
+    @GetMapping("/ticket-statistics")
+    public Result<Map<String, Object>> getTicketRevenueStatistics(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+
+        Map<String, Object> data = paymentService.getTicketRevenueStatistics(startDate, endDate);
+        return Result.ok("Thống kê doanh thu vé ngày và vé tháng thành công", data);
+    }
 }

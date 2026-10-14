@@ -25,6 +25,9 @@ public class LaneMapper {
     public LaneResponse toResponse(LaneEntity entity) {
         LaneResponse response = new LaneResponse();
         response.setId(entity.getId());
+        response.setLaneCode(
+                String.format("LAN-%02d", entity.getId())
+        );
         response.setName(entity.getName());
         response.setType(entity.getType());
         response.setDescription(entity.getDescription());

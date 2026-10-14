@@ -7,6 +7,7 @@ import jakarta.annotation.Nullable;
 import jakarta.persistence.Tuple;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.type.descriptor.java.ObjectJavaType;
 import org.springframework.data.domain.*;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
@@ -354,6 +355,42 @@ public class PaymentService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
+    public Map<String, Object> getTicketRevenueStatistics(LocalDate startDate, LocalDate endDate){
+        LocalDate effectiveStartDate = (startDate != null) ? startDate : LocalDate.now();
+        LocalDate effectiveEndDate = (endDate != null) ? endDate : LocalDate.now();
+        LocalDateTime start = effectiveStartDate.atStartOfDay();
+        LocalDateTime end = effectiveEndDate.plusDays(1).atStartOfDay();
+        List<Object[]> results = paymentRepository.countAndSumRevenueByTicketType(start, end);
+        long dailyCount = 0;
+        BigDecimal dailyRevenue = BigDecimal.ZERO;
+        long monthlyCount = 0;
+        BigDecimal monthlyRevenue = BigDecimal.ZERO;
+
+        for(Object[] row: results){
+            String callbackType = (String) row[0];
+            long count = ((Number) row[1]).longValue();
+            BigDecimal revenue = new BigDecimal(row[2].toString());
+
+            if("SESSION".equals(callbackType)){
+                dailyCount = count;
+                dailyRevenue = revenue;
+            } else if ("TICKET".equals((callbackType))) {
+                monthlyCount = count;
+                monthlyRevenue = revenue;
+            }
+        }
+        Map<String, Object> response = new HashMap<>();
+        response.put("dailyTicketCount", dailyCount);
+        response.put("dailyTicketRevenue", dailyRevenue);
+        response.put("monthTicketCount", monthlyCount);
+        response.put("monthTicketRevenue", monthlyRevenue);
+
+        response.put("totalCount", dailyCount + monthlyCount);
+        response.put("totalRevenue", dailyRevenue.add(monthlyRevenue));
+
+        return response;
+    }
     private DateRange resolveDateRange(String startDate, String endDate) {
         LocalDateTime from = parseDateFilter(startDate, "startDate", false);
         LocalDateTime to = parseDateFilter(endDate, "endDate", true);

@@ -55,7 +55,7 @@ public class ParkingSessionLifecycleService {
 
     @Transactional
     public Optional<ParkingSessionEntity> openEntry(VehicleEntity vehicle, ParkingCustomerEntity customer,
-                                                     BarrierEntity barrier, PendingEventDetection detection) {
+                                                    BarrierEntity barrier, PendingEventDetection detection) {
         Optional<ParkingSessionEntity> alreadyOpenSession = findOpenSessionForVehicle(vehicle.getId());
         if (alreadyOpenSession.isPresent()) {
             log.info("openEntry: vehicle {} (plate={}) already has an open session id={} — skip duplicate entry",

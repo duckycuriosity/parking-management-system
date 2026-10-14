@@ -15,7 +15,7 @@ public class BeneficiaryAccountResponse {
     private Long parkingLotId;
     // Hàm này dùng để hiện 6 số cuối và ẩn toàn bộ số đầu
     public String getMaskedAccountNumber() {
-        if (accountNumber != null && accountNumber.length() > 4) {
+        if (accountNumber != null && accountNumber.length() > 6) {
             return "******" + accountNumber.substring(accountNumber.length() - 6);
         }
         return accountNumber;
