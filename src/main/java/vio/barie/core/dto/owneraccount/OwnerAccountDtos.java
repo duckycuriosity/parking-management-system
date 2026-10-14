@@ -240,8 +240,6 @@ public final class OwnerAccountDtos {
         public static class NewUser extends Input {
             @NotBlank @Size(max = 255) private String name;
             @Size(max = 20) private String phone;
-            @com.fasterxml.jackson.annotation.JsonAlias("indexs")
-            private List<Integer> imageIndexes;
             @Size(max = 5) private List<String> images;
             @Size(max = 30) private String relationType;
         }
