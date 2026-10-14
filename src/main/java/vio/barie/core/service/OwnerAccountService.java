@@ -69,7 +69,9 @@ public class OwnerAccountService {
                         request.getSearchTerm(),
                         request.getStatus(),
                         fromDate,
-                        toDate
+                        toDate,
+                        request.getParkingLotId(),
+                        request.getBuildingId()
                 ),
                 pageable
         );

@@ -1,6 +1,5 @@
 package vio.barie.core.dto.owneraccount;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -57,7 +56,6 @@ public class ProfileSaveRequest extends OwnerAccountDtos.Input {
         @Size(max = 100) private String clientId;
         @Size(max = 255) private String name;
         @Size(max = 20) private String phone;
-        @JsonAlias("indexs") private List<Integer> imageIndexes;
         @Size(max = 5) private List<String> images;
         /** OWNER creates the owner-person only with a new owner; every new person requires an explicit role. */
         @Size(max = 30) private String relationType;
