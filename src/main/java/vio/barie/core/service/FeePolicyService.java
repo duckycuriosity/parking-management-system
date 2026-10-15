@@ -40,7 +40,6 @@ public class FeePolicyService {
         this.clock = clock;
     }
 
-    /** Append a version, closing only the predecessor's effective interval. */
     @Transactional
     public FeePolicyResponse create(FeePolicyApplyRequest request) {
         if (request == null) {
@@ -119,9 +118,6 @@ public class FeePolicyService {
         }
     }
 
-    public FeePolicyResponse findCurrent(Long parkingLotId, VehicleType vehicleType) {
-        return findAt(parkingLotId, vehicleType, clock.instant());
-    }
 
     public FeePolicyResponse findAt(Long parkingLotId, VehicleType vehicleType, Instant at) {
         validateScope(parkingLotId, vehicleType);
@@ -136,46 +132,9 @@ public class FeePolicyService {
         return checkedResponse(matches.getFirst());
     }
 
-    /** Visitor sessions keep this complete entry-time version even after its effectiveTo. */
-    public FeePolicyResponse findForVisitor(Long parkingLotId, VehicleType vehicleType, Instant enteredAt) {
-        return findAt(parkingLotId, vehicleType, enteredAt);
-    }
-
-    /** Returns source versions for outside-subscription pricing; does not calculate fees. */
-    public List<FeePolicyResponse> findOverlapping(Long parkingLotId, VehicleType vehicleType,
-                                                 Instant from, Instant until) {
-        validateScope(parkingLotId, vehicleType);
-        if (from == null || until == null || !micros(from).isBefore(micros(until))) {
-            throw invalid("Khoảng tra cứu phải có thời điểm bắt đầu nhỏ hơn kết thúc");
-        }
-        Instant start = micros(from);
-        Instant end = micros(until);
-        List<FeePolicyEntity> policies = repository.findOverlapping(parkingLotId, vehicleType, start, end);
-        Instant cursor = start;
-        boolean first = true;
-        List<FeePolicyResponse> result = new ArrayList<>();
-        for (FeePolicyEntity policy : policies) {
-            validatePublished(policy);
-            if (policy.getEffectiveFrom().isAfter(cursor)) {
-                throw error("FEE_POLICY_GAP", "Lịch biểu phí thiếu khoảng hiệu lực cần tính", 409);
-            }
-            if (!first && policy.getEffectiveFrom().isBefore(cursor)) {
-                throw error("FEE_POLICY_OVERLAP", "Lịch biểu phí có khoảng hiệu lực chồng nhau", 409);
-            }
-            result.add(toResponse(policy));
-            cursor = policy.getEffectiveTo() == null || policy.getEffectiveTo().isAfter(end)
-                    ? end : policy.getEffectiveTo();
-            first = false;
-        }
-        if (cursor.isBefore(end)) {
-            throw error("FEE_POLICY_GAP", "Không có biểu phí phủ đủ khoảng thời gian yêu cầu", 409);
-        }
-        return List.copyOf(result);
-    }
-
     public List<FeePolicyResponse> findHistory(Long parkingLotId, VehicleType vehicleType) {
         validateScope(parkingLotId, vehicleType);
-        if (!repository.parkingLotExists(parkingLotId)) {
+        if (!repository.existsByParkingLotId(parkingLotId)) {
             throw error("PARKING_LOT_NOT_FOUND", "Không tìm thấy bãi xe", 404);
         }
         List<FeePolicyEntity> history = repository

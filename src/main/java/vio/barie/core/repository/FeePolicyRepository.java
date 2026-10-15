@@ -17,8 +17,8 @@ public interface FeePolicyRepository extends JpaRepository<FeePolicyEntity, Inte
     @Query(value = "select id from parking_lot where id = :parkingLotId for update", nativeQuery = true)
     Optional<Long> lockParkingLot(@Param("parkingLotId") Long parkingLotId);
 
-    @Query(value = "select exists(select 1 from parking_lot where id = :parkingLotId)", nativeQuery = true)
-    boolean parkingLotExists(@Param("parkingLotId") Long parkingLotId);
+//    @Query(value = "select exists(select 1 from parking_lot where id = :parkingLotId)", nativeQuery = true)
+//    boolean parkingLotExists(@Param("parkingLotId") Long parkingLotId);
 
     @Override
     @EntityGraph(attributePaths = "timeBands")
@@ -41,17 +41,5 @@ public interface FeePolicyRepository extends JpaRepository<FeePolicyEntity, Inte
                                         @Param("vehicleType") VehicleType vehicleType,
                                         @Param("at") Instant at);
 
-    @EntityGraph(attributePaths = "timeBands")
-    @Query("""
-            select p from FeePolicyEntity p
-            where p.parkingLotId = :parkingLotId
-              and p.vehicleType = :vehicleType
-              and p.effectiveFrom < :until
-              and (p.effectiveTo is null or p.effectiveTo > :from)
-            order by p.effectiveFrom asc, p.versionNo asc
-            """)
-    List<FeePolicyEntity> findOverlapping(@Param("parkingLotId") Long parkingLotId,
-                                        @Param("vehicleType") VehicleType vehicleType,
-                                        @Param("from") Instant from,
-                                        @Param("until") Instant until);
+    boolean existsByParkingLotId(Long parkingLotId);
 }

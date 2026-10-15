@@ -1,6 +1,5 @@
 CREATE TABLE IF NOT EXISTS fee_policy (
     id bigserial primary key,
-    policy_code varchar(50) NOT NULL,
     parking_lot_id uuid NOT NULL,
     vehicle_type varchar(20) NOT NULL,
     name varchar(255) NOT NULL,
@@ -15,7 +14,6 @@ CREATE TABLE IF NOT EXISTS fee_policy (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS  idx_fee_policy_code_version ON fee_policy(policy_code, version_no);
 CREATE INDEX IF NOT EXISTS  idx_fee_policy_lot_vehicle_version ON fee_policy(parking_lot_id, vehicle_type, version_no);
 CREATE INDEX IF NOT EXISTS  idx_fee_policy_lot_vehicle_effective_from ON fee_policy(parking_lot_id, vehicle_type, effective_from);
 
