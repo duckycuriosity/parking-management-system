@@ -22,7 +22,7 @@ import org.hibernate.type.SqlTypes;
 import vio.barie.core.common.FeeCalculationMethod;
 import vio.barie.core.utils.VehicleType;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -60,10 +60,10 @@ public class FeePolicyEntity {
     private Integer versionNo;
 
     @Column(name = "effective_from", nullable = false, columnDefinition = "timestamptz")
-    private Instant effectiveFrom;
+    private LocalDateTime effectiveFrom;
 
     @Column(name = "effective_to", columnDefinition = "timestamptz")
-    private Instant effectiveTo;
+    private LocalDateTime effectiveTo;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "calculation_method", nullable = false, length = 30)
@@ -82,11 +82,11 @@ public class FeePolicyEntity {
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "timestamptz")
-    private Instant createdAt;
+    private LocalDateTime createdAt;
 
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false, columnDefinition = "timestamptz")
-    private Instant updatedAt;
+    private LocalDateTime updatedAt;
 
     @OneToMany(mappedBy = "feePolicy", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<FeeTimeBandEntity> timeBands = new ArrayList<>();

@@ -8,6 +8,7 @@ import vio.barie.core.entity.FeePolicyEntity;
 import vio.barie.core.utils.VehicleType;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,7 +40,7 @@ public interface FeePolicyRepository extends JpaRepository<FeePolicyEntity, Inte
             """)
     List<FeePolicyEntity> findEffectiveAt(@Param("parkingLotId") Long parkingLotId,
                                         @Param("vehicleType") VehicleType vehicleType,
-                                        @Param("at") Instant at);
+                                        @Param("at") LocalDateTime at);
 
     boolean existsByParkingLotId(Long parkingLotId);
 }

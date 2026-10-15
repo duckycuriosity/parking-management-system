@@ -42,7 +42,7 @@ public class FeePolicyController {
     public Result<FeePolicyResponse> findAt(
             @RequestParam @Positive Long parkingLotId,
             @RequestParam VehicleType vehicleType,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant at) {
+            @RequestParam(required = false) String at) {
         return Result.ok("Lấy biểu phí hiệu lực thành công",
                 feePolicyService.findAt(parkingLotId, vehicleType, at));
     }

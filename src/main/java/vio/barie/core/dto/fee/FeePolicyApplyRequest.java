@@ -11,6 +11,7 @@ import vio.barie.core.common.FeeCalculationMethod;
 import vio.barie.core.utils.VehicleType;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,7 +31,7 @@ public class FeePolicyApplyRequest {
     private String name;
 
     /** Null means apply at the server time captured by the service. */
-    private Instant effectiveFrom;
+    private LocalDateTime effectiveFrom;
 
     @NotNull
     private FeeCalculationMethod calculationMethod;
