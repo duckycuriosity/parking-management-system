@@ -180,16 +180,26 @@ public class DeviceLaneService {
         long totalPi = parkingDeviceRepository.countDevicesWithFilters(buildingId, parkingLotId);
         long onlinePi = parkingDeviceRepository.countDevicesByStatusWithFilters(OperatingStatus.ONLINE, buildingId, parkingLotId);
 
+        long offlineCamera = totalCamera - onlineCamera;
+        long offlineBarrier = totalBarrier - onlineBarrier;
+        long offlinePi = totalPi - onlinePi;
+        long totalDevices = totalCamera + totalBarrier + totalPi;
+        long onlineDevices = onlineCamera + onlineBarrier + onlinePi;
+        double activePercentage = totalDevices > 0
+                ? Math.round((double) onlineDevices / totalDevices * 10000.0) / 100.0
+                : 0.0;
+
         return DeviceStatsResponse.builder()
                 .totalCamera(totalCamera)
                 .onlineCamera(onlineCamera)
-                .offlineCamera(totalCamera - onlineCamera)
+                .offlineCamera(offlineCamera)
                 .totalBarrier(totalBarrier)
                 .onlineBarrier(onlineBarrier)
-                .offlineBarrier(totalBarrier - onlineBarrier)
+                .offlineBarrier(offlineBarrier)
                 .totalPi(totalPi)
                 .onlinePi(onlinePi)
-                .offlinePi(totalPi - onlinePi)
+                .offlinePi(offlinePi)
+                .activePercentage(activePercentage)
                 .build();
     }
 

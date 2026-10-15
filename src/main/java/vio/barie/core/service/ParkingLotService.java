@@ -113,6 +113,9 @@ public class ParkingLotService {
         if (request.getVerificationMode() != null) {
             entity.setVerificationMode(request.getVerificationMode());
         }
+        if (request.getOperatingMode() != null) {
+            entity.setOperatingMode(request.getOperatingMode());
+        }
         ParkingLotEntity saved = parkingLotRepository.save(entity);
         return parkingLotMapper.toResponse(saved);
     }

@@ -48,7 +48,7 @@ public class LaneController {
 
     @GetMapping
     public Result<Page<LaneResponse>> findAll(
-            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "page", defaultValue = "0" ) int page,
             @RequestParam(name = "size", defaultValue = "10") int size) {
 
         Pageable pageable = PageRequest.of(page, size);

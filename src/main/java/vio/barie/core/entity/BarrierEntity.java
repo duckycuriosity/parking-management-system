@@ -45,6 +45,11 @@ public class BarrierEntity extends BaseEntity {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "ip_barrier")
+    private String ipBarrier;
+
+    @Column(name = "reason_open_cmd")
+    private String reasonOpenCmd;
     @PrePersist
     public void prePersist() {
         LocalDateTime now = LocalDateTime.now();

@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import vio.barie.core.common.BaseStatus;
+import vio.barie.core.common.OperatingMode;
 import vio.barie.core.common.VerificationMode;
 
 @Data
@@ -33,6 +34,12 @@ public class ParkingLotCreateRequest {
     @Min(value = 0, message = "Car capacity must not be negative")
     @JsonProperty("max_car_capacity")
     private Integer maxCarCapacity;
+
+    @NotNull(message = "Operating mode is required")
+    private OperatingMode operatingMode;
+
+    @NotNull(message = "Address is required")
+    private String address;
 
     private VerificationMode verificationMode;
 }
