@@ -53,13 +53,5 @@ public class BarrierController {
         return Result.ok("Barrier information updated successfully.", response);
     }
 
-    @DeleteMapping("reset/{barrierId}")
-    public Result<Void> resetBarrier(@PathVariable String barrierId) {
-
-        barrierService.resetBarrierConfiguration(barrierId);
-
-        return Result.ok("Reset the barrier successfully to default.", null);
-    }
-
 
 }

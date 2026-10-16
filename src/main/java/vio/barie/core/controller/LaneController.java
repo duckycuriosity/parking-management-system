@@ -129,4 +129,9 @@ public class LaneController {
                 null
         );
     }
+    @DeleteMapping("/reset/{id}")
+    public Result<Void> resetLane(@PathVariable Long id) {
+        laneService.resetLaneConfiguration(id);
+        return Result.ok("Đã reset toàn bộ cấu hình của làn về mặc định thành công.", null);
+    }
 }

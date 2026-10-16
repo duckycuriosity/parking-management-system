@@ -19,8 +19,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ParkingSessionRepository extends JpaRepository<ParkingSessionEntity, Long> {
-    // session "đang mở" = đã có entry_time, chưa có exit_time
-
+    
+    @Query("SELECT CASE WHEN COUNT(p) > 0 THEN true ELSE false END FROM ParkingSessionEntity p WHERE p.entryLane.id = :laneId OR p.exitLane.id = :laneId")
+    boolean existsByLaneId(@Param("laneId") Long laneId);
     boolean existsByParkingLot_Building_Id(Long buildingId);
 
     boolean existsByEntryCustomerId(Long entryCustomerId);

@@ -146,6 +146,7 @@ public class DeviceLaneService {
                         .barrierId(firstBarrierRow.getBarrierId())
                         .description(firstBarrierRow.getBarrierDescription())
                         .direction(firstBarrierRow.getDirection())
+                        .ipBarrier(firstBarrierRow.getIpBarrier())
                         .cameras(cameraInfos)
                         .build());
             }

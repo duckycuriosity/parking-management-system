@@ -37,13 +37,6 @@ public class LaneMapper {
             response.setParkingLotId(entity.getParkingLot().getId());
             response.setParkingLotName(entity.getParkingLot().getName());
         }
-        if (entity.getCameras() != null) {
-            response.setCameraIds(entity.getCameras().stream().map(c -> c.getId()).toList());
-        }
-        if (entity.getParkingDevices() != null && !entity.getParkingDevices().isEmpty()) {
-            response.setParkingDeviceIds(entity.getParkingDevices().get(0).getId());
-        }
-
         return response;
     }
 
