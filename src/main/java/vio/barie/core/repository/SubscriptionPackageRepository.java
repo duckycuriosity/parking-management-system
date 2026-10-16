@@ -36,6 +36,10 @@ public interface SubscriptionPackageRepository extends JpaRepository<Subscriptio
 
     List<SubscriptionPackageEntity> findByPackageCodeOrderByVersionNoAsc(String packageCode);
 
+    List<SubscriptionPackageEntity> findByParkingLotIdAndVehicleTypeAndEffectiveToIsNullOrParkingLotIdAndVehicleTypeAndEffectiveToGreaterThanOrderByPackageCodeAscVersionNoAsc(
+            Long parkingLotIdForNullEnd, String vehicleTypeForNullEnd,
+            Long parkingLotIdForFutureEnd, String vehicleTypeForFutureEnd, LocalDateTime now);
+
     List<SubscriptionPackageEntity> findByParkingLotIdAndVehicleTypeAndStatusAndSaleEnabledTrueAndEffectiveFromLessThanEqualAndEffectiveToIsNullOrderByPackageCodeAscVersionNoAsc(
             Long parkingLotId, String vehicleType, String status, LocalDateTime at);
 

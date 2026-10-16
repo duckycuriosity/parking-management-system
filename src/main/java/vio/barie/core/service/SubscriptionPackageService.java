@@ -177,6 +177,22 @@ public class SubscriptionPackageService {
         return responses(result);
     }
 
+    public List<SubscriptionPackageResponse> notEndedPackages(Long parkingLotId, VehicleType vehicleType) {
+        if (parkingLotId == null || parkingLotId <= 0) {
+            throw new ServiceException("parkingLotId must be positive", 400);
+        }
+        if (vehicleType != VehicleType.CAR && vehicleType != VehicleType.MOTORBIKE) {
+            throw new ServiceException("Only CAR and MOTORBIKE subscription packages are supported", 400);
+        }
+        if (!parkingLots.existsById(parkingLotId)) {
+            throw new ServiceException("Parking lot not found", 404);
+        }
+        LocalDateTime now = LocalDateTime.now();
+        return responses(packages
+                .findByParkingLotIdAndVehicleTypeAndEffectiveToIsNullOrParkingLotIdAndVehicleTypeAndEffectiveToGreaterThanOrderByPackageCodeAscVersionNoAsc(
+                        parkingLotId, vehicleType.name(), parkingLotId, vehicleType.name(), now));
+    }
+
     private SubscriptionPackageEntity locked(Long id) {
         if (id == null || id <= 0) throw new ServiceException("packageId must be positive", 400);
         // This lightweight lookup reads no schedule graph. Identity is immutable.

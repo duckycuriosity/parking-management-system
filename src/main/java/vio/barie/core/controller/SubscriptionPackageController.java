@@ -42,6 +42,16 @@ public class SubscriptionPackageController {
                 packageService.availablePackages(parkingLotId, vehicleType));
     }
 
+    @GetMapping("/not-ended")
+    //@PreAuthorize("!@vehicleSubscriptionSecurity.authEnabled or hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_VIEW())")
+    @Operation(summary = "Lấy các gói theo bãi và loại xe có effectiveTo null hoặc lớn hơn hiện tại")
+    public Result<List<SubscriptionPackageResponse>> notEndedPackages(
+            @RequestParam @Positive Long parkingLotId,
+            @RequestParam VehicleType vehicleType) {
+        return Result.ok("Lấy danh sách gói chưa kết thúc thành công",
+                packageService.notEndedPackages(parkingLotId, vehicleType));
+    }
+
     @PostMapping
     //PreAuthorize("!@vehicleSubscriptionSecurity.authEnabled or hasAnyAuthority(T(vio.barie.core.common.RoleEnum).CAN_EDIT())")
     @Operation(summary = "Tạo phiên bản gói nháp; backend tự cấp số phiên bản")
