@@ -127,7 +127,7 @@ public class OwnerAccountProfileService {
                     key = clean(customer.getClientId()) == null
                             ? "new:" + newPerson++ : "client:" + customer.getClientId().trim();
                     List<MultipartFile> files = base64Images(customer.getImages(), "customer.images");
-                    if (files == null) files = selectedImages(images, customer.getImageIndexes());
+                    if (files == null) throw new ServiceException("Each new driver requires images", 400);
                     Person person = new Person(name, phone, files);
                     Person previous = people.putIfAbsent(key, person);
                     if (previous != null && !samePerson(previous, person)) {
@@ -234,7 +234,6 @@ public class OwnerAccountProfileService {
             ProfileSaveRequest.Customer customer = new ProfileSaveRequest.Customer();
             customer.setName(user.getName());
             customer.setPhone(user.getPhone());
-            customer.setImageIndexes(user.getImageIndexes());
             customer.setImages(user.getImages());
             customer.setRelationType(user.getRelationType());
             drivers.add(customer);
@@ -314,18 +313,6 @@ public class OwnerAccountProfileService {
     private ParkingCustomerEntity findOwnerCustomer(Long ownerId, Long id) {
         if (ownerId == null || id == null) throw new ServiceException("Owner and driver are required", 400);
         return parkingCustomerRepository.findByIdAndOwnerId(id, ownerId).orElseThrow(() -> new ServiceException("Driver does not belong to owner", 404));
-    }
-
-    private List<MultipartFile> selectedImages(List<MultipartFile> images, List<Integer> indexes) {
-        if (images == null || indexes == null || indexes.isEmpty() || new HashSet<>(indexes).size() != indexes.size()) {
-            throw new ServiceException("Each new driver requires imageIndexes referring to uploaded images", 400);
-        }
-        List<MultipartFile> selected = new ArrayList<>();
-        for (Integer index : indexes) {
-            if (index == null || index < 0 || index >= images.size()) throw new ServiceException("Invalid image index", 400);
-            selected.add(images.get(index));
-        }
-        return checkedImages(selected);
     }
 
     private List<MultipartFile> base64Images(List<String> images, String fieldName) {
