@@ -34,5 +34,5 @@ public class LaneEntity extends BaseEntity {
     private List<CameraEntity> cameras;
 
     @OneToMany(mappedBy = "lane", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.LAZY)
-    private List<ParkingDeviceEntity> parkingDevices;
+    private List<BarrierEntity> barriers;
 }

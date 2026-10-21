@@ -30,6 +30,7 @@ public class LaneCreateRequest {
     private Long parkingLotId;
 
     // optional grouping
-    private java.util.List<Long> cameraIds;
-    private List<Long> parkingDeviceIds;
+    private Long cameraFaceId;
+    private Long cameraPlateId;
+    private String parkingDeviceCode;
 }

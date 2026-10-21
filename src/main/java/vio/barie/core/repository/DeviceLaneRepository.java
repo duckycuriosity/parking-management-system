@@ -29,6 +29,8 @@ public interface DeviceLaneRepository {
 
     String getDirection();
 
+    String getIpBarrier();
+
     // Camera info
     Long getCameraId();
 

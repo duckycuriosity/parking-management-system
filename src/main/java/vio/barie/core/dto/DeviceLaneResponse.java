@@ -38,6 +38,7 @@ public class DeviceLaneResponse {
         private String description;
         private String direction;
         private List<CameraInfo> cameras;
+        private String ipBarrier;
     }
 
     @Data

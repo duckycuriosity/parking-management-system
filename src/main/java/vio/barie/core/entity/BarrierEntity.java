@@ -29,6 +29,10 @@ public class BarrierEntity extends BaseEntity {
     @JoinColumn(name = "parking_device_id", nullable = false)
     private ParkingDeviceEntity parkingDevice;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "lane_id")
+    private LaneEntity lane;
+
     @Column(name = "description", length = 255)
     private String description;
 

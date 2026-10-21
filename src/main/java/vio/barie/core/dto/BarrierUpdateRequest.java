@@ -7,8 +7,6 @@ import vio.barie.core.utils.DirectionType;
 
 @Data
 public class BarrierUpdateRequest {
-    private Long faceCameraId;
-    private Long plateCameraId;
 
     @NotNull(message = "Please choose the control device")
     private Long parkingDeviceId;

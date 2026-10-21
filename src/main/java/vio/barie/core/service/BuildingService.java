@@ -87,6 +87,8 @@ public class BuildingService {
         entity.setAddress(request.getAddress());
         entity.setDescription(request.getDescription());
         entity.setStatus(request.getStatus());
+        entity.setPhoneNumber(request.getPhone_number());
+        entity.setManagementUnit(request.getManagement_unit());
         BuildingEntity saved = buildingRepository.save(entity);
         return buildingMapper.toResponse(saved);
     }

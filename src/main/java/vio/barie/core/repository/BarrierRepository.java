@@ -13,6 +13,8 @@ import java.util.Optional;
 
 @Repository
 public interface BarrierRepository extends JpaRepository<BarrierEntity, Long> {
+    List<BarrierEntity> findByLane_Id(Long laneId);
+    List<BarrierEntity> findByLaneIdIn(List<Long> laneIds);
 
     @Query("SELECT COUNT(b) FROM BarrierEntity b " +
             "LEFT JOIN b.parkingDevice pd LEFT JOIN pd.lane l LEFT JOIN l.parkingLot p " +

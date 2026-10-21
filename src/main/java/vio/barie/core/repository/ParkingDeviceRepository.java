@@ -62,11 +62,12 @@ public interface ParkingDeviceRepository extends JpaRepository<ParkingDeviceEnti
             "WHERE pd.lane_id = :laneId", nativeQuery = true)
     List<DeviceLaneRepository> findAllDeviceDetailsByLaneId(@Param("laneId") Long laneId);
 
-    @Query(value = "SELECT " +
+    @Query(value =
+            "SELECT " +
             "pd.id AS deviceId, pd.device_id AS deviceCode, pd.status AS deviceStatus, pd.firmware_version AS firmwareVersion, " +
             "pd.last_seen AS lastSeen, " +
             "pd.lane_id AS laneId, l.type AS typeLane, l.location AS location, " +
-            "b.id AS barrierLocalId, b.barrier_id AS barrierId, b.description AS barrierDescription, b.direction AS direction, " +
+            "b.id AS barrierLocalId, b.barrier_id AS barrierId, b.description AS barrierDescription, b.direction AS direction, b.ip_barrier AS ipBarrier," +
             "c.id AS cameraId, c.name AS cameraName, c.url AS cameraUrl, c.type AS cameraType,  c.uuid AS uuid, bc.role AS cameraRole " +
             "FROM parking_devices pd " +
             "LEFT JOIN lane l ON l.id = pd.lane_id " +

@@ -1,6 +1,7 @@
 package vio.barie.core.service;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,12 +19,7 @@ import vio.barie.core.entity.CameraEntity;
 import vio.barie.core.entity.LaneEntity;
 import vio.barie.core.entity.ParkingLotEntity;
 import vio.barie.core.mapper.LaneMapper;
-import vio.barie.core.repository.BarrierCameraRepository;
-import vio.barie.core.repository.BarrierRepository;
-import vio.barie.core.repository.LaneRepository;
-import vio.barie.core.repository.ParkingLotRepository;
-import vio.barie.core.repository.CameraRepository;
-import vio.barie.core.repository.ParkingDeviceRepository;
+import vio.barie.core.repository.*;
 import vio.barie.core.entity.ParkingDeviceEntity;
 import vio.barie.core.utils.DirectionType;
 
@@ -45,6 +41,7 @@ public class LaneService {
     private final ParkingDeviceRepository parkingDeviceRepository;
     private final BarrierRepository barrierRepository;
     private final BarrierCameraRepository barrierCameraRepository;
+    private final ParkingSessionRepository parkingSessionRepository;
 
     @Transactional
     public LaneResponse create(LaneCreateRequest request) {
@@ -53,41 +50,98 @@ public class LaneService {
 
         LaneEntity entity = laneMapper.toEntity(request);
         entity.setParkingLot(parkingLot);
-
         LaneEntity saved = laneRepository.save(entity);
+        String exactBarrierId = null;
 
-        // associate cameras
-        if (request.getCameraIds() != null && !request.getCameraIds().isEmpty()) {
-            Iterable<CameraEntity> cams = cameraRepository.findAllById(request.getCameraIds());
-            for (CameraEntity cam : cams) {
-                cam.setLane(saved);
+        if (request.getParkingDeviceCode() != null && !request.getParkingDeviceCode().trim().isEmpty()) {
+            exactBarrierId = request.getParkingDeviceCode().trim();
+            BarrierEntity barrier = barrierRepository.findByBarrierId(exactBarrierId)
+                    .orElseThrow(() -> new BusinessException("Không tìm thấy Barie với mã: " + request.getParkingDeviceCode(), "BARRIER_NOT_FOUND", 404));
+
+            if (barrier.getLane() != null) {
+                String errorMsg = String.format("Barie [%s] hiện tại đang được gắn ở lane: %s", barrier.getBarrierId(), barrier.getLane().getName());
+                throw new BusinessException(errorMsg, "BARRIER_ALREADY_ASSIGNED_TO_LANE", 400);
             }
-            cameraRepository.saveAll(cams);
+            barrier.setLane(saved);
+            barrierRepository.save(barrier);
+
         }
 
-        // associate parking devices
-        if (request.getParkingDeviceIds() != null && !request.getParkingDeviceIds().isEmpty()) {
-            if (request.getParkingDeviceIds().size() > 1) {
-                throw new BusinessException("Mỗi làn chỉ được phép gắn tối đa 1 thiết bị!", "INVALID_DEVICE_COUNT", 400);
-            }
-            Long targetDeviceId = request.getParkingDeviceIds().get(0);
-            if (targetDeviceId != null) {
-                ParkingDeviceEntity d = parkingDeviceRepository.findById(targetDeviceId)
-                        .orElseThrow(() -> new BusinessException("Parking device not found", "DEVICE_NOT_FOUND", 404));
+        // validate trùng camera
+        if(request.getCameraFaceId() != null && request.getCameraPlateId() != null && request.getCameraFaceId().equals(request.getCameraPlateId())){
+            throw new BusinessException ("Không thể chọn cùng một Camera cho cả hai vai trò Mặt và Biển số.",
+                    "DUPLICATE_CAMERA_ROLE",
+                    400);
+        }
 
-                // Validate
-                if (d.getLane() != null) {
-                    String errorMsg = String.format("Thiết bị [%s] hiện tại đang được gắn ở lane: %s", d.getDeviceId(), d.getLane().getName());
-                    throw new BusinessException(errorMsg, "DEVICE_ALREADY_ASSIGNED_TO_LANE", 400);
+        List<CameraEntity> camerasToSave = new ArrayList<>();
+        CameraEntity faceCam = null;
+        CameraEntity plateCam = null;
+
+        // validate camera mặt
+        if(request.getCameraFaceId() != null){
+            faceCam = cameraRepository.findById(request.getCameraFaceId())
+                    .orElseThrow(()-> new BusinessException("Camera mặt không tìm thấy", "CAMERA_NOT_FOUND", 404));
+            if (faceCam.getLane() != null) {
+                throw new BusinessException(
+                        "Camera mặt này đang được cấu hình cho làn [" + faceCam.getLane().getName() + "]. Vui lòng gỡ cấu hình ở làn cũ trước.",
+                        "CAMERA_ALREADY_ASSIGNED",
+                        400
+                );
+            }
+            faceCam.setLane(saved);
+            camerasToSave.add(faceCam);
+        }
+
+        // validate camera biển
+        if(request.getCameraPlateId() != null){
+            plateCam = cameraRepository.findById(request.getCameraPlateId())
+                    .orElseThrow(()-> new BusinessException("Camera biển số không tìm thấy", "CAMERA_NOT_FOUND", 404));
+            if(plateCam.getLane() != null){
+                throw new BusinessException(
+                        "Camera biển số này đang được cấu hình cho làn [" + plateCam.getLane().getName() + "]. Vui lòng gỡ cấu hình ở làn cũ trước.",
+                        "CAMERA_ALREADY_ASSIGNED",
+                        400
+                );
+            }
+            plateCam.setLane(saved);
+            camerasToSave.add(plateCam);
+        }
+
+        if (!camerasToSave.isEmpty()) {
+            cameraRepository.saveAll(camerasToSave);
+        }
+
+        // gán camera vào barrier
+        if(exactBarrierId != null && (!camerasToSave.isEmpty())){
+
+
+                if(faceCam != null){
+                    BarrierCameraEntity faceMapping = new BarrierCameraEntity();
+                    faceMapping.setBarrierId(exactBarrierId);
+                    faceMapping.setCameraId(faceCam.getId());
+                    faceMapping.setRole("FACE");
+                    faceMapping.setPriority(0);
+                    barrierCameraRepository.save(faceMapping);
                 }
 
-                d.setLane(saved);
-                parkingDeviceRepository.save(d);
-            }
+                if (plateCam != null) {
+                    BarrierCameraEntity plateMapping = new BarrierCameraEntity();
+                    plateMapping.setBarrierId(exactBarrierId);
+                    plateMapping.setCameraId(plateCam.getId());
+                    plateMapping.setRole("PLATE");
+                    plateMapping.setPriority(0);
+                    barrierCameraRepository.save(plateMapping);
+                }
+
         }
-
-
-        return laneMapper.toResponse(saved);
+        LaneResponse response = laneMapper.toResponse(saved);
+        response.setCameraFaceId(request.getCameraFaceId());
+        response.setCameraPlateId(request.getCameraPlateId());
+        if (exactBarrierId != null) {
+            response.setParkingDeviceCode(exactBarrierId);
+        }
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -95,41 +149,58 @@ public class LaneService {
         Page<LaneEntity> lanePage = laneRepository.findAllWithParkingLot(pageable);
         List<LaneResponse> responses = laneMapper.toResponseList(lanePage.getContent());
 
-        List<Long> laneIds = responses.stream()
-                .map(LaneResponse::getId)
-                .collect(Collectors.toList());
+        List<Long> laneIds = responses.stream().map(LaneResponse::getId).collect(Collectors.toList());
         if (!laneIds.isEmpty()) {
+            List<BarrierEntity> barriers = barrierRepository.findByLaneIdIn(laneIds);
+            Map<Long, BarrierEntity> barrierByLaneMap = barriers.stream()
+                    .collect(Collectors.toMap(b -> b.getLane().getId(), b -> b, (existing, replacement) -> existing));
 
-            List<ParkingDeviceEntity> devices = parkingDeviceRepository.findByLaneIdIn(laneIds);
+            List<String> validBarrierIds = barriers.stream()
+                    .map(BarrierEntity::getBarrierId)
+                    .collect(Collectors.toList());
+            List<BarrierCameraEntity> allBarrierCameras = barrierCameraRepository.findByBarrierIdIn(validBarrierIds);
 
-            Map<Long, ParkingDeviceEntity> deviceByLaneMap = devices.stream()
-                    .collect(Collectors.toMap(
-                            d -> d.getLane().getId(), // Key là laneId
-                            d -> d,
-                            (existing, replacement) -> existing
-
-                    ));
-
+            Map<String, List<BarrierCameraEntity>> camerasByBarrierMap = allBarrierCameras.stream()
+                    .collect(Collectors.groupingBy(BarrierCameraEntity::getBarrierId));
 
             for (LaneResponse res : responses) {
-                ParkingDeviceEntity device = deviceByLaneMap.get(res.getId());
-                if (device != null) {
-                    res.setParkingDeviceIds(device.getId());
-                    res.setParkingDeviceCode(device.getDeviceId());
+                BarrierEntity barrier = barrierByLaneMap.get(res.getId());
+                if (barrier != null) {
+                    String barrierId = barrier.getBarrierId();
+                    res.setParkingDeviceCode(barrierId);
+
+                    List<BarrierCameraEntity> barrierCameras = camerasByBarrierMap.getOrDefault(barrierId, new ArrayList<>());
+                    for (BarrierCameraEntity bc : barrierCameras) {
+                        if ("FACE".equalsIgnoreCase(bc.getRole())) {
+                            res.setCameraFaceId(bc.getCameraId());
+                        } else if ("PLATE".equalsIgnoreCase(bc.getRole())) {
+                            res.setCameraPlateId(bc.getCameraId());
+                        }
+                    }
                 }
             }
         }
         return new PageImpl<>(responses, pageable, lanePage.getTotalElements());
     }
-
     @Transactional(readOnly = true)
     public LaneResponse findById(Long id) {
         LaneEntity entity = laneRepository.findByIdWithParkingLot(id)
                 .orElseThrow(() -> new BusinessException("Lane not found", "LANE_NOT_FOUND", 404));
         LaneResponse response = laneMapper.toResponse(entity);
-        if (response.getParkingDeviceIds() != null) {
-            parkingDeviceRepository.findById(response.getParkingDeviceIds())
-                    .ifPresent(d -> response.setParkingDeviceCode(d.getDeviceId()));
+
+        if (entity.getBarriers() != null && !entity.getBarriers().isEmpty()) {
+            BarrierEntity barrier = entity.getBarriers().get(0);
+            String barrierId = barrier.getBarrierId();
+            response.setParkingDeviceCode(barrierId);
+
+            List<BarrierCameraEntity> barrierCameras = barrierCameraRepository.findByBarrierId(barrierId);
+            for (BarrierCameraEntity bc : barrierCameras) {
+                if ("FACE".equalsIgnoreCase(bc.getRole())) {
+                    response.setCameraFaceId(bc.getCameraId());
+                } else if ("PLATE".equalsIgnoreCase(bc.getRole())) {
+                    response.setCameraPlateId(bc.getCameraId());
+                }
+            }
         }
         return response;
     }
@@ -170,82 +241,217 @@ public class LaneService {
         entity.setDescription(request.getDescription());
         entity.setStatus(request.getStatus());
         entity.setParkingLot(parkingLot);
-
         LaneEntity saved = laneRepository.save(entity);
 
-        // update camera associations (simple strategy: set lane for listed cameras)
-        List<CameraEntity> currentCameras = entity.getCameras() != null
-                ? new ArrayList<>(entity.getCameras())
-                : new ArrayList<>();
-        List<Long> newCameraIds = request.getCameraIds() != null ? request.getCameraIds() : List.of();
+        // 1. Cập nhật Làn cho Barie
+        List<BarrierEntity> currentBarriers = barrierRepository.findByLane_Id(id);
+         String exactBarrierId = null;
+
+        if (request.getParkingDeviceCode() == null || request.getParkingDeviceCode().isBlank()) {
+
+            List<String> oldBarrierIds = currentBarriers.stream().map(BarrierEntity::getBarrierId).toList();
+            for (BarrierEntity oldBarrier : currentBarriers) {
+                oldBarrier.setLane(null);
+            }
+            if (!currentBarriers.isEmpty()) {
+                barrierRepository.saveAll(currentBarriers); // BATCH SAVE
+                barrierCameraRepository.deleteByBarrierIdIn(oldBarrierIds); // BATCH DELETE
+            }
+            barrierRepository.saveAll(currentBarriers);
+        } else {
+            final String barrierIdToUpdate = request.getParkingDeviceCode().trim();
+            exactBarrierId = barrierIdToUpdate;
+            BarrierEntity requestedBarrier = barrierRepository.findByBarrierId(barrierIdToUpdate)
+                    .orElseThrow(() -> new BusinessException("Không tìm thấy Barie với mã: " + barrierIdToUpdate, "BARRIER_NOT_FOUND", 404));
+
+            if (requestedBarrier.getLane() != null && !requestedBarrier.getLane().getId().equals(id)) {
+                String errorMsg = String.format("Barie [%s] hiện tại đang được gắn ở lane: %s",
+                        requestedBarrier.getBarrierId(), requestedBarrier.getLane().getName());
+                throw new BusinessException(errorMsg, "BARRIER_ALREADY_ASSIGNED_TO_LANE", 400);
+            }
+
+            // Xóa Làn của các Barie cũ không trùng khớp
+            List<BarrierEntity> barriersToUnlink = new ArrayList<>();
+            List<String> barrierIdsToUnlink = new ArrayList<>();
+            for (BarrierEntity oldBarrier : currentBarriers) {
+                if (!oldBarrier.getId().equals(requestedBarrier.getId())) {
+                    oldBarrier.setLane(null);
+                    barriersToUnlink.add(oldBarrier);
+                    barrierIdsToUnlink.add(oldBarrier.getBarrierId());
+                }
+            }
+            if (!barriersToUnlink.isEmpty()) {
+                barrierRepository.saveAll(barriersToUnlink);
+                barrierCameraRepository.deleteByBarrierIdIn(barrierIdsToUnlink);
+            }
+            requestedBarrier.setLane(saved);
+            barrierRepository.save(requestedBarrier);
+        }
+
+        // 2. Validate và Cập nhật Camera Làn
+        if (request.getCameraFaceId() != null && request.getCameraPlateId() != null && request.getCameraFaceId().equals(request.getCameraPlateId())) {
+            throw new BusinessException("Không thể chọn cùng một Camera cho cả hai vai trò mặt và biển số.", "DUPLICATE_CAMERA_ROLE", 400);
+        }
+
+        List<Long> newCameraIds = new ArrayList<>();
+        if (request.getCameraFaceId() != null) newCameraIds.add(request.getCameraFaceId());
+        if (request.getCameraPlateId() != null) newCameraIds.add(request.getCameraPlateId());
+
+        List<CameraEntity> currentCameras = entity.getCameras() != null ? new ArrayList<>(entity.getCameras()) : new ArrayList<>();
+        List<CameraEntity> camerasToUnlink = new ArrayList<>();
         for (CameraEntity oldCam : currentCameras) {
             if (!newCameraIds.contains(oldCam.getId())) {
                 oldCam.setLane(null);
+                camerasToUnlink.add(oldCam);
             }
         }
-        if (!newCameraIds.isEmpty()) {
-            Iterable<CameraEntity> cams = cameraRepository.findAllById(newCameraIds);
-            for (CameraEntity cam : cams) {
-                cam.setLane(saved);
-            }
-            cameraRepository.saveAll(cams);
+        if (!camerasToUnlink.isEmpty()) {
+            cameraRepository.saveAll(camerasToUnlink);
         }
 
-        List<ParkingDeviceEntity> currentDevices = parkingDeviceRepository.findByLane_Id(id);
-        if (request.getParkingDeviceIds() == null || request.getParkingDeviceIds().isEmpty()) {
-            for (ParkingDeviceEntity oldDevice : currentDevices) {
-                oldDevice.setLane(null);
-            }
-            parkingDeviceRepository.saveAll(currentDevices);
-        } else {
-            if (request.getParkingDeviceIds().size() > 1) {
-                throw new BusinessException("Mỗi làn chỉ được phép gắn tối đa 1 thiết bị!", "INVALID_DEVICE_COUNT", 400);
-            }
-            Long targetDeviceId = request.getParkingDeviceIds().get(0);
-            if (targetDeviceId != null) {
-                ParkingDeviceEntity requestedDevice = parkingDeviceRepository.findById(targetDeviceId)
-                        .orElseThrow(() -> new BusinessException("Parking device not found", "DEVICE_NOT_FOUND", 404));
+        CameraEntity faceCam = null;
+        CameraEntity plateCam = null;
+        List<CameraEntity> camerasToSave = new ArrayList<>();
 
-                if (requestedDevice.getLane() != null && !requestedDevice.getLane().getId().equals(id)) {
-                    String errorMsg = String.format("Thiết bị [%s] hiện tại đang được gắn ở lane: %s",
-                            requestedDevice.getDeviceId(), requestedDevice.getLane().getName());
-                    throw new BusinessException(errorMsg, "DEVICE_ALREADY_ASSIGNED_TO_LANE", 400);
-                }
-
-                for (ParkingDeviceEntity oldDevice : currentDevices) {
-                    if (!oldDevice.getId().equals(requestedDevice.getId())) {
-                        oldDevice.setLane(null);
-                        parkingDeviceRepository.save(oldDevice);
-                    }
-                }
-                requestedDevice.setLane(saved);
-                parkingDeviceRepository.save(requestedDevice);
+        if (request.getCameraFaceId() != null) {
+            faceCam = cameraRepository.findById(request.getCameraFaceId())
+                    .orElseThrow(() -> new BusinessException("Camera mặt không tìm thấy", "CAMERA_NOT_FOUND", 404));
+            if (faceCam.getLane() != null && !faceCam.getLane().getId().equals(id)) {
+                throw new BusinessException("Camera mặt này đang được cấu hình cho làn khác.", "CAMERA_ALREADY_ASSIGNED", 400);
             }
-
+            faceCam.setLane(saved);
+            camerasToSave.add(faceCam);
         }
 
-        return laneMapper.toResponse(saved);
+        if (request.getCameraPlateId() != null) {
+            plateCam = cameraRepository.findById(request.getCameraPlateId())
+                    .orElseThrow(() -> new BusinessException("Camera biển số không tìm thấy.", "CAMERA_NOT_FOUND", 404));
+            if (plateCam.getLane() != null && !plateCam.getLane().getId().equals(id)) {
+                throw new BusinessException("Camera biển số này đang được cấu hình cho làn khác.", "CAMERA_ALREADY_ASSIGNED", 400);
+            }
+            plateCam.setLane(saved);
+            camerasToSave.add(plateCam);
+        }
+
+        if (!camerasToSave.isEmpty()) {
+            cameraRepository.saveAll(camerasToSave);
+        }
+
+        // 3. Cập nhật ánh xạ Barie - Camera
+        if (exactBarrierId != null) {
+            final String finalBarrierId = exactBarrierId;
+            List<BarrierCameraEntity> existingMappings = barrierCameraRepository.findByBarrierId(exactBarrierId);
+
+            if (faceCam != null) {
+                BarrierCameraEntity faceMapping = existingMappings.stream()
+                        .filter(m -> "FACE".equalsIgnoreCase(m.getRole()))
+                        .findFirst()
+                        .orElseGet(() -> {
+                            BarrierCameraEntity newMapping = new BarrierCameraEntity();
+                            newMapping.setBarrierId(finalBarrierId);
+                            newMapping.setRole("FACE");
+                            newMapping.setPriority(0);
+                            return newMapping;
+                        });
+                faceMapping.setCameraId(faceCam.getId());
+                barrierCameraRepository.save(faceMapping);
+            } else {
+                existingMappings.stream().filter(m -> "FACE".equalsIgnoreCase(m.getRole())).findFirst().ifPresent(barrierCameraRepository::delete);
+            }
+
+            if (plateCam != null) {
+                BarrierCameraEntity plateMapping = existingMappings.stream()
+                        .filter(m -> "PLATE".equalsIgnoreCase(m.getRole()))
+                        .findFirst()
+                        .orElseGet(() -> {
+                            BarrierCameraEntity newMapping = new BarrierCameraEntity();
+                            newMapping.setBarrierId(finalBarrierId);
+                            newMapping.setRole("PLATE");
+                            newMapping.setPriority(0);
+                            return newMapping;
+                        });
+                plateMapping.setCameraId(plateCam.getId());
+                barrierCameraRepository.save(plateMapping);
+            } else {
+                existingMappings.stream().filter(m -> "PLATE".equalsIgnoreCase(m.getRole())).findFirst().ifPresent(barrierCameraRepository::delete);
+            }
+        }
+
+        LaneResponse response = laneMapper.toResponse(saved);
+        response.setCameraFaceId(request.getCameraFaceId());
+        response.setCameraPlateId(request.getCameraPlateId());
+        if (exactBarrierId != null) {
+            response.setParkingDeviceCode(exactBarrierId);
+        }
+        return response;
     }
 
     @Transactional
     public void delete(Long id) {
         LaneEntity entity = laneRepository.findById(id)
-                .orElseThrow(() -> new BusinessException("Lane not found", "LANE_NOT_FOUND", 404));
-
-        List<ParkingDeviceEntity> linkedDevices = parkingDeviceRepository.findByLane_Id(id);
-        if (!linkedDevices.isEmpty()) {
+                .orElseThrow(() -> {
+                    return new BusinessException("Lane not found", "LANE_NOT_FOUND", 404);
+                });
+        // validate check làn này đã có phiên chưa
+        boolean hasParkingSessions = parkingSessionRepository.existsByLaneId(id);
+        if (hasParkingSessions) {
             throw new BusinessException(
-                    "Làn này đang được gắn thiết bị, vui lòng gỡ thiết bị trước khi xóa!",
-                    "LANE_HAS_DEVICE", 400);
+                    "Làn này đã có lịch sử xe vào/ra. Không thể xóa để bảo toàn dữ liệu đối soát. Vui lòng cập nhật trạng thái Làn thành 'Ngừng hoạt động' thay vì xóa!",
+                    "LANE_HAS_SESSIONS",
+                    400
+            );
+        }
+        List<BarrierEntity> linkedBarriers = barrierRepository.findByLane_Id(id);
+        if (!linkedBarriers.isEmpty()) {
+            List<String> barrierIds = linkedBarriers.stream()
+                    .map(BarrierEntity::getBarrierId)
+                    .collect(Collectors.toList());
+            throw new BusinessException("Làn này đang được gắn Barie, vui lòng gỡ cấu hình Barie trước khi xóa!", "LANE_HAS_BARRIER", 400);
+        }
+        if (entity.getCameras() != null && !entity.getCameras().isEmpty()) {
+            List<String> cameraIds = entity.getCameras().stream()
+                    .map(cam -> String.valueOf(cam.getId()))
+                    .collect(Collectors.toList());
+            throw new BusinessException("Làn này đang được gắn Camera, vui lòng gỡ cấu hình Camera trước khi xóa!", "LANE_HAS_CAMERA", 400);
         }
         try {
             laneRepository.delete(entity);
             laneRepository.flush();
         } catch (DataIntegrityViolationException ex) {
-            throw new BusinessException(
-                    "Làn này đang được liên kết với dữ liệu khác, không thể xóa!",
-                    "LANE_IN_USE", 409);
+            throw new BusinessException("Làn này đang được liên kết với dữ liệu khác, không thể xóa!", "LANE_IN_USE", 409);
         }
+    }
+
+    @Transactional
+    public void resetLaneConfiguration(Long laneId) {
+        LaneEntity entity = laneRepository.findById(laneId)
+                .orElseThrow(() -> new BusinessException("Lane not found", "LANE_NOT_FOUND", 404));
+
+        if (entity.getCameras() != null && !entity.getCameras().isEmpty()) {
+            for (CameraEntity camera : entity.getCameras()) {
+                camera.setLane(null);
+            }
+            cameraRepository.saveAll(entity.getCameras());
+
+        }
+
+        List<BarrierEntity> linkedBarriers = barrierRepository.findByLane_Id(laneId);
+
+        if (!linkedBarriers.isEmpty()) {
+            List<String> barrierIds = linkedBarriers.stream()
+                    .map(BarrierEntity::getBarrierId)
+                    .collect(Collectors.toList());
+
+            barrierCameraRepository.deleteByBarrierIdIn(barrierIds);
+            log.info("Đã xóa cấu hình barrier_camera cho các Barie: {}", barrierIds);
+
+            for (BarrierEntity barrier : linkedBarriers) {
+                barrier.setLane(null);
+            }
+            barrierRepository.saveAll(linkedBarriers);
+            log.info("Đã reset lane_id về null cho các Barie thuộc Làn id: {}", laneId);
+        }
+        log.info("Hoàn tất reset cấu hình Làn id: {}", laneId);
     }
 
     @Transactional
@@ -260,14 +466,14 @@ public class LaneService {
     }
 
     @Transactional
-    public void assignParkingDevices(Long laneId, java.util.List<Long> deviceIds) {
+    public void assignParkingDevices(Long laneId, java.util.List<Long> barrierIdsPK) {
         LaneEntity lane = laneRepository.findById(laneId)
                 .orElseThrow(() -> new BusinessException("Lane not found", "LANE_NOT_FOUND", 404));
-        Iterable<ParkingDeviceEntity> devs = parkingDeviceRepository.findAllById(deviceIds);
-        for (ParkingDeviceEntity d : devs) {
-            d.setLane(lane);
+        Iterable<BarrierEntity> barriers = barrierRepository.findAllById(barrierIdsPK);
+        for (BarrierEntity b : barriers) {
+            b.setLane(lane);
         }
-        parkingDeviceRepository.saveAll(devs);
+        barrierRepository.saveAll(barriers);
     }
 
     @Transactional
