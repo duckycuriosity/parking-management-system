@@ -49,60 +49,66 @@ public class DeviceLaneService {
             }
         }
 
-        DeviceLaneRepository firstDeviceRow = rawData.get(0);
 
-        // trường hợp LEFT JOIN ra dòng nhưng id thiết bị null (đề phòng)
-        if (firstDeviceRow.getDeviceId() == null) {
-            String msg = "This lane is not yet connected to any parking device.";
-            log.warn("[DEVICE-LANE] Lane ID: {} {}", laneId, msg);
-            return Result.ok(msg, new ArrayList<>());
-        }
+
         // Gom nhóm theo device id
-        Map<String, List<DeviceLaneRepository>> groupedByBarrier = rawData.stream()
-                .filter(row -> row.getBarrierId() != null)
-                .collect(Collectors.groupingBy(DeviceLaneRepository::getBarrierId));
+        Map<Long, List<DeviceLaneRepository>> groupedByDevice = rawData.stream()
+                .filter(row -> row.getDeviceId() != null)
+                .collect(Collectors.groupingBy(DeviceLaneRepository::getDeviceId));
 
-        List<DeviceLaneResponse.BarrierInfo> barrierInfos = new ArrayList<>();
-        for (Map.Entry<String, List<DeviceLaneRepository>> barrierEntry : groupedByBarrier.entrySet()) {
-            List<DeviceLaneRepository> barrierRows = barrierEntry.getValue();
-            DeviceLaneRepository firstBarrierRow = barrierRows.get(0);
+        List<DeviceLaneResponse> responseList = new ArrayList<>();
 
-            List<DeviceLaneResponse.CameraInfo> cameraInfos = barrierRows.stream()
-                    .filter(row -> row.getCameraId() != null)
-                    .map(row -> DeviceLaneResponse.CameraInfo.builder()
-                            .id(row.getCameraId())
-                            .name(row.getCameraName())
-                            .url(row.getCameraUrl())
-                            .type(parseEnum(BaseStatus.class, row.getCameraType()))
-                            .role(parseEnum(DetectionType.class, row.getCameraRole()))
-                            .uuid(row.getUuid())
-                            .build())
-                    .distinct()
-                    .collect(Collectors.toList());
+        for (Map.Entry<Long, List<DeviceLaneRepository>> deviceEntry : groupedByDevice.entrySet()) {
+            List<DeviceLaneRepository> deviceRows = deviceEntry.getValue();
+            DeviceLaneRepository firstDeviceRow = deviceRows.get(0);
 
-            barrierInfos.add(DeviceLaneResponse.BarrierInfo.builder()
-                    .id(firstBarrierRow.getBarrierLocalId())
-                    .barrierId(firstBarrierRow.getBarrierId())
-                    .description(firstBarrierRow.getBarrierDescription())
-                    .direction(firstBarrierRow.getDirection())
-                    .cameras(cameraInfos)
+            Map<String, List<DeviceLaneRepository>> groupedByBarrier = deviceRows.stream()
+                    .filter(row -> row.getBarrierId() != null)
+                    .collect(Collectors.groupingBy(DeviceLaneRepository::getBarrierId));
+
+            List<DeviceLaneResponse.BarrierInfo> barrierInfos = new ArrayList<>();
+            for (Map.Entry<String, List<DeviceLaneRepository>> barrierEntry : groupedByBarrier.entrySet()) {
+                List<DeviceLaneRepository> barrierRows = barrierEntry.getValue();
+                DeviceLaneRepository firstBarrierRow = barrierRows.get(0);
+
+                // 3. Gom Camera
+                List<DeviceLaneResponse.CameraInfo> cameraInfos = barrierRows.stream()
+                        .filter(row -> row.getCameraId() != null)
+                        .map(row -> DeviceLaneResponse.CameraInfo.builder()
+                                .id(row.getCameraId())
+                                .name(row.getCameraName())
+                                .url(row.getCameraUrl())
+                                .type(parseEnum(BaseStatus.class, row.getCameraType()))
+                                .role(parseEnum(DetectionType.class, row.getCameraRole()))
+                                .uuid(row.getUuid())
+                                .build())
+                        .distinct()
+                        .collect(Collectors.toList());
+
+                barrierInfos.add(DeviceLaneResponse.BarrierInfo.builder()
+                        .id(firstBarrierRow.getBarrierLocalId())
+                        .barrierId(firstBarrierRow.getBarrierId())
+                        .description(firstBarrierRow.getBarrierDescription())
+                        .direction(firstBarrierRow.getDirection())
+                        .ipBarrier(firstBarrierRow.getIpBarrier())
+                        .cameras(cameraInfos)
+                        .build());
+            }
+
+            responseList.add(DeviceLaneResponse.builder()
+                    .id(firstDeviceRow.getDeviceId())
+                    .deviceId(firstDeviceRow.getDeviceCode())
+                    .status(parseEnum(OperatingStatus.class, firstDeviceRow.getDeviceStatus()))
+                    .firmwareVersion(firstDeviceRow.getFirmwareVersion())
+                    .typeLane(firstDeviceRow.getTypeLane())
+                    .lastSeen(firstDeviceRow.getLastSeen())
+                    .laneId(firstDeviceRow.getLaneId())
+                    .location(firstDeviceRow.getLocation())
+                    .barriers(barrierInfos)
                     .build());
         }
-
-        DeviceLaneResponse response = DeviceLaneResponse.builder()
-                .id(firstDeviceRow.getDeviceId())
-                .deviceId(firstDeviceRow.getDeviceCode())
-                .status(parseEnum(OperatingStatus.class, firstDeviceRow.getDeviceStatus()))
-                .firmwareVersion(firstDeviceRow.getFirmwareVersion())
-                .laneId(firstDeviceRow.getLaneId())
-                .typeLane(firstDeviceRow.getTypeLane())
-                .lastSeen(firstDeviceRow.getLastSeen())
-                .location(firstDeviceRow.getLocation())
-                .barriers(barrierInfos)
-                .build();
-
         // Trả về thành công mặc định
-        return Result.ok("Success", List.of(response));
+            return Result.ok("Success", responseList);
     }
 
 
