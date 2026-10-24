@@ -51,15 +51,15 @@ public interface ParkingDeviceRepository extends JpaRepository<ParkingDeviceEnti
     @Query(value = "SELECT " +
             "pd.id AS deviceId, pd.device_id AS deviceCode, pd.status AS deviceStatus, pd.firmware_version AS firmwareVersion, " +
             "pd.last_seen AS lastSeen, " +
-            "pd.lane_id AS laneId, l.type AS typeLane, l.location AS location, " +
-            "b.id AS barrierLocalId, b.barrier_id AS barrierId, b.description AS barrierDescription, b.direction AS direction, " +
+            "c.lane_id AS laneId, l.type AS typeLane, l.location AS location, " +
+            "b.id AS barrierLocalId, b.barrier_id AS barrierId, b.description AS barrierDescription, b.direction AS direction, b.ip_barrier AS ipBarrier, " +
             "c.id AS cameraId, c.name AS cameraName, c.url AS cameraUrl, c.type AS cameraType, c.uuid AS uuid, bc.role AS cameraRole " +
-            "FROM parking_devices pd " +
-            "LEFT JOIN lane l ON l.id = pd.lane_id " +
-            "LEFT JOIN barriers b ON b.parking_device_id = pd.id " +
-            "LEFT JOIN barrier_camera bc ON bc.barrier_id = b.barrier_id " +
-            "LEFT JOIN camera c ON c.id = bc.camera_id " +
-            "WHERE pd.lane_id = :laneId", nativeQuery = true)
+            "FROM camera c " +
+            "INNER JOIN lane l ON l.id = c.lane_id " +
+            "LEFT JOIN barrier_camera bc ON bc.camera_id = c.id " +
+            "LEFT JOIN barriers b ON b.barrier_id = bc.barrier_id " +
+            "LEFT JOIN parking_devices pd ON pd.id = b.parking_device_id " +
+            "WHERE c.lane_id = :laneId", nativeQuery = true)
     List<DeviceLaneRepository> findAllDeviceDetailsByLaneId(@Param("laneId") Long laneId);
 
     @Query(value =

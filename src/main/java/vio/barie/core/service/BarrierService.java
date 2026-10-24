@@ -95,22 +95,9 @@ public class BarrierService {
         barrier.setDirection(request.getDirection());
         barrier.setDescription(request.getDescription());
         barrier.setIpBarrier(request.getIpBarrier());
-        // cập nhật thông tin thiết bị điều khiển và làn nếu cần thiết
-        if (request.getLaneId() != null) {
-            LaneEntity lane = laneRepository.findById(request.getLaneId())
-                    .orElseThrow(() -> new BusinessException("Invalid lane", "LANE_NOT_FOUND", 400));
-            barrier.setLane(lane);
-        }
 
-        if (request.getDeviceName() != null) {
-            ParkingDeviceEntity device = parkingDeviceRepository.findByDeviceId(request.getDeviceName())
-                    .orElseThrow(() -> new BusinessException("Invalid control device", "DEVICE_NOT_FOUND", 400));
-            barrier.setParkingDevice(device);
-        }
         barrierRepository.save(barrier);
-
         BarrierDetailResponse response = getBarrierDetailById(barrierId);
-
         return response;
     }
 
